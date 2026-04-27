@@ -2520,9 +2520,17 @@ function renderSalesReport(){
   var filtered=selMonth?invoices.filter(function(i){return monthKey(i.invDate)===selMonth;}):invoices;
   var ts=filtered.reduce(function(s,i){return s+i.total;},0),ti=filtered.length,avg=ti>0?ts/ti:0;
   var cashS=filtered.filter(function(i){return i.payMode==='Cash';}).reduce(function(s,i){return s+i.total;},0);
+  var upiS=filtered.filter(function(i){return i.payMode==='UPI'||i.payMode==='Bank';}).reduce(function(s,i){return s+i.total;},0);
   var cSp=filtered.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
+  var uSp=filtered.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.upiAmt||0);},0);
+  var totalCash=cashS+cSp, totalUpi=upiS+uSp;
   var srst=document.getElementById('sr-stats');
-  if(srst)srst.innerHTML='<div class="stat-card gold"><div class="stat-label">Total Sales</div><div class="stat-value">'+fmt(ts)+'</div></div><div class="stat-card"><div class="stat-label">Invoices</div><div class="stat-value">'+ti+'</div></div><div class="stat-card"><div class="stat-label">Avg Sale</div><div class="stat-value">'+fmt(avg)+'</div></div><div class="stat-card"><div class="stat-label">Cash Collected</div><div class="stat-value" style="color:#2e7d32;">'+fmt(cashS+cSp)+'</div></div>';
+  if(srst)srst.innerHTML=
+    '<div class="stat-card gold"><div class="stat-label">Total Sales</div><div class="stat-value">'+fmt(ts)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Invoices</div><div class="stat-value">'+ti+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Avg Sale</div><div class="stat-value">'+fmt(avg)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">&#128181; Cash Total</div><div class="stat-value" style="color:#2e7d32;">'+fmt(totalCash)+'</div><div style="font-size:9px;color:#888;font-family:Arial,sans-serif;margin-top:2px;">Cash '+fmt(cashS)+' + Split '+fmt(cSp)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">&#128242; UPI Total</div><div class="stat-value" style="color:#1565c0;">'+fmt(totalUpi)+'</div><div style="font-size:9px;color:#888;font-family:Arial,sans-serif;margin-top:2px;">UPI '+fmt(upiS)+' + Split '+fmt(uSp)+'</div></div>';
   var daily={};
   filtered.forEach(function(i){var d=i.invDate||'';if(!daily[d])daily[d]={total:0,count:0,cash:0,upi:0};daily[d].total+=i.total;daily[d].count++;if(i.payMode==='Cash')daily[d].cash+=i.total;else if(i.payMode==='UPI'||i.payMode==='Bank')daily[d].upi+=i.total;else if(i.payMode==='Split'){daily[d].cash+=(i.cashAmt||0);daily[d].upi+=(i.upiAmt||0);}});
   var sd=Object.keys(daily).sort(function(a,b){return b.localeCompare(a);});
