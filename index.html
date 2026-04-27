@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
+<!-- Polyfill: async/await support for older Android WebViews -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/regenerator-runtime/0.14.1/runtime.min.js"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"/>
 <meta name="theme-color" content="#1a3a2a"/>
 <meta name="mobile-web-app-capable" content="yes"/>
@@ -1119,6 +1121,7 @@ async function pushCloud(){
     if(res.ok){
       setSyncDot('online');
       lastSync = Date.now();
+      localStorage.setItem('ac_lastSync', String(payload.ts)); // track our own push ts
       updSS();
       console.log('Pushed to Firebase OK');
     } else {
@@ -1156,7 +1159,7 @@ async function pullCloud(){
         lastSync = Date.now();
         updSS();
         showToast('Synced! ' + invoices.length + ' invoices loaded');
-        // Refresh invoice number after sync - always derived from real invoices data
+        // Refresh tentative invoice number on form after sync
         var invNoEl = document.getElementById('invNo');
         if(invNoEl && currentPage === 'invoice') invNoEl.value = genInvNo();
         renderDashboard();
@@ -1424,7 +1427,7 @@ function doLogin(){
     showApp();
     var roleLabel = CURRENT_ROLE === 'admin' ? 'Admin' : 'Staff';
     showToast('Welcome, ' + u + '! (' + roleLabel + ')');
-    if(SYNC_KEY && CURRENT_ROLE === 'admin') setTimeout(pullCloud, 1000);
+    if(SYNC_KEY) setTimeout(pullCloud, 1000); // Both admin and staff sync Firebase
   } else {
     err.style.display = 'block';
     document.getElementById('loginPass').value = '';
@@ -1726,6 +1729,45 @@ function genInvNo(){
   // NO localStorage counter - counter only moves when invoice is actually saved
   return prefix + String(maxNum + 1).padStart(3,'0');
 }
+// ── ATOMIC INVOICE COUNTER (Firebase) ──
+// Separate path: /alphamen/SYNC_KEY/invCounter.json
+// { "APR26": 5 }  ← highest used number this month
+function getCounterPath(){
+  return getFirebaseUrl() + '/alphamen/' + SYNC_KEY + '/invCounter.json';
+}
+
+// Claim next invoice number atomically from Firebase.
+// Returns a guaranteed-unique invNo string.
+// Falls back to local derivation if Firebase unreachable.
+async function claimInvNo(){
+  var d = new Date();
+  var mon = d.toLocaleString('en-IN',{month:'short'}).toUpperCase().slice(0,3);
+  var yr  = String(d.getFullYear()).slice(-2);
+  var mKey = mon + yr;
+  var prefix = 'AC/' + mKey + '/';
+  if(!SYNC_KEY || !getFirebaseUrl()) return genInvNo();
+  for(var t = 0; t < 3; t++){
+    try{
+      var r = await fetch(getCounterPath());
+      var counter = r.ok ? (await r.json() || {}) : {};
+      var localMax = 0;
+      invoices.forEach(function(i){
+        if(i.invNo && i.invNo.indexOf(prefix)===0){
+          var n=parseInt(i.invNo.replace(prefix,''))||0; if(n>localMax) localMax=n;
+        }
+      });
+      var next = Math.max(parseInt(counter[mKey]||0), localMax) + 1;
+      if(invoices.some(function(i){return i.invNo===prefix+String(next).padStart(3,'0');})) next++;
+      var candidate = prefix + String(next).padStart(3,'0');
+      counter[mKey] = next;
+      var put = await fetch(getCounterPath(),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(counter)});
+      if(put.ok) return candidate;
+    } catch(e){ console.log('claimInvNo err',e); }
+    await new Promise(function(r){setTimeout(r,250*(t+1));});
+  }
+  return genInvNo();
+}
+
 function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function toggleFolder(id){
   var el = document.getElementById(id);
@@ -1782,8 +1824,9 @@ function pickCust(el){
 // ===== INVOICE =====
 function initInvoice(){
   document.getElementById('invDate').value = nowDate();
-  // Invoice number always freshly derived from synced invoices array
-  document.getElementById('invNo').value = genInvNo();
+  // Show a tentative number (will be atomically confirmed on Save)
+  var tentative = genInvNo();
+  document.getElementById('invNo').value = tentative;
   document.getElementById('discount').value = 0;
   ['custName','custPhone','custAddr','invNote'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   var pm=document.getElementById('invPayMode'); if(pm) pm.value='Cash';
@@ -2049,18 +2092,43 @@ function collectInvoice(){
   var cashAmt=0, upiAmt=0;
   if(pm==='Split'){ cashAmt=parseFloat(document.getElementById('cashAmt').value)||0; upiAmt=parseFloat(document.getElementById('upiAmt').value)||0; }
   else if(pm==='Cash'){ cashAmt=total; } else{ upiAmt=total; }
-  var inv = {id:Date.now(), invNo:document.getElementById('invNo').value||genInvNo(), invDate:document.getElementById('invDate').value||nowDate(), custName:custName, custPhone:document.getElementById('custPhone').value, custAddr:document.getElementById('custAddr').value, payMode:pm, payStatus:ps, cashAmt:cashAmt, upiAmt:upiAmt, note:document.getElementById('invNote').value||'Thank you for shopping!', items:validItems.slice(), sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total, savedAt:new Date().toISOString()};
-  var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
-  if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
-  LS.sync('invoices', invoices);
-  saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
-  validItems.forEach(function(item){
-    var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
-    if(si) si.qty = Math.max(0, si.qty-item.qty);
+  // Claim invoice number then save (Promise-based, no async/await)
+  var invNoField = document.getElementById('invNo').value.trim();
+  var alreadyUsed = invNoField && invoices.some(function(i){ return i.invNo === invNoField; });
+  var numberPromise = (!invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(invNoField);
+
+  // Capture all form values NOW (before async gap)
+  var _invDate = document.getElementById('invDate').value||nowDate();
+  var _custName = custName;
+  var _custPhone = document.getElementById('custPhone').value;
+  var _custAddr = document.getElementById('custAddr').value;
+  var _note = document.getElementById('invNote').value||'Thank you for shopping!';
+  var _items = validItems.slice();
+  var _sub = sub; var _disc = disc; var _gstByRate = gstByRate;
+  var _totalGst = totalGstAmt; var _gstType = gstType; var _total = total;
+  var _pm = pm; var _ps = ps; var _cashAmt = cashAmt; var _upiAmt = upiAmt;
+
+  numberPromise.then(function(finalInvNo){
+    if(alreadyUsed) showToast('Invoice no. updated: ' + finalInvNo);
+    var inv = {id:Date.now(), invNo:finalInvNo, invDate:_invDate, custName:_custName, custPhone:_custPhone, custAddr:_custAddr, payMode:_pm, payStatus:_ps, cashAmt:_cashAmt, upiAmt:_upiAmt, note:_note, items:_items, sub:_sub, disc:_disc, gstByRate:_gstByRate, totalGst:_totalGst, gstType:_gstType, total:_total, savedAt:new Date().toISOString()};
+    var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
+    if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
+    LS.sync('invoices', invoices);
+    saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
+    _items.forEach(function(item){
+      var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
+      if(si) si.qty = Math.max(0, si.qty-item.qty);
+    });
+    LS.sync('stock', stockItems);
+    checkDateChange();
+    currentInv = inv;
+    buildPreview(inv);
+    navTo('preview', null);
+    setTimeout(function(){ prepareNextInvoice(inv); }, 400);
+  }).catch(function(){
+    showToast('Save error - try again');
   });
-  LS.sync('stock', stockItems);
-  checkDateChange();
-  return inv;
+  return; // actual work happens in .then()
 }
 
 function buildPreview(inv){
@@ -2889,28 +2957,23 @@ function initApp(){
   else if(SYNC_KEY) setSyncDot('offline');
   setInterval(updSS,30000);
   setInterval(checkDateChange,60000);
-  // Auto-refresh current page data every 60 seconds
-  // Auto-refresh UI every 60 seconds
-  setInterval(function(){
-    if(currentPage === 'dashboard') renderDashboard();
-    else if(currentPage === 'history') renderHistory();
-    else if(currentPage === 'payments') renderPayments();
-    else if(currentPage === 'salesreport') renderSalesReport();
-    else if(currentPage === 'pending') renderPendingDashboard();
-    else if(currentPage === 'expenses') renderExpenseDashboard();
-  }, 60000);
-  // Auto-pull from Firebase every 20 seconds
+  // ── SMART SYNC: pull every 5 minutes (not 20s) to save Firebase quota ──
+  // 5 min × 2 devices × 8 hrs = ~192 reads/day vs old 5,760 reads/day
   setInterval(function(){
     if(SYNC_KEY && getFirebaseUrl() && document.visibilityState !== 'hidden'){
       silentPull();
     }
-  }, 20000);
-  // Auto-pull from Firebase every 20 seconds (instant cross-device sync)
-  setInterval(function(){
-    if(SYNC_KEY && getFirebaseUrl() && document.visibilityState !== 'hidden'){
-      silentPull();
+  }, 300000); // 5 minutes
+
+  // Pull once when tab becomes visible after being hidden (user switches back)
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && SYNC_KEY && getFirebaseUrl()){
+      var sinceLastSync = Date.now() - lastSync;
+      if(sinceLastSync > 60000){ // only if >1 min since last sync
+        silentPull();
+      }
     }
-  }, 20000);
+  });
 }
 
 
@@ -3535,64 +3598,57 @@ async function silentPull(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl) return;
   try{
+    // Step 1: Lightweight timestamp check (shallow=true reads only top-level keys)
+    var tsRes = await fetch(getSyncPath().replace('.json','.json?shallow=true'));
+    if(!tsRes.ok) return;
+    var shallow = await tsRes.json();
+    if(!shallow) return;
+    var cloudTs = shallow.ts || 0;
+    var localTs = parseInt(localStorage.getItem('ac_lastSync')||'0');
+    // Only do full read if cloud has newer data
+    if(cloudTs <= localTs) return;
     var res = await fetch(getSyncPath());
     if(!res.ok) return;
     var d = await res.json();
     if(!d || d.syncKey !== SYNC_KEY) return;
-    var cloudTs = d.ts || 0;
-    var localTs = parseInt(localStorage.getItem('ac_lastSync')||'0');
-    // Only update if cloud is newer than what we last synced
-    if(cloudTs > localTs){
-      var changed = false;
-      if(Array.isArray(d.invoices) && JSON.stringify(d.invoices) !== JSON.stringify(invoices)){
-        invoices = d.invoices; LS.setL('invoices', invoices); changed = true;
-      }
-      if(Array.isArray(d.stock) && JSON.stringify(d.stock) !== JSON.stringify(stockItems)){
-        stockItems = d.stock; LS.setL('stock', stockItems); changed = true;
-      }
-      if(d.settings && JSON.stringify(d.settings) !== JSON.stringify(SETTINGS)){
-        SETTINGS = d.settings; LS.setL('settings', SETTINGS); changed = true;
-      }
-      if(Array.isArray(d.customers)){
-        savedCustomers = d.customers; LS.setL('customers', savedCustomers);
-      }
-      if(Array.isArray(d.purchases) && JSON.stringify(d.purchases) !== JSON.stringify(purchases)){
-        purchases = d.purchases; LS.setL('purchases', purchases); changed = true;
-      }
-      if(Array.isArray(d.pendingPayments) && JSON.stringify(d.pendingPayments) !== JSON.stringify(pendingPayments)){
-        pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); changed = true;
-      }
-      localStorage.setItem('ac_lastSync', String(cloudTs));
-      setSyncDot('online');
-      lastSync = Date.now();
-      updSS();
-      if(changed){
-        // Refresh current page silently
-        if(currentPage==='dashboard') renderDashboard();
-        else if(currentPage==='history') renderHistory();
-        else if(currentPage==='payments') renderPayments();
-        else if(currentPage==='pending') renderPendingDashboard();
-        else if(currentPage==='salesreport') renderSalesReport();
-        else if(currentPage==='expenses') renderExpenseDashboard();
-        else if(currentPage==='expenselist') renderExpenses();
-        // Also refresh invoice number
-        var invNoEl = document.getElementById('invNo');
-        if(invNoEl && currentPage==='invoice') invNoEl.value = genInvNo();
-        showToast('Data updated from cloud!');
-      }
+    var changed = false;
+    if(Array.isArray(d.invoices) && JSON.stringify(d.invoices) !== JSON.stringify(invoices)){
+      invoices = d.invoices; LS.setL('invoices', invoices); changed = true;
+    }
+    if(Array.isArray(d.stock) && JSON.stringify(d.stock) !== JSON.stringify(stockItems)){
+      stockItems = d.stock; LS.setL('stock', stockItems); changed = true;
+    }
+    if(d.settings && JSON.stringify(d.settings) !== JSON.stringify(SETTINGS)){
+      SETTINGS = d.settings; LS.setL('settings', SETTINGS); changed = true;
+    }
+    if(Array.isArray(d.customers)){
+      savedCustomers = d.customers; LS.setL('customers', savedCustomers);
+    }
+    if(Array.isArray(d.purchases) && JSON.stringify(d.purchases) !== JSON.stringify(purchases)){
+      purchases = d.purchases; LS.setL('purchases', purchases); changed = true;
+    }
+    if(Array.isArray(d.pendingPayments) && JSON.stringify(d.pendingPayments) !== JSON.stringify(pendingPayments)){
+      pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); changed = true;
+    }
+    localStorage.setItem('ac_lastSync', String(cloudTs));
+    setSyncDot('online');
+    lastSync = Date.now();
+    updSS();
+    if(changed){
+      if(currentPage==='dashboard') renderDashboard();
+      else if(currentPage==='history') renderHistory();
+      else if(currentPage==='payments') renderPayments();
+      else if(currentPage==='pending') renderPendingDashboard();
+      else if(currentPage==='salesreport') renderSalesReport();
+      else if(currentPage==='expenses') renderExpenseDashboard();
+      else if(currentPage==='expenselist') renderExpenses();
+      var invNoEl = document.getElementById('invNo');
+      if(invNoEl && currentPage==='invoice') invNoEl.value = genInvNo();
+      showToast('Data updated from cloud!');
     }
   }catch(e){}
 }
 
-
-// Push instantly when page becomes visible (switching between devices)
-document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible'){
-    if(SYNC_KEY && getFirebaseUrl()){
-      silentPull();
-    }
-  }
-});
 
 // ===== EXPENSES MODULE =====
 var expenses = [];
