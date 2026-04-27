@@ -2041,18 +2041,66 @@ function onCashAmtChange(){
 }
 
 function saveAndNew(){
-  var inv = collectInvoice();
-  if(!inv) return;
-  currentInv = inv;
-  prepareNextInvoice(inv);
-  showToast('Invoice saved! (' + inv.invNo + ') New invoice ready.');
-  // Small delay then reset form
-  setTimeout(function(){
+  // Validate form first
+  var custName = document.getElementById('custName').value.trim();
+  if(!custName){ showToast('Customer name required!'); return; }
+  var validItems = items.filter(function(i){ return i.name.trim()!=='' && i.price>0; });
+  if(!validItems.length){ showToast('Ek item ka naam aur price zaroor dein!'); return; }
+
+  // Disable button to prevent double-tap
+  var btn = document.querySelector('button[onclick="saveAndNew()"]');
+  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  var sub = validItems.reduce(function(s,i){return s+(i.qty*i.price);},0);
+  var gstByRate = {};
+  validItems.forEach(function(i){
+    if(i.gstPct > 0){ var ga=i.qty*((i.origPrice||i.price)-i.price); gstByRate[i.gstPct]=(gstByRate[i.gstPct]||0)+ga; }
+  });
+  var gstTypeEl = document.getElementById('inv-gst-type');
+  var gstType = gstTypeEl ? gstTypeEl.value : 'cgst';
+  var disc = parseFloat(document.getElementById('discount').value)||0;
+  var totalGstAmt = Object.keys(gstByRate).reduce(function(s,k){return s+gstByRate[k];},0);
+  var total = Math.max(sub-disc,0) + totalGstAmt;
+  var pm = document.getElementById('invPayMode').value;
+  var ps = document.getElementById('invPayStatus').value;
+  var cashAmt=0, upiAmt=0;
+  if(pm==='Split'){ cashAmt=parseFloat(document.getElementById('cashAmt').value)||0; upiAmt=parseFloat(document.getElementById('upiAmt').value)||0; }
+  else if(pm==='Cash'){ cashAmt=total; } else{ upiAmt=total; }
+
+  // Capture all form values before async gap
+  var _invDate = document.getElementById('invDate').value||nowDate();
+  var _custPhone = document.getElementById('custPhone').value;
+  var _custAddr = document.getElementById('custAddr').value;
+  var _note = document.getElementById('invNote').value||'Thank you for shopping!';
+  var _items = validItems.slice();
+
+  var invNoField = document.getElementById('invNo').value.trim();
+  var alreadyUsed = invNoField && invoices.some(function(i){ return i.invNo === invNoField; });
+  var numberPromise = (!invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(invNoField);
+
+  numberPromise.then(function(finalInvNo){
+    var inv = {id:Date.now(), invNo:finalInvNo, invDate:_invDate, custName:custName, custPhone:_custPhone, custAddr:_custAddr, payMode:pm, payStatus:ps, cashAmt:cashAmt, upiAmt:upiAmt, note:_note, items:_items, sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total, savedAt:new Date().toISOString()};
+    var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
+    if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
+    LS.sync('invoices', invoices);
+    saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
+    _items.forEach(function(item){
+      var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
+      if(si) si.qty = Math.max(0, si.qty-item.qty);
+    });
+    LS.sync('stock', stockItems);
+    checkDateChange();
+    showToast('✅ Saved! (' + finalInvNo + ') Next invoice ready.');
+    // Reset form with fresh invoice number
     initInvoice();
-    // Scroll to top of invoice form
     var ca = document.getElementById('contentArea');
     if(ca) ca.scrollTo(0,0);
-  }, 300);
+  }).catch(function(){
+    showToast('Save error - try again');
+  }).finally(function(){
+    // Re-enable button
+    if(btn){ btn.disabled = false; btn.textContent = 'Save & New'; }
+  });
 }
 function previewAndSave(){
   var inv = collectInvoice();
