@@ -2041,143 +2041,98 @@ function onCashAmtChange(){
 }
 
 function saveAndNew(){
-  // Validate form first
-  var custName = document.getElementById('custName').value.trim();
-  if(!custName){ showToast('Customer name required!'); return; }
-  var validItems = items.filter(function(i){ return i.name.trim()!=='' && i.price>0; });
-  if(!validItems.length){ showToast('Ek item ka naam aur price zaroor dein!'); return; }
-
-  // Disable button to prevent double-tap
+  var fd = collectFormData();
+  if(!fd) return;
   var btn = document.querySelector('button[onclick="saveAndNew()"]');
-  if(btn){ btn.disabled = true; btn.textContent = 'Saving...'; }
-
-  var sub = validItems.reduce(function(s,i){return s+(i.qty*i.price);},0);
-  var gstByRate = {};
-  validItems.forEach(function(i){
-    if(i.gstPct > 0){ var ga=i.qty*((i.origPrice||i.price)-i.price); gstByRate[i.gstPct]=(gstByRate[i.gstPct]||0)+ga; }
-  });
-  var gstTypeEl = document.getElementById('inv-gst-type');
-  var gstType = gstTypeEl ? gstTypeEl.value : 'cgst';
-  var disc = parseFloat(document.getElementById('discount').value)||0;
-  var totalGstAmt = Object.keys(gstByRate).reduce(function(s,k){return s+gstByRate[k];},0);
-  var total = Math.max(sub-disc,0) + totalGstAmt;
-  var pm = document.getElementById('invPayMode').value;
-  var ps = document.getElementById('invPayStatus').value;
-  var cashAmt=0, upiAmt=0;
-  if(pm==='Split'){ cashAmt=parseFloat(document.getElementById('cashAmt').value)||0; upiAmt=parseFloat(document.getElementById('upiAmt').value)||0; }
-  else if(pm==='Cash'){ cashAmt=total; } else{ upiAmt=total; }
-
-  // Capture all form values before async gap
-  var _invDate = document.getElementById('invDate').value||nowDate();
-  var _custPhone = document.getElementById('custPhone').value;
-  var _custAddr = document.getElementById('custAddr').value;
-  var _note = document.getElementById('invNote').value||'Thank you for shopping!';
-  var _items = validItems.slice();
-
-  var invNoField = document.getElementById('invNo').value.trim();
-  var alreadyUsed = invNoField && invoices.some(function(i){ return i.invNo === invNoField; });
-  var numberPromise = (!invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(invNoField);
-
-  numberPromise.then(function(finalInvNo){
-    var inv = {id:Date.now(), invNo:finalInvNo, invDate:_invDate, custName:custName, custPhone:_custPhone, custAddr:_custAddr, payMode:pm, payStatus:ps, cashAmt:cashAmt, upiAmt:upiAmt, note:_note, items:_items, sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total, savedAt:new Date().toISOString()};
-    var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
-    if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
-    LS.sync('invoices', invoices);
-    saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
-    _items.forEach(function(item){
-      var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
-      if(si) si.qty = Math.max(0, si.qty-item.qty);
-    });
-    LS.sync('stock', stockItems);
-    checkDateChange();
-    showToast('✅ Saved! (' + finalInvNo + ') Next invoice ready.');
-    // Reset form with fresh invoice number
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  persistInvoice(fd).then(function(inv){
+    showToast('✅ Saved! (' + inv.invNo + ') Next invoice ready.');
     initInvoice();
     var ca = document.getElementById('contentArea');
     if(ca) ca.scrollTo(0,0);
   }).catch(function(){
     showToast('Save error - try again');
   }).finally(function(){
-    // Re-enable button
-    if(btn){ btn.disabled = false; btn.textContent = 'Save & New'; }
+    if(btn){ btn.disabled=false; btn.textContent='Save & New'; }
   });
 }
-function previewAndSave(){
-  var inv = collectInvoice();
-  if(!inv) return;
-  currentInv = inv;
-  buildPreview(inv);
-  navTo('preview', null);
-  setTimeout(function(){
-    prepareNextInvoice(inv);
-  }, 400);
-}
-function prepareNextInvoice(savedInv){
-  // Invoice number is now derived purely from invoices array (Firebase-synced).
-  // No localStorage counter needed - next number auto-updates after sync.
-}
-
-function collectInvoice(){
+// ── collectFormData: SYNC only - validates & reads form, returns plain object or null ──
+function collectFormData(){
   var custName = document.getElementById('custName').value.trim();
   if(!custName){ showToast('Customer name required!'); return null; }
   var validItems = items.filter(function(i){ return i.name.trim()!=='' && i.price>0; });
   if(!validItems.length){ showToast('Ek item ka naam aur price zaroor dein!'); return null; }
-  var sub = validItems.reduce(function(s,i){return s+(i.qty*i.price);},0); // base prices (GST excluded)
+  var sub = validItems.reduce(function(s,i){return s+(i.qty*i.price);},0);
   var gstByRate = {};
   validItems.forEach(function(i){
-    if(i.gstPct > 0){
-      var gstAmt = i.qty * ((i.origPrice||i.price) - i.price);
-      gstByRate[i.gstPct] = (gstByRate[i.gstPct]||0) + gstAmt;
-    }
+    if(i.gstPct>0){ var ga=i.qty*((i.origPrice||i.price)-i.price); gstByRate[i.gstPct]=(gstByRate[i.gstPct]||0)+ga; }
   });
   var gstTypeEl = document.getElementById('inv-gst-type');
   var gstType = gstTypeEl ? gstTypeEl.value : 'cgst';
   var disc = parseFloat(document.getElementById('discount').value)||0;
   var totalGstAmt = Object.keys(gstByRate).reduce(function(s,k){return s+gstByRate[k];},0);
-  var total = Math.max(sub-disc,0) + totalGstAmt;
+  var total = Math.max(sub-disc,0)+totalGstAmt;
   var pm = document.getElementById('invPayMode').value;
   var ps = document.getElementById('invPayStatus').value;
   var cashAmt=0, upiAmt=0;
   if(pm==='Split'){ cashAmt=parseFloat(document.getElementById('cashAmt').value)||0; upiAmt=parseFloat(document.getElementById('upiAmt').value)||0; }
   else if(pm==='Cash'){ cashAmt=total; } else{ upiAmt=total; }
-  // Claim invoice number then save (Promise-based, no async/await)
-  var invNoField = document.getElementById('invNo').value.trim();
-  var alreadyUsed = invNoField && invoices.some(function(i){ return i.invNo === invNoField; });
-  var numberPromise = (!invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(invNoField);
+  return {
+    custName:custName,
+    invDate:document.getElementById('invDate').value||nowDate(),
+    custPhone:document.getElementById('custPhone').value,
+    custAddr:document.getElementById('custAddr').value,
+    note:document.getElementById('invNote').value||'Thank you for shopping!',
+    items:validItems.slice(),
+    sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total,
+    pm:pm, ps:ps, cashAmt:cashAmt, upiAmt:upiAmt,
+    invNoField:document.getElementById('invNo').value.trim()
+  };
+}
 
-  // Capture all form values NOW (before async gap)
-  var _invDate = document.getElementById('invDate').value||nowDate();
-  var _custName = custName;
-  var _custPhone = document.getElementById('custPhone').value;
-  var _custAddr = document.getElementById('custAddr').value;
-  var _note = document.getElementById('invNote').value||'Thank you for shopping!';
-  var _items = validItems.slice();
-  var _sub = sub; var _disc = disc; var _gstByRate = gstByRate;
-  var _totalGst = totalGstAmt; var _gstType = gstType; var _total = total;
-  var _pm = pm; var _ps = ps; var _cashAmt = cashAmt; var _upiAmt = upiAmt;
-
-  numberPromise.then(function(finalInvNo){
-    if(alreadyUsed) showToast('Invoice no. updated: ' + finalInvNo);
-    var inv = {id:Date.now(), invNo:finalInvNo, invDate:_invDate, custName:_custName, custPhone:_custPhone, custAddr:_custAddr, payMode:_pm, payStatus:_ps, cashAmt:_cashAmt, upiAmt:_upiAmt, note:_note, items:_items, sub:_sub, disc:_disc, gstByRate:_gstByRate, totalGst:_totalGst, gstType:_gstType, total:_total, savedAt:new Date().toISOString()};
+// ── persistInvoice: claims number + saves to array + Firebase. Returns Promise<inv> ──
+function persistInvoice(fd){
+  var alreadyUsed = fd.invNoField && invoices.some(function(i){ return i.invNo===fd.invNoField; });
+  var numP = (!fd.invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(fd.invNoField);
+  return numP.then(function(finalInvNo){
+    var inv = {id:Date.now(), invNo:finalInvNo, invDate:fd.invDate, custName:fd.custName,
+      custPhone:fd.custPhone, custAddr:fd.custAddr, payMode:fd.pm, payStatus:fd.ps,
+      cashAmt:fd.cashAmt, upiAmt:fd.upiAmt, note:fd.note, items:fd.items,
+      sub:fd.sub, disc:fd.disc, gstByRate:fd.gstByRate, totalGst:fd.totalGst,
+      gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString()};
     var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
     if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
     LS.sync('invoices', invoices);
     saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
-    _items.forEach(function(item){
+    fd.items.forEach(function(item){
       var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
       if(si) si.qty = Math.max(0, si.qty-item.qty);
     });
     LS.sync('stock', stockItems);
     checkDateChange();
+    return inv;
+  });
+}
+
+// ── previewAndSave: collect → persist → show preview ──
+function previewAndSave(){
+  var fd = collectFormData();
+  if(!fd) return;
+  var btn = document.querySelector('button[onclick="previewAndSave()"]');
+  if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
+  persistInvoice(fd).then(function(inv){
     currentInv = inv;
     buildPreview(inv);
     navTo('preview', null);
-    setTimeout(function(){ prepareNextInvoice(inv); }, 400);
   }).catch(function(){
     showToast('Save error - try again');
+  }).finally(function(){
+    if(btn){ btn.disabled=false; btn.textContent='Preview & Save'; }
   });
-  return; // actual work happens in .then()
 }
+
+function collectInvoice(){ return collectFormData(); } // backward compat alias
+function prepareNextInvoice(){} // no-op, kept for compatibility
 
 function buildPreview(inv){
   var dateStr = inv.invDate ? new Date(inv.invDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
