@@ -1066,6 +1066,7 @@ var LS = {
 // ===== GLOBALS =====
 var SYNC_KEY='', syncTmr=null, lastSync=0;
 var invoices=[], stockItems=[], savedCustomers=[], items=[], currentInv=null;
+var editingInvId = null; // tracks which invoice is being edited (null = new invoice)
 var purchases=[];
 var AUTH={user:'alphamen',pass:'alpha@123'};
 var SETTINGS={biz:'Alphamen Clothing Co.',ph:'',addr:'',gst:''};
@@ -1824,6 +1825,7 @@ function pickCust(el){
 
 // ===== INVOICE =====
 function initInvoice(){
+  editingInvId = null; // always reset edit mode on fresh invoice
   document.getElementById('invDate').value = nowDate();
   // Show a tentative number (will be atomically confirmed on Save)
   var tentative = genInvNo();
@@ -2048,6 +2050,7 @@ function saveAndNew(){
   if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
   persistInvoice(fd).then(function(inv){
     var savedNo = inv.invNo;
+    editingInvId = null; // clear edit mode after save
     // Immediately blank visible fields so desktop sees instant reset
     ['custName','custPhone','custAddr','invNote'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.value='';
@@ -2121,8 +2124,10 @@ function collectFormData(){
 
 // ── persistInvoice: claims number + saves to array + Firebase. Returns Promise<inv> ──
 function persistInvoice(fd){
+  // Edit mode: always keep original invoice number, never claim a new one
   var alreadyUsed = fd.invNoField && invoices.some(function(i){ return i.invNo===fd.invNoField; });
-  var numP = (!fd.invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(fd.invNoField);
+  var isEditMode = (editingInvId !== null);
+  var numP = isEditMode ? Promise.resolve(fd.invNoField) : ((!fd.invNoField || alreadyUsed) ? claimInvNo() : Promise.resolve(fd.invNoField));
   return numP.then(function(finalInvNo){
     var inv = {id:Date.now(), invNo:finalInvNo, invDate:fd.invDate, custName:fd.custName,
       custPhone:fd.custPhone, custAddr:fd.custAddr, payMode:fd.pm, payStatus:fd.ps,
@@ -2150,6 +2155,7 @@ function previewAndSave(){
   var btn = document.querySelector('button[onclick="previewAndSave()"]');
   if(btn){ btn.disabled=true; btn.textContent='Saving...'; }
   persistInvoice(fd).then(function(inv){
+    editingInvId = null; // clear edit mode after save
     currentInv = inv;
     buildPreview(inv);
     navTo('preview', null);
@@ -2375,6 +2381,7 @@ function editInv(id){
       items.push({id:itemIdCounter++, name:it.name||'', qty:it.qty||1, origPrice:it.origPrice||it.price||0, price:it.price||0, gstPct:it.gstPct||0});
     });
     if(!items.length){ addItem(); addItem(); } else { renderItems(); calcTotals(); }
+    editingInvId = inv.id; // mark edit mode so persistInvoice keeps same invoice number
     showToast('✏️ Edit mode — '+inv.invNo+' — changes save hone par replace ho jayega');
     var ca2 = document.getElementById('contentArea'); if(ca2) ca2.scrollTo(0,0);
   }, 300);
