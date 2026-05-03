@@ -477,7 +477,8 @@ input[type=tel], textarea, select {
       <div class="nav-sec">Finance</div>
       <div class="nav-item" onclick="navTo('costing',this)"><span class="nav-icon">&#128176;</span>Cost Calculator</div>
       <div class="nav-item" onclick="navTo('salesreport',this)"><span class="nav-icon">&#128200;</span>Sales Report</div>
-      <div class="nav-item" onclick="navTo('reports',this)"><span class="nav-icon">&#128196;</span>Saved Reports</div>
+
+      <div class="nav-item" id="navitem-pl" onclick="navTo('pnl',this)"><span class="nav-icon">&#128185;</span>P&amp;L Dashboard</div>
       <div class="nav-sec">Pending</div>
       <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Payments</div>
       <div class="nav-item" onclick="navTo('pendingreceipts',this)"><span class="nav-icon">&#128203;</span>Payment Receipts</div>
@@ -510,7 +511,6 @@ input[type=tel], textarea, select {
     </div>
 
     <div class="content-area" id="contentArea">
-<div class="content-area" id="contentArea">
 
       <!-- DASHBOARD -->
       <div class="page active" id="page-dashboard">
@@ -760,6 +760,24 @@ input[type=tel], textarea, select {
               <div class="ig"><label>Rate Rs./piece</label><input type="number" id="pur-rate" placeholder="0" inputmode="numeric"/></div>
               <div class="ig"><label>Freight Rs.</label><input type="number" id="pur-freight" value="0" inputmode="numeric"/></div>
             </div>
+            <div class="row2">
+              <div class="ig"><label>Payment Mode</label>
+                <select id="pur-paymode" style="font-family:Arial,sans-serif;">
+                  <option value="Cash">&#128181; Cash</option>
+                  <option value="Credit">&#128203; Credit (Udhar)</option>
+                  <option value="UPI">&#128241; UPI</option>
+                  <option value="Bank">&#127974; Bank Transfer</option>
+                  <option value="Cheque">&#128196; Cheque</option>
+                </select>
+              </div>
+              <div class="ig"><label>Payment Status</label>
+                <select id="pur-paystatus" style="font-family:Arial,sans-serif;">
+                  <option value="Paid">&#9989; Paid</option>
+                  <option value="Pending">&#8987; Pending (Credit)</option>
+                  <option value="Partial">&#128310; Partial</option>
+                </select>
+              </div>
+            </div>
             <div class="ig"><label>Notes (Optional)</label><textarea id="pur-notes" placeholder="e.g. Bill no, remarks..."></textarea></div>
             <button class="btn btn-green btn-full" onclick="savePurchase()">&#10133; Save Purchase (auto-updates inventory)</button>
           </div>
@@ -821,6 +839,11 @@ input[type=tel], textarea, select {
           <select id="ir-month" onchange="renderInvReport()" style="padding:9px 12px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;min-width:120px;"></select>
           <select id="ir-item" onchange="renderInvReport()" style="padding:9px 12px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;min-width:120px;"><option value="">All Items</option></select>
         </div>
+        <!-- Export Buttons -->
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-gold" onclick="exportInvReportExcel()" style="flex:1;padding:9px;">&#128202; Excel</button>
+          <button class="btn btn-green" onclick="exportInvReportPDF()" style="flex:1;padding:9px;">&#128196; PDF</button>
+        </div>
         <!-- Summary Stats -->
         <div class="stats-grid" id="ir-stats"></div>
         <!-- Top Selling -->
@@ -837,11 +860,6 @@ input[type=tel], textarea, select {
         <div class="card">
           <div class="card-head"><div class="card-icon">&#128203;</div><div class="card-title">Item Movement Log (IN / OUT)</div></div>
           <div class="card-body" style="overflow-x:auto;"><div id="ir-movlog"></div></div>
-        </div>
-        <!-- Export Buttons -->
-        <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
-          <button class="btn btn-gold btn-full" onclick="exportInvReportExcel()" style="flex:1;">&#128202; Export Excel</button>
-          <button class="btn btn-green btn-full" onclick="exportInvReportPDF()" style="flex:1;">&#128196; Export PDF</button>
         </div>
       </div>
 
@@ -912,13 +930,7 @@ input[type=tel], textarea, select {
       </div>
 
       <!-- SAVED REPORTS -->
-      <div class="page" id="page-reports">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--mu);font-family:Arial,sans-serif;">Auto-saved daily &amp; monthly reports</div>
-          <button class="btn btn-gold" onclick="exportSalesExcel()">&#128202; Export</button>
-        </div>
-        <div id="savedReportsBox"></div>
-      </div>
+
 
 
       <!-- EXPENSE DASHBOARD -->
@@ -1051,6 +1063,88 @@ input[type=tel], textarea, select {
         </div>
       </div>
 
+<!-- ===== P&L DASHBOARD PAGE ===== -->
+<div class="page" id="page-pnl">
+  <!-- Filter Bar -->
+  <div style="background:var(--w);border:1px solid var(--bdr);padding:12px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+    <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:200px;">
+      <span style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);white-space:nowrap;">Period:</span>
+      <select id="pl-filter-type" onchange="renderPnL()" style="flex:1;padding:7px 10px;font-size:13px;">
+        <option value="month">This Month</option>
+        <option value="custom">Custom Range</option>
+        <option value="3months">Last 3 Months</option>
+        <option value="6months">Last 6 Months</option>
+        <option value="year">This Year</option>
+      </select>
+    </div>
+    <div id="pl-custom-range" style="display:none;gap:6px;align-items:center;">
+      <input type="date" id="pl-from" style="padding:7px;font-size:12px;" onchange="renderPnL()"/>
+      <span style="color:var(--mu);">to</span>
+      <input type="date" id="pl-to" style="padding:7px;font-size:12px;" onchange="renderPnL()"/>
+    </div>
+    <button class="btn btn-gold" onclick="exportPnLExcel()" style="padding:7px 12px;font-size:10px;">&#128202; Excel</button>
+    <button class="btn btn-green" onclick="exportPnLPDF()" style="padding:7px 12px;font-size:10px;">&#128196; PDF</button>
+  </div>
+
+  <!-- KPI Cards -->
+  <div id="pl-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px;"></div>
+
+  <!-- Charts Row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;" id="pl-charts-row">
+    <!-- Revenue vs Cost Bar Chart -->
+    <div class="card">
+      <div class="card-head"><div class="card-icon">&#128202;</div><div class="card-title">Revenue vs Cost</div></div>
+      <div class="card-body" style="padding-bottom:10px;">
+        <canvas id="pl-bar-chart" height="200"></canvas>
+      </div>
+    </div>
+    <!-- P&L Trend Line Chart -->
+    <div class="card">
+      <div class="card-head"><div class="card-icon">&#128200;</div><div class="card-title">Profit Trend</div></div>
+      <div class="card-body" style="padding-bottom:10px;">
+        <canvas id="pl-line-chart" height="200"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense Breakdown Donut + Category Table -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;" id="pl-bottom-row">
+    <div class="card">
+      <div class="card-head"><div class="card-icon">&#129518;</div><div class="card-title">Expense Breakdown</div></div>
+      <div class="card-body" style="padding-bottom:10px;display:flex;justify-content:center;">
+        <canvas id="pl-donut-chart" height="200" width="200"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-icon">&#128203;</div><div class="card-title">Category Summary</div></div>
+      <div class="card-body" style="padding:0 14px 14px;">
+        <div id="pl-cat-table"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detailed P&L Statement -->
+  <div class="card">
+    <div class="card-head"><div class="card-icon">&#128196;</div><div class="card-title">Profit & Loss Statement</div></div>
+    <div class="card-body">
+      <div id="pl-statement"></div>
+    </div>
+  </div>
+
+  <!-- Monthly Comparison Table -->
+  <div class="card" style="margin-top:14px;">
+    <div class="card-head"><div class="card-icon">&#128197;</div><div class="card-title">Monthly Breakdown</div></div>
+    <div class="card-body" style="overflow-x:auto;">
+      <table class="tbl" id="pl-monthly-tbl">
+        <thead><tr>
+          <th>Month</th><th style="text-align:right;">Sales</th><th style="text-align:right;">Purchases</th><th style="text-align:right;">Expenses</th><th style="text-align:right;">Gross Profit</th><th style="text-align:right;">Net Profit</th><th style="text-align:right;">Margin%</th>
+        </tr></thead>
+        <tbody id="pl-monthly-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
     </div>
   </div>
 </div>
@@ -1079,15 +1173,14 @@ input[type=tel], textarea, select {
   </div>
 </div>
 
+<!-- ===== END P&L PAGE ===== -->
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 
 
@@ -1404,6 +1497,54 @@ function saveMonthlyReport(month){
   monthlyReports = rpts;
 }
 
+function manualSaveReport(){
+  var today = nowDate();
+  var curMonth = monthKey(today);
+  var dayInvs = invoices.filter(function(i){ return i.invDate === today; });
+  var mInvs = invoices.filter(function(i){ return monthKey(i.invDate) === curMonth; });
+  var savedAny = false;
+
+  // Save daily
+  if(dayInvs.length){
+    var rpts = LS.get('dailyReports') || {};
+    var cash=0, upi=0;
+    dayInvs.forEach(function(i){
+      if(i.payMode==='Cash') cash+=i.total;
+      else if(i.payMode==='UPI'||i.payMode==='Bank') upi+=i.total;
+      else if(i.payMode==='Split'){ cash+=(i.cashAmt||0); upi+=(i.upiAmt||0); }
+    });
+    rpts[today] = {date:today, total:dayInvs.reduce(function(s,i){return s+i.total;},0), count:dayInvs.length, cash:cash, upi:upi, invoices:dayInvs, savedAt:new Date().toISOString()};
+    LS.setL('dailyReports', rpts);
+    dailyReports = rpts;
+    savedAny = true;
+  }
+
+  // Save monthly
+  if(mInvs.length){
+    var mrpts = LS.get('monthlyReports') || {};
+    var daily={}, mcash=0, mupi=0;
+    mInvs.forEach(function(i){
+      var d=i.invDate||'';
+      if(!daily[d]) daily[d]={total:0,count:0,cash:0,upi:0};
+      daily[d].total+=i.total; daily[d].count++;
+      if(i.payMode==='Cash'){daily[d].cash+=i.total;mcash+=i.total;}
+      else if(i.payMode==='UPI'||i.payMode==='Bank'){daily[d].upi+=i.total;mupi+=i.total;}
+      else if(i.payMode==='Split'){daily[d].cash+=(i.cashAmt||0);daily[d].upi+=(i.upiAmt||0);mcash+=(i.cashAmt||0);mupi+=(i.upiAmt||0);}
+    });
+    mrpts[curMonth] = {month:curMonth, total:mInvs.reduce(function(s,i){return s+i.total;},0), count:mInvs.length, cash:mcash, upi:mupi, daily:daily, savedAt:new Date().toISOString()};
+    LS.setL('monthlyReports', mrpts);
+    monthlyReports = mrpts;
+    savedAny = true;
+  }
+
+  if(savedAny){
+    showToast('✅ Report saved successfully!');
+    renderReports();
+  } else {
+    showToast('⚠️ No invoices found to save for today.');
+  }
+}
+
 // ===== AUTH & ROLES =====
 var CURRENT_ROLE = 'admin'; // 'admin' or 'staff'
 var STAFF_AUTH_DEFAULT = {user:'staff', pass:'staff@123'};
@@ -1411,10 +1552,10 @@ var STAFF_AUTH_DEFAULT = {user:'staff', pass:'staff@123'};
 // Staff ke liye restricted pages - in pages ko staff nahi dekh sakta
 // Staff CAN: invoice (new), history (same-day only), pendingreceipts (share/download), pendingnew, pendingpreview, pending (dashboard), expensenew (add+pdf+share), expenselist (today only)
 // Staff CANNOT: dashboard, payments, purchases, purchaselist, inventory, costing, salesreport, settings, reports, expenses (full dashboard)
-var STAFF_RESTRICTED_PAGES = ['dashboard', 'payments', 'purchases', 'purchaselist', 'inventory', 'costing', 'salesreport', 'settings', 'reports', 'expenses', 'invreport'];
+var STAFF_RESTRICTED_PAGES = ['dashboard', 'payments', 'purchases', 'purchaselist', 'inventory', 'costing', 'salesreport', 'settings', 'expenses', 'invreport', 'pnl'];
 
 // Staff ke liye restricted nav items (hidden honge)
-var STAFF_RESTRICTED_NAV_LABELS = ['Dashboard', 'Payments', 'Purchase Dashboard', 'Purchase Records', 'Stock Manager', 'Inventory Report', 'Cost Calculator', 'Sales Report', 'Saved Reports', 'Settings', 'Expense Dashboard'];
+var STAFF_RESTRICTED_NAV_LABELS = ['Dashboard', 'Payments', 'Purchase Dashboard', 'Purchase Records', 'Stock Manager', 'Inventory Report', 'Cost Calculator', 'Sales Report', 'Settings', 'Expense Dashboard', 'P&L Dashboard'];
 
 function checkLogin(){
   SYNC_KEY = localStorage.getItem('ac_synckey') || '';
@@ -1702,7 +1843,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', reports:'Saved Reports', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
@@ -1714,7 +1855,7 @@ function navTo(page, el, mi){
   if(page==='costing') calcCost();
   if(page==='salesreport') renderSalesReport();
   if(page==='settings') loadSettings();
-  if(page==='reports') renderSavedReports();
+
   if(page==='purchases') renderPurchaseDashboard();
   if(page==='purchaselist') renderPurchases();
   if(page==='pending') renderPendingDashboard();
@@ -1731,6 +1872,7 @@ function navTo(page, el, mi){
   if(page==='pendingreceipts') renderPendingReceipts();
   if(page==='pendingnew') { initPendingForm(); }
   if(page==='pendingpreview') {}
+  if(page==='pnl'){ if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can view P&L Dashboard');navTo('invoice',null);return;} renderPnL(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
 }
@@ -2443,7 +2585,7 @@ function renderHistory(){
         var pb2='<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(inv.payStatus)+'</span>';
         var si=inv.payMode==='Split'?'<div style="font-size:10px;margin-top:2px;"><span class="pay-split-badge">C:'+fmt(inv.cashAmt||0)+'</span> <span class="pay-split-badge">U:'+fmt(inv.upiAmt||0)+'</span></div>':'';
         var isToday = (inv.invDate === todayDate);
-        var editBtn = isToday ? '<button class="btn btn-gold" style="padding:4px 9px;font-size:9px;" data-action="editinv" data-invid="'+inv.id+'">✏️ Edit</button>' : '';
+        var editBtn = (CURRENT_ROLE==='admin' || isToday) ? '<button class="btn btn-gold" style="padding:4px 9px;font-size:9px;" data-action="editinv" data-invid="'+inv.id+'">✏️ Edit</button>' : '';
         var delBtn = isStaff ? '' : '<button class="btn btn-red" style="padding:4px 9px;font-size:9px;" data-action="del" data-invid="'+inv.id+'">Delete</button>';
         ihtml+='<div style="padding:10px 12px 10px 36px;border-bottom:1px solid var(--bdr);background:#fff;">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
@@ -2480,7 +2622,7 @@ function downloadInvPDFById(id){ var inv=invoices.find(function(i){return i.id==
 function editInv(id){
   var inv = invoices.find(function(i){ return i.id===id; });
   if(!inv){ showToast('Invoice not found'); return; }
-  if(inv.invDate !== nowDate()){ showToast('⛔ Sirf aaj ke invoices edit ho sakte hain'); return; }
+  if(CURRENT_ROLE !== 'admin' && inv.invDate !== nowDate()){ showToast('⛔ Sirf aaj ke invoices edit ho sakte hain'); return; }
   // Load into form
   navTo('invoice', null);
   setTimeout(function(){
@@ -2863,6 +3005,7 @@ function renderDashboard(){
   var pend=invoices.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).slice(0,5);
   var dp=document.getElementById('dash-pending');
   if(dp)dp.innerHTML=pend.length?pend.map(function(i){return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bdr);"><span style="font-family:Arial,sans-serif;font-weight:700;">'+escH(i.custName)+'</span><span style="color:#e65100;font-weight:700;">'+fmt(i.total)+'</span></div>';}).join(''):'<div style="color:var(--mu);text-align:center;padding:20px;font-family:Arial,sans-serif;">No pending</div>';
+
   var mrBox=document.getElementById('dash-monthly-locked');
   if(mrBox){var mr2=LS.get('monthlyReports')||{};var mkeys2=Object.keys(mr2);mrBox.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">Monthly Reports</div><div style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;">'+mkeys2.length+' saved reports</div></div><button class="btn btn-outline" onclick="showMonthlyReport()" style="padding:6px 12px;font-size:10px;">&#128274; View</button></div>';}
 }
@@ -4857,6 +5000,8 @@ function savePurchase(){
   var rate = parseFloat(document.getElementById('pur-rate').value)||0;
   var freight = parseFloat(document.getElementById('pur-freight').value)||0;
   var notes = document.getElementById('pur-notes').value.trim();
+  var payMode = document.getElementById('pur-paymode') ? document.getElementById('pur-paymode').value : 'Cash';
+  var payStatus = document.getElementById('pur-paystatus') ? document.getElementById('pur-paystatus').value : 'Paid';
 
   if(!item){ showToast('Item name required!'); return; }
   if(qty <= 0){ showToast('Qty required!'); return; }
@@ -4872,6 +5017,8 @@ function savePurchase(){
     rate: rate,
     freight: freight,
     totalCost: totalCost,
+    payMode: payMode,
+    payStatus: payStatus,
     notes: notes,
     savedAt: new Date().toISOString()
   };
@@ -5074,6 +5221,435 @@ function exportPurchaseExcel(){
 }
 
 
+
+
+// ===== P&L DASHBOARD FUNCTIONS =====
+var plBarChart = null, plLineChart = null, plDonutChart = null;
+
+function getPnLDateRange(){
+  var type = document.getElementById('pl-filter-type') ? document.getElementById('pl-filter-type').value : 'month';
+  var today = new Date();
+  var from, to;
+  if(type === 'month'){
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+    to = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  } else if(type === 'custom'){
+    var f = document.getElementById('pl-from') ? document.getElementById('pl-from').value : '';
+    var t = document.getElementById('pl-to') ? document.getElementById('pl-to').value : '';
+    from = f ? new Date(f) : new Date(today.getFullYear(), today.getMonth(), 1);
+    to = t ? new Date(t) : today;
+  } else if(type === '3months'){
+    from = new Date(today.getFullYear(), today.getMonth()-2, 1);
+    to = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  } else if(type === '6months'){
+    from = new Date(today.getFullYear(), today.getMonth()-5, 1);
+    to = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  } else if(type === 'year'){
+    from = new Date(today.getFullYear(), 0, 1);
+    to = new Date(today.getFullYear(), 11, 31);
+  } else {
+    from = new Date(today.getFullYear(), today.getMonth(), 1);
+    to = new Date(today.getFullYear(), today.getMonth()+1, 0);
+  }
+  return {from: from, to: to};
+}
+
+function dateInRange(dateStr, from, to){
+  if(!dateStr) return false;
+  var d = new Date(dateStr);
+  return d >= from && d <= to;
+}
+
+function fmtNum(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function fmtPct(n){ return (n||0).toFixed(1) + '%'; }
+
+function renderPnL(){
+  // Admin check
+  if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Only Admin can view P&L Dashboard'); return; }
+
+  // Show/hide custom range
+  var filterType = document.getElementById('pl-filter-type') ? document.getElementById('pl-filter-type').value : 'month';
+  var customRange = document.getElementById('pl-custom-range');
+  if(customRange) customRange.style.display = filterType === 'custom' ? 'flex' : 'none';
+
+  var range = getPnLDateRange();
+  var from = range.from, to = range.to;
+
+  // Load data
+  var allInvoices = LS.get('invoices') || [];
+  var allPurchases = LS.get('purchases') || [];
+  var allExpenses = LS.get('expenses') || [];
+
+  var filtInv = allInvoices.filter(function(i){ return dateInRange(i.invDate, from, to); });
+  var filtPur = allPurchases.filter(function(p){ return dateInRange(p.date, from, to); });
+  var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
+
+  var totalSales = filtInv.reduce(function(s,i){ return s + (i.total||0); }, 0);
+  var totalPurchases = filtPur.reduce(function(s,p){ return s + (p.totalCost||0); }, 0);
+  var totalExpenses = filtExp.reduce(function(s,e){ return s + (e.amount||0); }, 0);
+  var grossProfit = totalSales - totalPurchases;
+  var netProfit = grossProfit - totalExpenses;
+  var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100) : 0;
+  var netMargin = totalSales > 0 ? (netProfit/totalSales*100) : 0;
+  var totalPaid = filtInv.filter(function(i){ return i.payStatus==='Paid'; }).reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
+
+  // KPI Cards
+  var kpiGrid = document.getElementById('pl-kpi-grid');
+  if(kpiGrid){
+    var cards = [
+      {label:'Total Revenue', val:fmtNum(totalSales), color:'#1b5e20', bg:'#e8f5e9', icon:'💰'},
+      {label:'Purchase Cost', val:fmtNum(totalPurchases), color:'#e65100', bg:'#fff3e0', icon:'🛒'},
+      {label:'Total Expenses', val:fmtNum(totalExpenses), color:'#b71c1c', bg:'#ffeaea', icon:'💸'},
+      {label:'Gross Profit', val:fmtNum(grossProfit), color:grossProfit>=0?'#1565c0':'#c62828', bg:grossProfit>=0?'#e3f2fd':'#ffeaea', icon:'📊'},
+      {label:'Net Profit', val:fmtNum(netProfit), color:netProfit>=0?'#2e7d32':'#c62828', bg:netProfit>=0?'#e8f5e9':'#ffeaea', icon:netProfit>=0?'📈':'📉'},
+      {label:'Net Margin', val:fmtPct(netMargin), color:netMargin>=0?'#1b5e20':'#b71c1c', bg:netMargin>=0?'#f1f8e9':'#ffeaea', icon:'🎯'},
+      {label:'Invoices', val:filtInv.length, color:'#4a148c', bg:'#f3e5f5', icon:'🧾'},
+      {label:'Pending Dues', val:fmtNum(totalPending), color:'#bf360c', bg:'#fff8e1', icon:'⏳'},
+    ];
+    kpiGrid.innerHTML = cards.map(function(c){
+      return '<div style="background:'+c.bg+';border:1px solid rgba(0,0,0,.07);padding:13px 12px;position:relative;overflow:hidden;transition:transform .2s;" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'none\'">'
+        +'<div style="font-size:18px;margin-bottom:4px;">'+c.icon+'</div>'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#666;margin-bottom:5px;">'+c.label+'</div>'
+        +'<div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:'+c.color+';line-height:1;">'+c.val+'</div>'
+        +'</div>';
+    }).join('');
+  }
+
+  // Build monthly data for charts
+  var monthsMap = {};
+  var cur = new Date(from.getFullYear(), from.getMonth(), 1);
+  while(cur <= to){
+    var mk = cur.getFullYear()+'-'+(cur.getMonth()<9?'0':'')+(cur.getMonth()+1);
+    monthsMap[mk] = {label: cur.toLocaleString('en-IN',{month:'short',year:'2-digit'}), sales:0, purchases:0, expenses:0};
+    cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
+  }
+  filtInv.forEach(function(i){
+    var mk = i.invDate ? i.invDate.substring(0,7) : '';
+    if(monthsMap[mk]) monthsMap[mk].sales += (i.total||0);
+  });
+  filtPur.forEach(function(p){
+    var mk = p.date ? p.date.substring(0,7) : '';
+    if(monthsMap[mk]) monthsMap[mk].purchases += (p.totalCost||0);
+  });
+  filtExp.forEach(function(e){
+    var mk = e.date ? e.date.substring(0,7) : '';
+    if(monthsMap[mk]) monthsMap[mk].expenses += (e.amount||0);
+  });
+
+  var mkeys = Object.keys(monthsMap).sort();
+  var mLabels = mkeys.map(function(k){ return monthsMap[k].label; });
+  var mSales = mkeys.map(function(k){ return monthsMap[k].sales; });
+  var mPurchases = mkeys.map(function(k){ return monthsMap[k].purchases; });
+  var mExpenses = mkeys.map(function(k){ return monthsMap[k].expenses; });
+  var mGross = mkeys.map(function(k){ return monthsMap[k].sales - monthsMap[k].purchases; });
+  var mNet = mkeys.map(function(k){ return monthsMap[k].sales - monthsMap[k].purchases - monthsMap[k].expenses; });
+
+  // Bar Chart: Revenue vs Purchases vs Expenses
+  var barCtx = document.getElementById('pl-bar-chart');
+  if(barCtx){
+    if(plBarChart){ plBarChart.destroy(); plBarChart = null; }
+    plBarChart = new Chart(barCtx.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: mLabels,
+        datasets: [
+          {label:'Sales', data:mSales, backgroundColor:'rgba(46,125,50,0.8)', borderColor:'#2e7d32', borderWidth:1},
+          {label:'Purchases', data:mPurchases, backgroundColor:'rgba(230,81,0,0.7)', borderColor:'#e65100', borderWidth:1},
+          {label:'Expenses', data:mExpenses, backgroundColor:'rgba(192,57,43,0.7)', borderColor:'#c0392b', borderWidth:1}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{font:{size:10}}}},
+        scales:{
+          y:{ticks:{callback:function(v){ return '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0}); }, font:{size:9}}, grid:{color:'rgba(0,0,0,.05)'}},
+          x:{ticks:{font:{size:9}}, grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // Line Chart: Profit Trend
+  var lineCtx = document.getElementById('pl-line-chart');
+  if(lineCtx){
+    if(plLineChart){ plLineChart.destroy(); plLineChart = null; }
+    plLineChart = new Chart(lineCtx.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: mLabels,
+        datasets: [
+          {label:'Gross Profit', data:mGross, borderColor:'#1565c0', backgroundColor:'rgba(21,101,192,0.1)', tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:'#1565c0'},
+          {label:'Net Profit', data:mNet, borderColor:netProfit>=0?'#2e7d32':'#c0392b', backgroundColor:netProfit>=0?'rgba(46,125,50,0.08)':'rgba(192,57,43,0.08)', tension:0.4, fill:true, pointRadius:4, pointBackgroundColor:netProfit>=0?'#2e7d32':'#c0392b'}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{font:{size:10}}}},
+        scales:{
+          y:{ticks:{callback:function(v){ return '₹'+v.toLocaleString('en-IN',{maximumFractionDigits:0}); }, font:{size:9}}, grid:{color:'rgba(0,0,0,.05)'}},
+          x:{ticks:{font:{size:9}}, grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // Expense Category Breakdown
+  var expCatMap = {};
+  filtExp.forEach(function(e){
+    var cat = e.category || 'Other';
+    expCatMap[cat] = (expCatMap[cat]||0) + (e.amount||0);
+  });
+  var catKeys = Object.keys(expCatMap).sort(function(a,b){ return expCatMap[b]-expCatMap[a]; });
+  var catColors = ['#e53935','#8e24aa','#1e88e5','#43a047','#fb8c00','#00acc1','#6d4c41','#546e7a','#f4511e','#00897b'];
+
+  // Donut Chart
+  var donutCtx = document.getElementById('pl-donut-chart');
+  if(donutCtx){
+    if(plDonutChart){ plDonutChart.destroy(); plDonutChart = null; }
+    if(catKeys.length > 0){
+      plDonutChart = new Chart(donutCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: catKeys,
+          datasets: [{data: catKeys.map(function(k){ return expCatMap[k]; }), backgroundColor: catKeys.map(function(k,i){ return catColors[i%catColors.length]; }), borderWidth:2, borderColor:'#fff'}]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:true,
+          plugins:{legend:{position:'bottom', labels:{font:{size:9}, padding:8}},
+          tooltip:{callbacks:{label:function(ctx){ return ctx.label+': ₹'+ctx.parsed.toLocaleString('en-IN'); }}}}
+        }
+      });
+    } else {
+      donutCtx.getContext('2d').clearRect(0,0,donutCtx.width,donutCtx.height);
+    }
+  }
+
+  // Category Table
+  var catTable = document.getElementById('pl-cat-table');
+  if(catTable){
+    if(catKeys.length > 0){
+      catTable.innerHTML = '<table class="tbl" style="font-size:11px;">'
+        +'<thead><tr><th>Category</th><th style="text-align:right;">Amount</th><th style="text-align:right;">%</th></tr></thead>'
+        +'<tbody>'
+        + catKeys.map(function(k,i){
+            var pct = totalExpenses > 0 ? (expCatMap[k]/totalExpenses*100).toFixed(1) : 0;
+            return '<tr><td style="display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:'+catColors[i%catColors.length]+';display:inline-block;flex-shrink:0;"></span>'+escH(k)+'</td>'
+              +'<td style="text-align:right;font-weight:700;">'+fmtNum(expCatMap[k])+'</td>'
+              +'<td style="text-align:right;color:var(--mu);">'+pct+'%</td></tr>';
+          }).join('')
+        +'<tr style="background:var(--ow);font-weight:700;"><td>TOTAL</td><td style="text-align:right;">'+fmtNum(totalExpenses)+'</td><td style="text-align:right;">100%</td></tr>'
+        +'</tbody></table>';
+    } else {
+      catTable.innerHTML = '<div style="color:var(--mu);text-align:center;padding:30px;font-family:Arial,sans-serif;">No expenses in this period</div>';
+    }
+  }
+
+  // P&L Statement
+  var stmt = document.getElementById('pl-statement');
+  if(stmt){
+    var rows = [
+      {label:'REVENUE', val:'', bold:true, color:'', bg:'#f0f4f8'},
+      {label:'Total Sales (Invoiced)', val:fmtNum(totalSales), bold:false, color:'#1b5e20', bg:''},
+      {label:'COST OF GOODS', val:'', bold:true, color:'', bg:'#f0f4f8'},
+      {label:'Purchase / COGS', val:'('+fmtNum(totalPurchases)+')', bold:false, color:'#e65100', bg:''},
+      {label:'GROSS PROFIT', val:fmtNum(grossProfit), bold:true, color:grossProfit>=0?'#1565c0':'#c62828', bg:'#e8eaf6'},
+      {label:'Gross Margin', val:fmtPct(grossMargin), bold:false, color:'#546e7a', bg:''},
+      {label:'OPERATING EXPENSES', val:'', bold:true, color:'', bg:'#f0f4f8'},
+      {label:'Total Expenses', val:'('+fmtNum(totalExpenses)+')', bold:true, color:'#c0392b', bg:''},
+    ];
+    rows.push({label:'NET PROFIT / LOSS', val:fmtNum(netProfit), bold:true, color:netProfit>=0?'#2e7d32':'#c62828', bg:netProfit>=0?'#e8f5e9':'#ffeaea'});
+    rows.push({label:'Net Profit Margin', val:fmtPct(netMargin), bold:false, color:'#546e7a', bg:''});
+    rows.push({label:'Invoices Collected', val:fmtNum(totalPaid), bold:false, color:'#2e7d32', bg:''});
+    rows.push({label:'Pending Receivables', val:fmtNum(totalPending), bold:false, color:'#e65100', bg:''});
+
+    stmt.innerHTML = '<table style="width:100%;border-collapse:collapse;">'
+      + rows.map(function(r){
+          return '<tr style="background:'+(r.bg||'')+';"><td style="padding:9px 12px;font-size:12px;font-weight:'+(r.bold?'700':'500')+';color:'+(r.bold&&!r.color?'#1a2a2a':r.color||'var(--t2)')+';border-bottom:1px solid var(--bdr);letter-spacing:'+(r.bold?'0.5px':'0')+';">'+escH(r.label)+'</td>'
+            +'<td style="padding:9px 12px;text-align:right;font-family:Cormorant Garamond,serif;font-size:'+(r.bold?'17':'14')+'px;font-weight:700;color:'+(r.color||'var(--t)')+';border-bottom:1px solid var(--bdr);">'+r.val+'</td></tr>';
+        }).join('')
+      + '</table>';
+  }
+
+  // Monthly Breakdown Table
+  var tbody = document.getElementById('pl-monthly-body');
+  if(tbody){
+    tbody.innerHTML = mkeys.map(function(k){
+      var m = monthsMap[k];
+      var gp = m.sales - m.purchases;
+      var np = gp - m.expenses;
+      var marg = m.sales > 0 ? (np/m.sales*100).toFixed(1) : '0.0';
+      var npCol = np >= 0 ? '#2e7d32' : '#c0392b';
+      return '<tr>'
+        +'<td><span style="font-weight:700;font-family:Arial,sans-serif;">'+escH(m.label)+'</span></td>'
+        +'<td style="text-align:right;color:#1b5e20;font-weight:600;">'+fmtNum(m.sales)+'</td>'
+        +'<td style="text-align:right;color:#e65100;">'+fmtNum(m.purchases)+'</td>'
+        +'<td style="text-align:right;color:#c0392b;">'+fmtNum(m.expenses)+'</td>'
+        +'<td style="text-align:right;color:#1565c0;font-weight:600;">'+fmtNum(gp)+'</td>'
+        +'<td style="text-align:right;color:'+npCol+';font-weight:700;font-family:Cormorant Garamond,serif;font-size:15px;">'+fmtNum(np)+'</td>'
+        +'<td style="text-align:right;color:'+npCol+';">'+marg+'%</td>'
+        +'</tr>';
+    }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--mu);padding:20px;">No data in selected period</td></tr>';
+  }
+}
+
+function exportPnLExcel(){
+  if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Only Admin can export'); return; }
+  var range = getPnLDateRange();
+  var from = range.from, to = range.to;
+  var allInvoices = LS.get('invoices') || [];
+  var allPurchases = LS.get('purchases') || [];
+  var allExpenses = LS.get('expenses') || [];
+  var filtInv = allInvoices.filter(function(i){ return dateInRange(i.invDate, from, to); });
+  var filtPur = allPurchases.filter(function(p){ return dateInRange(p.date, from, to); });
+  var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
+  var totalSales = filtInv.reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var totalPurchases = filtPur.reduce(function(s,p){ return s+(p.totalCost||0); }, 0);
+  var totalExpenses = filtExp.reduce(function(s,e){ return s+(e.amount||0); }, 0);
+  var grossProfit = totalSales - totalPurchases;
+  var netProfit = grossProfit - totalExpenses;
+  var wb = XLSX.utils.book_new();
+  var summData = [
+    ['P&L SUMMARY'],
+    ['Period', from.toLocaleDateString('en-IN')+' to '+to.toLocaleDateString('en-IN')],
+    [],
+    ['Item','Amount (₹)'],
+    ['Total Sales', totalSales],
+    ['Purchase Cost', totalPurchases],
+    ['Gross Profit', grossProfit],
+    ['Total Expenses', totalExpenses],
+    ['NET PROFIT', netProfit],
+    ['Net Margin %', totalSales>0?(netProfit/totalSales*100).toFixed(2):0],
+  ];
+  var ws1 = XLSX.utils.aoa_to_sheet(summData);
+  XLSX.utils.book_append_sheet(wb, ws1, 'P&L Summary');
+  // Invoice sheet
+  var invData = [['Date','Customer','Items','Total','Pay Mode','Status']];
+  filtInv.forEach(function(i){ invData.push([i.invDate,i.custName,i.items?i.items.length:0,i.total,i.payMode,i.payStatus]); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invData), 'Sales');
+  // Expenses sheet
+  var expData = [['Date','Category','Description','Amount']];
+  filtExp.forEach(function(e){ expData.push([e.date,e.category,e.desc||'',e.amount]); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expData), 'Expenses');
+  // Purchases sheet
+  var purData2 = [['Date','Description','Total Cost']];
+  filtPur.forEach(function(p){ purData2.push([p.date,p.desc||p.vendor||'',p.totalCost]); });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(purData2), 'Purchases');
+  XLSX.writeFile(wb, 'Alphamen_PnL_Report.xlsx');
+  showToast('Excel exported!');
+}
+function exportPnLPDF(){
+  if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Only Admin can export'); return; }
+  var range = getPnLDateRange();
+  var from = range.from, to = range.to;
+  var allInvoices = LS.get('invoices') || [];
+  var allPurchases = LS.get('purchases') || [];
+  var allExpenses = LS.get('expenses') || [];
+  var filtInv = allInvoices.filter(function(i){ return dateInRange(i.invDate, from, to); });
+  var filtPur = allPurchases.filter(function(p){ return dateInRange(p.date, from, to); });
+  var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
+  var totalSales = filtInv.reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var totalPurchases = filtPur.reduce(function(s,p){ return s+(p.totalCost||0); }, 0);
+  var totalExpenses = filtExp.reduce(function(s,e){ return s+(e.amount||0); }, 0);
+  var grossProfit = totalSales - totalPurchases;
+  var netProfit = grossProfit - totalExpenses;
+  var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100).toFixed(1) : '0.0';
+  var netMargin = totalSales > 0 ? (netProfit/totalSales*100).toFixed(1) : '0.0';
+  var totalPaid = filtInv.filter(function(i){ return i.payStatus==='Paid'; }).reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
+
+  // Category breakdown
+  var expCatMap = {};
+  filtExp.forEach(function(e){ expCatMap[e.category||'Other'] = (expCatMap[e.category||'Other']||0) + (e.amount||0); });
+  var catKeys = Object.keys(expCatMap).sort(function(a,b){ return expCatMap[b]-expCatMap[a]; });
+
+  var biz = (LS.get('settings') && LS.get('settings').biz) || 'Alphamen Clothing Co.';
+  var periodStr = from.toLocaleDateString('en-IN') + ' — ' + to.toLocaleDateString('en-IN');
+  var netColor = netProfit >= 0 ? '#1b5e20' : '#c62828';
+  var gpColor = grossProfit >= 0 ? '#1565c0' : '#c62828';
+
+  var catRows = catKeys.map(function(k){
+    var pct = totalExpenses > 0 ? (expCatMap[k]/totalExpenses*100).toFixed(1) : '0.0';
+    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:12px;color:#444;">'+escH(k)+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-size:12px;color:#c0392b;font-weight:600;">'+fmtNum(expCatMap[k])+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-size:12px;color:#888;">'+pct+'%</td></tr>';
+  }).join('');
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
+    +'<title>P&L Report — '+biz+'</title>'
+    +'<style>'
+    +'*{margin:0;padding:0;box-sizing:border-box;}'
+    +'body{font-family:Arial,sans-serif;background:#fff;color:#1a2a2a;padding:32px;}'
+    +'h1{font-family:Georgia,serif;font-size:26px;font-weight:700;color:#0d2818;letter-spacing:1px;}'
+    +'.sub{font-size:12px;color:#666;margin-top:4px;letter-spacing:0.5px;}'
+    +'.section-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#888;font-weight:700;margin:22px 0 10px;border-bottom:1px solid #ddd;padding-bottom:5px;}'
+    +'.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px;}'
+    +'.kpi{background:#f8f9fa;border-radius:4px;padding:14px;border-left:3px solid #ccc;}'
+    +'.kpi-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#888;margin-bottom:5px;}'
+    +'.kpi-val{font-family:Georgia,serif;font-size:20px;font-weight:700;}'
+    +'table{width:100%;border-collapse:collapse;}'
+    +'th{background:#0d2818;color:#fff;padding:9px 12px;text-align:left;font-size:11px;letter-spacing:0.5px;}'
+    +'th.r{text-align:right;}'
+    +'td{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;}'
+    +'.total-row td{background:#f0f4f0;font-weight:700;font-size:13px;}'
+    +'.net-row td{background:#e8f5e9;font-weight:700;font-size:15px;font-family:Georgia,serif;}'
+    +'@media print{body{padding:16px;}}'
+    +'</style></head><body>'
+
+    // Header
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;border-bottom:2px solid #0d2818;padding-bottom:16px;">'
+    +'<div><h1>'+escH(biz)+'</h1><div class="sub">Profit &amp; Loss Report</div><div class="sub" style="margin-top:2px;">Period: '+periodStr+'</div></div>'
+    +'<div style="text-align:right;font-size:11px;color:#888;">Generated: '+new Date().toLocaleDateString('en-IN')+'</div>'
+    +'</div>'
+
+    // KPI Cards
+    +'<div class="section-title">Summary</div>'
+    +'<div class="kpi-grid">'
+    +'<div class="kpi" style="border-left-color:#2e7d32;"><div class="kpi-label">Total Revenue</div><div class="kpi-val" style="color:#1b5e20;">'+fmtNum(totalSales)+'</div></div>'
+    +'<div class="kpi" style="border-left-color:#e65100;"><div class="kpi-label">Purchase Cost</div><div class="kpi-val" style="color:#e65100;">'+fmtNum(totalPurchases)+'</div></div>'
+    +'<div class="kpi" style="border-left-color:#c0392b;"><div class="kpi-label">Total Expenses</div><div class="kpi-val" style="color:#c0392b;">'+fmtNum(totalExpenses)+'</div></div>'
+    +'<div class="kpi" style="border-left-color:#1565c0;"><div class="kpi-label">Gross Profit</div><div class="kpi-val" style="color:'+gpColor+';">'+fmtNum(grossProfit)+'</div></div>'
+    +'<div class="kpi" style="border-left-color:'+netColor+';"><div class="kpi-label">Net Profit</div><div class="kpi-val" style="color:'+netColor+';">'+fmtNum(netProfit)+'</div></div>'
+    +'<div class="kpi" style="border-left-color:#546e7a;"><div class="kpi-label">Net Margin</div><div class="kpi-val" style="color:#546e7a;">'+netMargin+'%</div></div>'
+    +'</div>'
+
+    // P&L Statement
+    +'<div class="section-title">Profit &amp; Loss Statement</div>'
+    +'<table><thead><tr><th>Particulars</th><th class="r">Amount</th></tr></thead><tbody>'
+    +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">REVENUE</td><td></td></tr>'
+    +'<tr><td style="padding-left:20px;">Total Sales (Invoiced)</td><td style="text-align:right;color:#1b5e20;font-weight:600;">'+fmtNum(totalSales)+'</td></tr>'
+    +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">COST OF GOODS</td><td></td></tr>'
+    +'<tr><td style="padding-left:20px;">Purchase / COGS</td><td style="text-align:right;color:#e65100;">('+fmtNum(totalPurchases)+')</td></tr>'
+    +'<tr style="background:#e8eaf6;"><td style="font-weight:700;">GROSS PROFIT</td><td style="text-align:right;font-weight:700;color:'+gpColor+';font-size:14px;">'+fmtNum(grossProfit)+'</td></tr>'
+    +'<tr><td style="padding-left:20px;color:#888;">Gross Margin</td><td style="text-align:right;color:#888;">'+grossMargin+'%</td></tr>'
+    +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">OPERATING EXPENSES</td><td></td></tr>'
+    +'<tr><td style="padding-left:20px;">Total Expenses</td><td style="text-align:right;color:#c0392b;">('+fmtNum(totalExpenses)+')</td></tr>'
+    +'<tr class="net-row"><td>NET PROFIT / LOSS</td><td style="text-align:right;color:'+netColor+';">'+fmtNum(netProfit)+'</td></tr>'
+    +'<tr><td style="padding-left:20px;color:#888;">Net Profit Margin</td><td style="text-align:right;color:#888;">'+netMargin+'%</td></tr>'
+    +'<tr><td style="padding-left:20px;color:#2e7d32;">Invoices Collected</td><td style="text-align:right;color:#2e7d32;">'+fmtNum(totalPaid)+'</td></tr>'
+    +'<tr><td style="padding-left:20px;color:#e65100;">Pending Receivables</td><td style="text-align:right;color:#e65100;">'+fmtNum(totalPending)+'</td></tr>'
+    +'</tbody></table>'
+
+    // Expense Category Breakdown
+    +(catKeys.length > 0 ?
+      '<div class="section-title" style="margin-top:22px;">Expense Category Breakdown</div>'
+      +'<table><thead><tr><th>Category</th><th class="r">Amount</th><th class="r">%</th></tr></thead><tbody>'
+      + catRows
+      +'<tr class="total-row"><td>TOTAL EXPENSES</td><td style="text-align:right;color:#c0392b;">'+fmtNum(totalExpenses)+'</td><td style="text-align:right;">100%</td></tr>'
+      +'</tbody></table>'
+    : '')
+
+    +'<div style="margin-top:30px;text-align:center;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:12px;">Alphamen Business Suite — Confidential</div>'
+    +'</body></html>';
+
+  var win = window.open('', '_blank');
+  if(!win){ showToast('Popup blocked! Allow popups and try again.'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.onload = function(){ win.focus(); win.print(); };
+  showToast('PDF ready to print/save!');
+}
+// ===== END P&L FUNCTIONS =====
 
 
 </script></script>
