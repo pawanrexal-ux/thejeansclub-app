@@ -2659,8 +2659,14 @@ function renderPayments(){
   var filter = document.getElementById('pay-filter') ? document.getElementById('pay-filter').value : '';
 
   // ---- Stats ----
-  var saleCash = invoices.filter(function(i){return i.payMode==='Cash';}).reduce(function(s,i){return s+i.total;},0);
-  var saleUpi = invoices.filter(function(i){return i.payMode==='UPI'||i.payMode==='Bank';}).reduce(function(s,i){return s+i.total;},0);
+  // Only count actually received amounts (exclude fully pending invoices)
+  var saleCash = invoices.filter(function(i){return i.payMode==='Cash' && i.payStatus!=='Pending';}).reduce(function(s,i){
+    // Partial: only paidAmount received
+    return s + (i.payStatus==='Partial' ? (i.paidAmount||0) : i.total);
+  },0);
+  var saleUpi = invoices.filter(function(i){return (i.payMode==='UPI'||i.payMode==='Bank') && i.payStatus!=='Pending';}).reduce(function(s,i){
+    return s + (i.payStatus==='Partial' ? (i.paidAmount||0) : i.total);
+  },0);
   var cSp = invoices.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
   var uSp = invoices.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.upiAmt||0);},0);
   var pendAmt = invoices.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
@@ -2708,7 +2714,12 @@ function renderPayments(){
   var h = '';
   Object.keys(dg).sort(function(a,b){return b.localeCompare(a);}).forEach(function(date){
     var day = dg[date];
-    var dayIn = (day.sales||[]).reduce(function(s,i){return s+i.total;},0);
+    var dayIn = (day.sales||[]).reduce(function(s,i){
+      if(i.payStatus==='Pending') return s;
+      if(i.payMode==='Split') return s + (i.cashAmt||0) + (i.upiAmt||0);
+      if(i.payStatus==='Partial') return s + (i.paidAmount||0);
+      return s + i.total;
+    },0);
     var dayPur = (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
     var dayExp = (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
     var dayNet = dayIn - dayPur - dayExp;
