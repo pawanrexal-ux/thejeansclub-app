@@ -1371,11 +1371,35 @@ var LS = {
   get: function(k) { try{ return JSON.parse(localStorage.getItem('ac_'+k)); }catch(e){ return null; } },
   // set = local only (no Firebase). Use sync() for intentional saves.
   set: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); },
-  // sync = local + Firebase push (only on real Save/Delete actions)
-  sync: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); pushCloud(); },
+  // sync = local save + debounced Firebase push (batches rapid calls into 1 write)
+  sync: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); schedulePush(); },
   setL: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); },
   del: function(k) { localStorage.removeItem('ac_'+k); }
 };
+
+// ── PUSH DEBOUNCER ──
+// Batches multiple LS.sync() calls (e.g. save invoice = 3 syncs) into ONE Firebase write.
+// 1.2s window: if another sync comes in before timer fires, timer resets.
+var _pushDebounceTimer = null;
+var _lastPushTime = 0;
+var PUSH_MIN_GAP = 3000; // minimum 3s between Firebase writes
+
+function schedulePush(){
+  if(_pushDebounceTimer) clearTimeout(_pushDebounceTimer);
+  _pushDebounceTimer = setTimeout(function(){
+    _pushDebounceTimer = null;
+    var now = Date.now();
+    // Throttle: don't push more than once per 3s even if debounce fires fast
+    if(now - _lastPushTime < PUSH_MIN_GAP){
+      // Schedule for remaining gap
+      var wait = PUSH_MIN_GAP - (now - _lastPushTime);
+      _pushDebounceTimer = setTimeout(function(){ _pushDebounceTimer=null; _lastPushTime=Date.now(); pushCloud(); }, wait);
+      return;
+    }
+    _lastPushTime = now;
+    pushCloud();
+  }, 1200); // 1.2s debounce window
+}
 
 // ===== GLOBALS =====
 var SYNC_KEY='', syncTmr=null, lastSync=0;
@@ -1452,6 +1476,9 @@ async function pushCloud(){
   }
 }
 
+var _lastManualPull = 0;
+var PULL_MIN_GAP = 15000; // min 15s between manual pulls
+
 async function pullCloud(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl){
@@ -1459,6 +1486,14 @@ async function pullCloud(){
     navTo('settings', null);
     return;
   }
+  // Rate limit: prevent spam clicks on sync button
+  var now = Date.now();
+  if(now - _lastManualPull < PULL_MIN_GAP){
+    var rem = Math.ceil((PULL_MIN_GAP - (now - _lastManualPull)) / 1000);
+    showToast('Please wait ' + rem + 's before syncing again');
+    return;
+  }
+  _lastManualPull = now;
   try{
     setSyncDot('syncing');
     var res = await fetch(getSyncPath());
@@ -1519,15 +1554,6 @@ function setSyncDot(s){
   if(!d) return;
   d.className = 'sync-dot' + (s==='online'?' online':s==='syncing'?' syncing':'');
   d.title = s==='online'?'Synced':s==='syncing'?'Syncing...':'Offline';
-}
-function updSS(){
-  var el = document.getElementById('syncStatus');
-  if(!el) return;
-  if(!SYNC_KEY){ el.textContent=''; return; }
-  if(lastSync){
-    var m = Math.floor((Date.now()-lastSync)/60000);
-    el.textContent = m < 1 ? 'Synced just now' : 'Synced '+m+'m ago';
-  }
 }
 function setSyncKey(){
   var k = document.getElementById('syncKeyInput').value.trim();
@@ -2130,10 +2156,15 @@ function showToast(msg){
   setTimeout(function(){ t.classList.remove('show'); }, 2500);
 }
 function nowDate(){ return new Date().toISOString().split('T')[0]; }
+var _monthKeyCache = {};
 function monthKey(d){
   if(!d) return '';
+  if(_monthKeyCache[d] !== undefined) return _monthKeyCache[d];
   var dt = new Date(d);
-  return dt.toLocaleString('en-IN', {month:'short', year:'numeric'});
+  if(isNaN(dt)) { _monthKeyCache[d]=''; return ''; }
+  var result = dt.toLocaleString('en-IN', {month:'short', year:'numeric'});
+  _monthKeyCache[d] = result;
+  return result;
 }
 function genInvNo(){
   // Invoice number STRICTLY derived from saved invoices array only.
@@ -4642,6 +4673,12 @@ async function silentPull(){
     if(Array.isArray(d.pendingPayments) && JSON.stringify(d.pendingPayments) !== JSON.stringify(pendingPayments)){
       pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); changed = true;
     }
+    if(Array.isArray(d.expenses) && JSON.stringify(d.expenses) !== JSON.stringify(expenses)){
+      expenses = d.expenses; LS.setL('expenses', expenses); changed = true;
+    }
+    if(Array.isArray(d.stockMovLog) && JSON.stringify(d.stockMovLog) !== JSON.stringify(stockMovLog)){
+      stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog);
+    }
     localStorage.setItem('ac_lastSync', String(cloudTs));
     setSyncDot('online');
     lastSync = Date.now();
@@ -5681,9 +5718,15 @@ function renderPurchases(){
   var search = (document.getElementById('pur-search') ? document.getElementById('pur-search').value : '').toLowerCase();
   var selMonth = document.getElementById('pur-month') ? document.getElementById('pur-month').value : '';
 
-  // Update month dropdown
+  // Update month dropdown (sorted newest first, only rebuild when needed)
   var months = [];
   purchases.forEach(function(p){ var mk = monthKey(p.date); if(mk && months.indexOf(mk) === -1) months.push(mk); });
+  months.sort(function(a,b){
+    var da = new Date(a.replace(/^(\w+) (\d+)$/, '$1 1, $2'));
+    var db = new Date(b.replace(/^(\w+) (\d+)$/, '$1 1, $2'));
+    if(!isNaN(da) && !isNaN(db)) return db - da;
+    return b.localeCompare(a);
+  });
   var mSel = document.getElementById('pur-month');
   if(mSel){
     var cur = mSel.value;
@@ -5727,8 +5770,15 @@ function renderPurchases(){
     return;
   }
 
+  var sortedMonthKeys = Object.keys(mg).sort(function(a,b){
+    // Parse "May 2025" / "Apr 2025" style keys back to dates for correct sort
+    var da = new Date(a.replace(/^(\w+) (\d+)$/, '$1 1, $2'));
+    var db = new Date(b.replace(/^(\w+) (\d+)$/, '$1 1, $2'));
+    if(!isNaN(da) && !isNaN(db)) return db - da; // newest first
+    return b.localeCompare(a);
+  });
   var html = '';
-  Object.keys(mg).forEach(function(month){
+  sortedMonthKeys.forEach(function(month){
     var dg = mg[month], mi = [];
     Object.keys(dg).forEach(function(k){ dg[k].forEach(function(p){ mi.push(p); }); });
     var mt = mi.reduce(function(s,p){ return s+p.totalCost; }, 0);
