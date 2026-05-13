@@ -429,9 +429,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .search-box:focus{border-color:var(--gl);background:var(--cb);box-shadow:0 0 0 3px rgba(36,97,77,.06);}
 
 /* ── SETTINGS ─────────────────────────────────────────── */
-.set-section{background:var(--cb);border:1px solid var(--bdr);margin-bottom:14px;box-shadow:var(--sh0);border-radius:2px;}
-.set-head{background:linear-gradient(90deg,var(--g),var(--gm));color:var(--gl2);padding:12px 16px;font-family:"Cormorant Garamond",serif;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;}
-.set-body{padding:14px;}
+.set-section{background:var(--cb);border:1px solid var(--bdr);margin-bottom:14px;box-shadow:var(--sh0);border-radius:2px;overflow:hidden;}
+.set-head{background:linear-gradient(90deg,var(--g),var(--gm));color:var(--gl2);padding:12px 16px;font-family:"Cormorant Garamond",serif;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;}
+.set-head::after{content:'▼';font-size:10px;opacity:0.8;transition:transform 0.25s ease;}
+.set-head.open::after{transform:rotate(-180deg);}
+.set-body{padding:14px;display:none;}
+.set-body.open{display:block;}
 
 /* ── FOLDER TREE ─────────────────────────────────────────── */
 .folder{margin-bottom:8px;}
@@ -729,14 +732,54 @@ input[type=tel], textarea, select {
                 </select>
               </div>
               <div class="ig"><label>Status</label>
-                <select id="invPayStatus"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select>
+                <select id="invPayStatus" onchange="onPayStatusChange()"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select>
               </div>
             </div>
-            <div id="splitPaySection">
+            <!-- FULL PAID: Split section (only when Paid + Split mode) -->
+            <div id="splitPaySection" style="display:none;">
               <div style="font-size:11px;font-weight:700;color:var(--g);margin-bottom:8px;font-family:Arial,sans-serif;">Split Amount: <span id="split-total-hint" style="color:#546e7a;font-weight:600;"></span></div>
               <div class="row2">
-                <div><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Cash (Rs)</label><input type="number" id="cashAmt" placeholder="0" inputmode="numeric" oninput="onCashAmtChange()"/></div>
-                <div><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">UPI (Rs)</label><input type="number" id="upiAmt" placeholder="0" inputmode="numeric"/></div>
+                <div><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Cash (&#8377;)</label><input type="number" id="cashAmt" placeholder="0" inputmode="numeric" oninput="onCashAmtChange()"/></div>
+                <div><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">UPI (&#8377;)</label><input type="number" id="upiAmt" placeholder="0" inputmode="numeric"/></div>
+              </div>
+            </div>
+            <!-- PARTIAL section (shown when Status = Partial) -->
+            <div id="partialPaySection" style="display:none;">
+              <div style="font-size:11px;font-weight:700;color:#9a6a00;margin-bottom:10px;font-family:Arial,sans-serif;background:#fffbea;padding:8px 12px;border:1px solid #ffe18a;border-radius:2px;">&#9654; Partial Payment — Kitna abhi pay ho raha hai?</div>
+              <!-- Single paid amount (for Cash / UPI / Bank mode) -->
+              <div id="partialSingleRow" class="row2">
+                <div class="ig">
+                  <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Paid Amount (&#8377;)</label>
+                  <div class="iw"><span class="ip">&#8377;</span><input type="number" id="partialPaidAmt" placeholder="0" inputmode="numeric" oninput="onPartialAmtChange()" style="border-color:#ffe18a;"/></div>
+                </div>
+                <div class="ig">
+                  <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Remaining (Pending)</label>
+                  <div style="padding:10px 12px;background:#fff3e0;border:1px solid #ffd4a0;font-size:14px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;" id="partialRemaining1">&#8377; 0</div>
+                </div>
+              </div>
+              <!-- Split paid amount (for Split mode) -->
+              <div id="partialSplitRow" style="display:none;">
+                <div style="font-size:10px;font-weight:700;color:#546e7a;margin-bottom:8px;font-family:Arial,sans-serif;">Paid amount ka breakdown: <span id="partial-split-hint" style="color:#9a6a00;font-weight:700;"></span></div>
+                <div class="row2" style="margin-bottom:8px;">
+                  <div class="ig">
+                    <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Cash Paid (&#8377;)</label>
+                    <div class="iw"><span class="ip">&#8377;</span><input type="number" id="partialCashAmt" placeholder="0" inputmode="numeric" oninput="onPartialSplitChange()" style="border-color:#ffe18a;"/></div>
+                  </div>
+                  <div class="ig">
+                    <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">UPI Paid (&#8377;)</label>
+                    <div class="iw"><span class="ip">&#8377;</span><input type="number" id="partialUpiAmt" placeholder="0" inputmode="numeric" oninput="onPartialSplitChange()" style="border-color:#ffe18a;"/></div>
+                  </div>
+                </div>
+                <div class="row2">
+                  <div class="ig">
+                    <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Total Paid</label>
+                    <div style="padding:10px 12px;background:#fffbea;border:1px solid #ffe18a;font-size:14px;font-weight:700;color:#9a6a00;font-family:Arial,sans-serif;" id="partialSplitTotal">&#8377; 0</div>
+                  </div>
+                  <div class="ig">
+                    <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Remaining (Pending)</label>
+                    <div style="padding:10px 12px;background:#fff3e0;border:1px solid #ffd4a0;font-size:14px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;" id="partialRemaining">&#8377; 0</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -774,13 +817,35 @@ input[type=tel], textarea, select {
 
       <!-- PAYMENTS -->
       <div class="page" id="page-payments">
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-          <select id="pay-month" onchange="renderPayments()" style="padding:9px 11px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;"><option value="">All Months</option></select>
-          <select id="pay-filter" onchange="renderPayments()" style="padding:9px 11px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;"><option value="">All Types</option><option value="Cash">Cash Only</option><option value="UPI">UPI Only</option><option value="Split">Split Only</option><option value="Pending">Pending Sales</option><option value="Purchase">Purchase Only</option><option value="Expense">Expense Only</option></select>
-          <button class="btn btn-gold" onclick="exportPayExcel()">&#128202; Excel</button><button class="btn btn-green" onclick="showDatePickerForPDF('daily')" style="padding:9px 12px;">&#128196; Daily PDF</button>
+        <!-- Filters -->
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <select id="pay-month" onchange="renderPayments()" style="padding:9px 11px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;min-width:120px;"><option value="">All Months</option></select>
+          <select id="pay-period" onchange="renderPayments()" style="padding:9px 11px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;min-width:110px;">
+            <option value="">All Time</option>
+            <option value="daily">Today</option>
+            <option value="weekly">This Week</option>
+          </select>
+          <select id="pay-filter" onchange="renderPayments()" style="padding:9px 11px;background:var(--ow);border:1px solid var(--bdr);font-size:13px;font-family:Arial,sans-serif;outline:none;flex:1;min-width:120px;">
+            <option value="">All Types</option>
+            <option value="Invoice">Invoice (Sales)</option>
+            <option value="Receipt">Payment Receipts</option>
+            <option value="Purchase">Purchase</option>
+            <option value="Expense">Expense</option>
+            <option value="Pending">Pending Sales</option>
+            <option value="Cash">Cash Only</option>
+            <option value="UPI">UPI Only</option>
+          </select>
+          <button class="btn btn-gold" onclick="exportPayExcel()" style="padding:9px 12px;">&#128202; Excel</button>
+          <button class="btn btn-green" onclick="showDatePickerForPDF('daily')" style="padding:9px 12px;">&#128196; PDF</button>
         </div>
-        <div class="stats-grid" id="pay-stats"></div>
-        <div class="card"><div class="card-head"><div class="card-icon">&#128179;</div><div class="card-title">Payment Records</div></div><div class="card-body" style="overflow-x:auto;"><div id="payList"></div></div></div>
+        <!-- IN/OUT Summary -->
+        <div id="pay-inout-summary" style="margin-bottom:12px;"></div>
+        <div class="stats-grid" id="pay-stats" style="display:none;"></div>
+        <!-- Records -->
+        <div class="card">
+          <div class="card-head"><div class="card-icon">&#128179;</div><div class="card-title">Payment Records</div></div>
+          <div class="card-body" style="overflow-x:auto;padding:0;"><div id="payList"></div></div>
+        </div>
       </div>
 
 
@@ -1223,6 +1288,18 @@ input[type=tel], textarea, select {
             <div id="set-staff-msg" style="margin-top:8px;font-size:12px;text-align:center;display:none;font-family:Arial,sans-serif;"></div>
           </div>
         </div>
+        <div class="set-section" id="admin-staff-perms-section"><div class="set-head">&#128737; Staff Access Permissions</div>
+          <div class="set-body">
+            <div style="font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.6;">Admin can control which features staff can access. Toggle ON to allow, OFF to block.</div>
+            <div id="staff-perms-list" style="display:grid;gap:8px;"></div>
+            <div style="margin-top:14px;display:flex;gap:8px;">
+              <button class="btn btn-green btn-full" onclick="saveStaffPerms()">&#10003; Save Permissions</button>
+              <button class="btn btn-outline" onclick="staffPermsSelectAll(true)" style="flex-shrink:0;padding:10px 12px;font-size:9px;">All ON</button>
+              <button class="btn btn-outline" onclick="staffPermsSelectAll(false)" style="flex-shrink:0;padding:10px 12px;font-size:9px;">All OFF</button>
+            </div>
+            <div id="perms-save-msg" style="display:none;margin-top:8px;font-size:12px;text-align:center;font-family:Arial,sans-serif;"></div>
+          </div>
+        </div>
         <div class="set-section"><div class="set-head">&#127970; Business Info</div>
           <div class="set-body">
             <div class="ig"><label>Business Name</label><input type="text" id="set-biz" value="Alphamen Clothing Co."/></div>
@@ -1430,6 +1507,7 @@ var SETTINGS={biz:'Alphamen Clothing Co.',ph:'',addr:'',gst:''};
 var itemIdCounter=1;
 var dailyReports={}, monthlyReports={};
 var lastCheckedDate='', lastCheckedMonth='';
+var khataEntries=[]; // Khata ledger entries
 
 // ===== FIREBASE SYNC =====
 // Uses Firebase Realtime Database REST API - no SDK needed
@@ -1810,10 +1888,52 @@ var STAFF_AUTH_DEFAULT = {user:'staff', pass:'staff@123'};
 // Staff ke liye restricted pages - in pages ko staff nahi dekh sakta
 // Staff CAN: invoice (new), history (same-day only), pendingreceipts (share/download), pendingnew, pendingpreview, pending (dashboard), expensenew (add+pdf+share), expenselist (today only)
 // Staff CANNOT: dashboard, payments, purchases, purchaselist, inventory, costing, salesreport, settings, reports, expenses (full dashboard)
-var STAFF_RESTRICTED_PAGES = ['dashboard', 'payments', 'purchases', 'purchaselist', 'inventory', 'costing', 'salesreport', 'settings', 'expenses', 'invreport', 'pnl'];
+// ===== STAFF PERMISSIONS SYSTEM =====
+// Har feature ka config: page key, nav label, default (true = allowed, false = blocked)
+var STAFF_PERMISSION_DEFS = [
+  { key:'dashboard',      label:'Dashboard',           navLabel:'Dashboard',           defaultOn:false, icon:'📊' },
+  { key:'invoice',        label:'New Invoice',          navLabel:'New Invoice',         defaultOn:true,  icon:'🧾' },
+  { key:'history',        label:'Invoice History',      navLabel:'Invoice History',     defaultOn:true,  icon:'📁' },
+  { key:'payments',       label:'Payments',             navLabel:'Payments',            defaultOn:false, icon:'💳' },
+  { key:'purchases',      label:'Purchase Dashboard',   navLabel:'Purchase Dashboard',  defaultOn:false, icon:'🚚' },
+  { key:'purchaselist',   label:'Purchase Records',     navLabel:'Purchase Records',    defaultOn:false, icon:'📋' },
+  { key:'inventory',      label:'Stock Manager',        navLabel:'Stock Manager',       defaultOn:false, icon:'📦' },
+  { key:'invreport',      label:'Inventory Report',     navLabel:'Inventory Report',    defaultOn:false, icon:'📈' },
+  { key:'costing',        label:'Cost Calculator',      navLabel:'Cost Calculator',     defaultOn:false, icon:'💰' },
+  { key:'salesreport',    label:'Sales Report',         navLabel:'Sales Report',        defaultOn:false, icon:'📈' },
+  { key:'pnl',            label:'P&L Dashboard',        navLabel:'P&L Dashboard',       defaultOn:false, icon:'💵' },
+  { key:'pending',        label:'Pending Payments',     navLabel:'Pending Payments',    defaultOn:true,  icon:'⏰' },
+  { key:'pendingreceipts',label:'Payment Receipts',     navLabel:'Payment Receipts',    defaultOn:true,  icon:'📄' },
+  { key:'pendingnew',     label:'New Payment Receipt',  navLabel:'New Payment Receipt', defaultOn:true,  icon:'➕' },
+  { key:'expenses',       label:'Expense Dashboard',    navLabel:'Expense Dashboard',   defaultOn:false, icon:'💸' },
+  { key:'expensenew',     label:'Add Expense',          navLabel:'Add Expense',         defaultOn:true,  icon:'➕' },
+  { key:'expenselist',    label:'Expense Records',      navLabel:'Expense Records',     defaultOn:true,  icon:'📋' },
+  { key:'settings',       label:'Settings',             navLabel:'Settings',            defaultOn:false, icon:'⚙️' },
+];
 
-// Staff ke liye restricted nav items (hidden honge)
-var STAFF_RESTRICTED_NAV_LABELS = ['Dashboard', 'Payments', 'Purchase Dashboard', 'Purchase Records', 'Stock Manager', 'Inventory Report', 'Cost Calculator', 'Sales Report', 'Settings', 'Expense Dashboard', 'P&L Dashboard'];
+// Runtime mein load hoga from localStorage
+var STAFF_PERMISSIONS = {}; // { key: true/false }
+
+function loadStaffPerms(){
+  var saved = LS.get('staffPerms') || {};
+  STAFF_PERMISSIONS = {};
+  STAFF_PERMISSION_DEFS.forEach(function(def){
+    STAFF_PERMISSIONS[def.key] = (saved[def.key] !== undefined) ? saved[def.key] : def.defaultOn;
+  });
+}
+
+function staffCanAccess(page){
+  if(CURRENT_ROLE === 'admin') return true;
+  // Settings always blocked for staff
+  if(page === 'settings') return false;
+  // pnl always blocked for staff
+  if(page === 'pnl') return false;
+  return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
+}
+
+// Backward compat - these are now dynamic
+var STAFF_RESTRICTED_PAGES = []; // computed dynamically
+var STAFF_RESTRICTED_NAV_LABELS = []; // computed dynamically
 
 function checkLogin(){
   SYNC_KEY = localStorage.getItem('ac_synckey') || '';
@@ -1825,6 +1945,8 @@ function checkLogin(){
   savedCustomers = LS.get('customers') || [];
   dailyReports = LS.get('dailyReports') || {};
   monthlyReports = LS.get('monthlyReports') || {};
+  khataEntries = LS.get('khataEntries') || [];
+  loadStaffPerms();
   var lImg = document.getElementById('appLogoData');
   if(lImg) LOGO_URL = lImg.src;
 
@@ -1922,6 +2044,7 @@ resetAutoLogout();
 function showApp(){
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('appLayout').style.display = 'flex';
+  loadStaffPerms();
   applyRoleRestrictions();
   initApp();
   // Staff ko directly invoice page par bhejo (dashboard restricted hai)
@@ -1954,17 +2077,20 @@ function applyRoleRestrictions(){
     }
   }
 
-  // Staff ke liye restricted nav items hide karo
+  // Staff ke liye nav items dynamically hide karo based on permissions
   var navItems = document.querySelectorAll('.nav-item');
   navItems.forEach(function(item) {
-    var txt = item.textContent.trim();
-    // Exact match use karo - indexOf se false matches hote hain
-    // e.g. 'Payments' indexOf se 'Pending Payments' aur 'Payment Receipts' bhi match karta tha
-    var restricted = STAFF_RESTRICTED_NAV_LABELS.some(function(label){ return txt === label; });
-    if(!isAdmin && restricted) {
-      item.style.display = 'none';
+    if(!isAdmin) {
+      var txt = item.textContent.trim();
+      // Find matching permission def by navLabel
+      var def = STAFF_PERMISSION_DEFS.find(function(d){ return txt === d.navLabel; });
+      if(def) {
+        item.style.display = staffCanAccess(def.key) ? '' : 'none';
+      } else {
+        item.style.display = ''; // unknown nav items shown by default
+      }
     } else {
-      item.style.display = '';
+      item.style.display = ''; // admin sees everything
     }
   });
 
@@ -2112,9 +2238,9 @@ var currentPage = 'dashboard';
 var pageHistory = [];
 
 function navTo(page, el, mi){
-  // Staff ke liye restricted pages block karo
-  if(CURRENT_ROLE === 'staff' && STAFF_RESTRICTED_PAGES.indexOf(page) !== -1) {
-    showToast('⛔ Access Denied: Only Admin can view this page');
+  // Staff ke liye access check (granular permissions)
+  if(CURRENT_ROLE === 'staff' && !staffCanAccess(page)) {
+    showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');
     return;
   }
   // Staff ke liye expense add only (records & dashboard blocked above)
@@ -2127,7 +2253,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', khata:'Khata Ledger', khataentry:'Add Khata Entry'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
@@ -2149,7 +2275,9 @@ function navTo(page, el, mi){
   if(page==='pendingreceipts') renderPendingReceipts();
   if(page==='pendingnew'){ initPendingForm(); }
   if(page==='pendingpreview'){}
-  if(page==='pnl'){ if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can view P&L Dashboard');navTo('invoice',null);return;} renderPnL(); }
+  if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} renderPnL(); }
+  if(page==='khata'){ renderKhata(); }
+  if(page==='khataentry'){ initKhataEntry(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
 }
@@ -2326,6 +2454,12 @@ function initInvoice(){
   var sp=document.getElementById('splitPaySection'); if(sp) sp.style.display='none';
   var ca=document.getElementById('cashAmt'); if(ca) ca.value='';
   var ua=document.getElementById('upiAmt'); if(ua) ua.value='';
+  var pp=document.getElementById('partialPaySection'); if(pp) pp.style.display='none';
+  var ppa=document.getElementById('partialPaidAmt'); if(ppa) ppa.value='';
+  var ppc=document.getElementById('partialCashAmt'); if(ppc) ppc.value='';
+  var ppu=document.getElementById('partialUpiAmt'); if(ppu) ppu.value='';
+  var ppr=document.getElementById('partialRemaining1'); if(ppr) ppr.textContent='₹ 0';
+  var pst=document.getElementById('partialSplitTotal'); if(pst) pst.textContent='₹ 0';
   var cs=document.getElementById('custSugg'); if(cs) cs.style.display='none';
   items=[]; itemIdCounter=1;
   addItem(); addItem();
@@ -2334,21 +2468,104 @@ function initInvoice(){
 
 function clearInvoice(){ initInvoice(); showToast('Cleared'); }
 
-function onPayModeChange(){
-  var pm = document.getElementById('invPayMode');
+// Helper: get current invoice total
+function getCurrentInvTotal(){
+  var sub = items.reduce(function(s,i){return s+(i.qty*i.price);},0);
+  var disc = parseFloat(document.getElementById('discount').value)||0;
+  var totalGst = items.reduce(function(s,i){
+    return s + (i.gstPct>0 ? i.qty*((i.origPrice||i.price)-i.price) : 0);
+  },0);
+  return Math.round((Math.max(sub-disc,0)+totalGst)*100)/100;
+}
+
+// Called whenever Mode or Status changes — refreshes which sub-sections are visible
+function refreshPaymentSections(){
+  var pm = document.getElementById('invPayMode').value;
+  var ps = document.getElementById('invPayStatus').value;
+  var isPartial = ps === 'Partial';
+  var isSplit   = pm === 'Split';
+
+  // Full-paid split section: only show when Paid+Split
   var sp = document.getElementById('splitPaySection');
-  if(!pm||!sp) return;
-  var isSplit = pm.value === 'Split';
-  sp.style.display = isSplit ? 'block' : 'none';
-  // Reset split fields when switching away
+  if(sp) sp.style.display = (!isPartial && isSplit) ? 'block' : 'none';
+
+  // Partial section wrapper
+  var partSec = document.getElementById('partialPaySection');
+  if(partSec) partSec.style.display = isPartial ? 'block' : 'none';
+
+  // Inside partial: single row vs split row
+  var singleRow = document.getElementById('partialSingleRow');
+  var splitRow  = document.getElementById('partialSplitRow');
+  if(singleRow) singleRow.style.display = (isPartial && !isSplit) ? 'flex' : 'none';
+  if(splitRow)  splitRow.style.display  = (isPartial && isSplit)  ? 'block' : 'none';
+
+  // Reset fields when switching away from split
   if(!isSplit){
     var caEl = document.getElementById('cashAmt');
     var uaEl = document.getElementById('upiAmt');
     if(caEl){ caEl.value=''; caEl.style.borderColor=''; }
-    if(uaEl){ uaEl.value=''; }
+    if(uaEl) uaEl.value='';
   }
-  // Update split hint label
   updateSplitHint();
+  onPartialAmtChange();
+  onPartialSplitChange();
+}
+
+function onPayModeChange(){ refreshPaymentSections(); }
+function onPayStatusChange(){
+  var ps = document.getElementById('invPayStatus').value;
+  var isPartial = ps === 'Partial';
+  // Reset partial fields on toggle
+  if(!isPartial){
+    var pEl = document.getElementById('partialPaidAmt'); if(pEl) pEl.value='';
+    var pcEl = document.getElementById('partialCashAmt'); if(pcEl) pcEl.value='';
+    var puEl = document.getElementById('partialUpiAmt'); if(puEl) puEl.value='';
+  }
+  refreshPaymentSections();
+}
+
+// Partial + single mode (Cash/UPI/Bank): update remaining live
+function onPartialAmtChange(){
+  var pm = document.getElementById('invPayMode') ? document.getElementById('invPayMode').value : '';
+  var ps = document.getElementById('invPayStatus') ? document.getElementById('invPayStatus').value : '';
+  if(ps !== 'Partial' || pm === 'Split') return;
+  var paidEl = document.getElementById('partialPaidAmt');
+  var remEl  = document.getElementById('partialRemaining1');
+  if(!paidEl || !remEl) return;
+  var paid  = parseFloat(paidEl.value) || 0;
+  var total = getCurrentInvTotal();
+  var remaining = Math.max(0, total - paid);
+  remEl.textContent = '₹ ' + remaining.toFixed(0);
+  remEl.style.color = remaining > 0 ? '#c45e00' : '#1e6e3a';
+  paidEl.style.borderColor = paid > total ? '#e53935' : '#ffe18a';
+  if(paid > total){ remEl.textContent = '₹ 0 (Overpaid!)'; remEl.style.color='#e53935'; }
+}
+
+// Partial + Split mode: Cash+UPI breakdown — update totals live
+function onPartialSplitChange(){
+  var pm = document.getElementById('invPayMode') ? document.getElementById('invPayMode').value : '';
+  var ps = document.getElementById('invPayStatus') ? document.getElementById('invPayStatus').value : '';
+  if(ps !== 'Partial' || pm !== 'Split') return;
+  var pcEl  = document.getElementById('partialCashAmt');
+  var puEl  = document.getElementById('partialUpiAmt');
+  var totEl = document.getElementById('partialSplitTotal');
+  var remEl = document.getElementById('partialRemaining');
+  var hintEl= document.getElementById('partial-split-hint');
+  if(!pcEl||!puEl||!totEl||!remEl) return;
+  var cash  = parseFloat(pcEl.value)||0;
+  var upi   = parseFloat(puEl.value)||0;
+  var paid  = Math.round((cash+upi)*100)/100;
+  var total = getCurrentInvTotal();
+  var remaining = Math.max(0, total - paid);
+  totEl.textContent = '\u20b9 ' + paid.toFixed(0);
+  remEl.textContent = '\u20b9 ' + remaining.toFixed(0);
+  remEl.style.color = remaining > 0 ? '#c45e00' : '#1e6e3a';
+  if(hintEl) hintEl.textContent = 'Total: \u20b9' + total.toFixed(0);
+  // Color cues
+  var over = paid > total;
+  pcEl.style.borderColor = over ? '#e53935' : '#ffe18a';
+  puEl.style.borderColor = over ? '#e53935' : '#ffe18a';
+  if(over){ remEl.textContent='\u20b9 0 (Overpaid!)'; remEl.style.color='#e53935'; }
 }
 
 function updateSplitHint(){
@@ -2436,8 +2653,6 @@ function renderItems(){
     html += '<option value="0" '+(item.gstPct===0?'selected':'')+'>No GST</option>';
     html += '<option value="5" '+(item.gstPct===5?'selected':'')+'>5%</option>';
     html += '<option value="12" '+(item.gstPct===12?'selected':'')+'>12%</option>';
-    html += '<option value="18" '+(item.gstPct===18?'selected':'')+'>18%</option>';
-    html += '<option value="28" '+(item.gstPct===28?'selected':'')+'>28%</option>';
     html += '</select>';
     html += '<button class="del-btn" onclick="removeItem('+iid+')">x</button>';
     html += '</div>';
@@ -2542,6 +2757,14 @@ function calcTotals(){
     gstBox.style.display = totalGst > 0 ? 'block' : 'none';
   }
   updateSplitHint();
+  // Refresh partial remaining display live
+  var psEl = document.getElementById('invPayStatus');
+  if(psEl && psEl.value==='Partial'){
+    var pmEl2 = document.getElementById('invPayMode');
+    if(pmEl2 && pmEl2.value==='Split') onPartialSplitChange();
+    else onPartialAmtChange();
+    updateSplitHint();
+  }
 }
 
 function onCashAmtChange(){
@@ -2586,6 +2809,10 @@ function saveAndNew(){
     var spEl=document.getElementById('splitPaySection'); if(spEl) spEl.style.display='none';
     var caEl=document.getElementById('cashAmt'); if(caEl) caEl.value='';
     var uaEl=document.getElementById('upiAmt'); if(uaEl) uaEl.value='';
+    var ppEl=document.getElementById('partialPaySection'); if(ppEl) ppEl.style.display='none';
+    var ppaEl=document.getElementById('partialPaidAmt'); if(ppaEl) ppaEl.value='';
+    var ppcEl=document.getElementById('partialCashAmt'); if(ppcEl) ppcEl.value='';
+    var ppuEl=document.getElementById('partialUpiAmt'); if(ppuEl) ppuEl.value='';
     var csEl=document.getElementById('custSugg'); if(csEl) csEl.style.display='none';
     // Clear old invoice number immediately - show placeholder
     var invNoEl=document.getElementById('invNo'); if(invNoEl) invNoEl.value='...';
@@ -2632,41 +2859,80 @@ function collectFormData(){
   var pm = document.getElementById('invPayMode').value;
   var ps = document.getElementById('invPayStatus').value;
   var cashAmt=0, upiAmt=0;
+  var paidAmount = null;
+  var isPartial = ps === 'Partial';
+  var isSplitMode = pm === 'Split';
 
-  // ── Payment amount validation ──────────────────────────────────────────────
-  if(pm === 'Split'){
-    cashAmt = parseFloat(document.getElementById('cashAmt').value) || 0;
-    upiAmt  = parseFloat(document.getElementById('upiAmt').value)  || 0;
-    var splitSum = Math.round((cashAmt + upiAmt)*100)/100;
-    if(cashAmt <= 0 && upiAmt <= 0){
-      showToast('⚠️ Split mein Cash aur UPI dono fill karein! Total: Rs.' + total.toFixed(0));
-      document.getElementById('cashAmt').focus();
-      return null;
+  if(isPartial){
+    if(isSplitMode){
+      // Partial + Split: read partialCashAmt + partialUpiAmt
+      cashAmt = parseFloat(document.getElementById('partialCashAmt').value)||0;
+      upiAmt  = parseFloat(document.getElementById('partialUpiAmt').value)||0;
+      paidAmount = Math.round((cashAmt+upiAmt)*100)/100;
+      if(paidAmount <= 0){
+        showToast('\u26a0\ufe0f Cash aur UPI partial amount enter karein!');
+        document.getElementById('partialCashAmt').focus();
+        return null;
+      }
+      if(cashAmt < 0 || upiAmt < 0){
+        showToast('\u26a0\ufe0f Amount negative nahi ho sakta!');
+        return null;
+      }
+      if(paidAmount >= total){
+        showToast('\u26a0\ufe0f Paid amount total se zyada ya barabar hai — Status Paid rakho!');
+        return null;
+      }
+    } else {
+      // Partial + Cash/UPI/Bank: single paid amount
+      var paidEl = document.getElementById('partialPaidAmt');
+      paidAmount = parseFloat(paidEl ? paidEl.value : 0)||0;
+      if(paidAmount <= 0){
+        showToast('\u26a0\ufe0f Partial payment mein Paid Amount enter karein!');
+        if(paidEl) paidEl.focus();
+        return null;
+      }
+      if(paidAmount >= total){
+        showToast('\u26a0\ufe0f Paid amount total se zyada ya barabar hai — Status Paid rakho!');
+        if(paidEl) paidEl.focus();
+        return null;
+      }
+      // For single-mode partial: set cash/upi based on payMode
+      if(pm==='Cash'){ cashAmt=paidAmount; upiAmt=0; }
+      else { cashAmt=0; upiAmt=paidAmount; }
     }
-    if(cashAmt < 0 || upiAmt < 0){
-      showToast('⚠️ Amount negative nahi ho sakta!');
-      return null;
-    }
-    if(Math.abs(splitSum - total) > 1){
-      // Auto-correct if only cash was filled (upi auto-calc may have floating point diff)
-      // Show error asking user to fix
-      showToast('⚠️ Cash + UPI = Rs.' + splitSum.toFixed(0) + ' lekin Total = Rs.' + total.toFixed(0) + ' — Please adjust!');
-      document.getElementById('cashAmt').focus();
-      return null;
-    }
-    // Normalise rounding
-    upiAmt = Math.round((total - cashAmt)*100)/100;
-  } else if(pm === 'Cash'){
-    // Non-split: user must manually confirm amount
-    var manualCash = parseFloat(document.getElementById('cashAmt') ? document.getElementById('cashAmt').value : '') || 0;
-    // cashAmt field is hidden for non-split modes, so auto-set to total
-    cashAmt = total;
-    upiAmt  = 0;
-  } else {
-    // UPI / Bank
-    cashAmt = 0;
-    upiAmt  = total;
   }
+
+  // ── Payment amount validation (Full Paid only) ───────────────────────────
+  if(!isPartial){
+    if(isSplitMode){
+      cashAmt = parseFloat(document.getElementById('cashAmt').value) || 0;
+      upiAmt  = parseFloat(document.getElementById('upiAmt').value)  || 0;
+      var splitSum = Math.round((cashAmt + upiAmt)*100)/100;
+      if(cashAmt <= 0 && upiAmt <= 0){
+        showToast('⚠️ Split mein Cash aur UPI dono fill karein! Total: Rs.' + total.toFixed(0));
+        document.getElementById('cashAmt').focus();
+        return null;
+      }
+      if(cashAmt < 0 || upiAmt < 0){
+        showToast('⚠️ Amount negative nahi ho sakta!');
+        return null;
+      }
+      if(Math.abs(splitSum - total) > 1){
+        showToast('⚠️ Cash + UPI = Rs.' + splitSum.toFixed(0) + ' lekin Total = Rs.' + total.toFixed(0) + ' — Please adjust!');
+        document.getElementById('cashAmt').focus();
+        return null;
+      }
+      upiAmt = Math.round((total - cashAmt)*100)/100;
+    } else if(pm === 'Cash'){
+      cashAmt = total;
+      upiAmt  = 0;
+    } else {
+      // UPI / Bank full paid
+      cashAmt = 0;
+      upiAmt  = total;
+    }
+  }
+  // Partial case: cashAmt/upiAmt already set above in the isPartial block
 
   return {
     custName:custName,
@@ -2676,7 +2942,7 @@ function collectFormData(){
     note:document.getElementById('invNote').value||'Thank you for shopping!',
     items:validItems.slice(),
     sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total,
-    pm:pm, ps:ps, cashAmt:cashAmt, upiAmt:upiAmt,
+    pm:pm, ps:ps, cashAmt:cashAmt, upiAmt:upiAmt, paidAmount:paidAmount,
     invNoField:document.getElementById('invNo').value.trim()
   };
 }
@@ -2692,7 +2958,8 @@ function persistInvoice(fd){
       custPhone:fd.custPhone, custAddr:fd.custAddr, payMode:fd.pm, payStatus:fd.ps,
       cashAmt:fd.cashAmt, upiAmt:fd.upiAmt, note:fd.note, items:fd.items,
       sub:fd.sub, disc:fd.disc, gstByRate:fd.gstByRate, totalGst:fd.totalGst,
-      gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString()};
+      gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
+      paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0};
     var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
     if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
     LS.sync('invoices', invoices);
@@ -2753,6 +3020,10 @@ function buildPreview(inv){
   var modeBadge = isSplit
     ? '<span class="pay-badge pay-cash" style="font-size:9px;">Cash</span> <span class="pay-badge pay-upi" style="font-size:9px;">UPI</span>'
     : '<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':'pay-upi')+'" style="font-size:9px;">'+escH(inv.payMode)+'</span>';
+  // For Partial, append paid amount info to status badge
+  var partialPaidInfo = (inv.payStatus==='Partial')
+    ? ' <span style="font-size:9px;font-family:Arial,sans-serif;color:#9a6a00;font-weight:700;">Paid: '+fmt(inv.paidAmount||0)+'</span>'
+    : '';
   var statusBadge = '<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'" style="font-size:9px;">'+escH(inv.payStatus)+'</span>';
 
   // GST rows
@@ -2771,10 +3042,25 @@ function buildPreview(inv){
     if(inv.totalGst>0) gstHtml+='<div class="inv-tot-row" style="border-top:1px dashed #d4c9a8;padding-top:5px;"><span style="font-family:Arial,sans-serif;font-weight:700;color:#00796b;">Total GST</span><span style="font-family:Arial,sans-serif;font-weight:700;color:#00796b;">'+fmt(inv.totalGst)+'</span></div>';
   }
 
-  var splitRows = isSplit
-    ? '<div class="inv-tot-row" style="font-size:12px;padding:7px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;letter-spacing:.3px;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>'
-      +'<div class="inv-tot-row" style="font-size:12px;padding:7px 0;border-bottom:none;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:800;letter-spacing:.3px;">&#128242; UPI Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1a237e;">'+fmt(inv.upiAmt)+'</span></div>'
-    : '';
+  var isPartialInv = inv.payStatus === 'Partial';
+  var splitRows = '';
+  if(isPartialInv){
+    var paidAmt = inv.paidAmount || 0;
+    var remAmt  = Math.max(0, inv.total - paidAmt);
+    if(isSplit){
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>';
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:800;">&#128242; UPI Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1a237e;">'+fmt(inv.upiAmt)+'</span></div>';
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">&#10003; Total Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#9a6a00;">'+fmt(paidAmt)+'</span></div>';
+    } else {
+      var modeIcon = inv.payMode==='Cash' ? '&#128181;' : '&#128242;';
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">'+modeIcon+' Paid ('+escH(inv.payMode)+')</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#9a6a00;">'+fmt(paidAmt)+'</span></div>';
+    }
+    splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:7px 4px;border-bottom:none;background:#fff3e0;"><span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;">&#9203; Balance Due</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;">'+fmt(remAmt)+'</span></div>';
+  } else if(isSplit){
+    splitRows = '<div class="inv-tot-row" style="font-size:12px;padding:7px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;letter-spacing:.3px;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>'
+      +'<div class="inv-tot-row" style="font-size:12px;padding:7px 0;border-bottom:none;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:800;letter-spacing:.3px;">&#128242; UPI Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1a237e;">'+fmt(inv.upiAmt)+'</span></div>';
+  }
+
 
   var statusColor = inv.payStatus==='Paid' ? '#2e7d32' : inv.payStatus==='Partial' ? '#c9a84c' : '#c0392b';
   var statusWatermark = inv.payStatus==='Paid'
@@ -2799,7 +3085,7 @@ function buildPreview(inv){
     +'<div class="inv-title">INVOICE</div>'
     +'<div class="inv-num" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;font-size:12px;">'+escH(inv.invNo)+'</div>'
     +'<div class="inv-num" style="font-family:Arial,sans-serif;">'+dateStr+'</div>'
-    +'<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;">'+modeBadge+' '+statusBadge+'</div>'
+    +'<div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap;">'+modeBadge+' '+statusBadge+partialPaidInfo+'</div>'
     +'</div></div>'
     +'<div class="inv-meta-band"><div class="inv-meta">'
     +'<div><div class="iml">Bill To</div>'
@@ -2963,6 +3249,28 @@ function editInv(id){
     if(sp) sp.style.display = inv.payMode==='Split' ? 'block' : 'none';
     var ca = document.getElementById('cashAmt'); if(ca) ca.value = inv.payMode==='Split' ? (inv.cashAmt||'') : '';
     var ua = document.getElementById('upiAmt'); if(ua) ua.value = inv.payMode==='Split' ? (inv.upiAmt||'') : '';
+    // Partial section
+    var partSec = document.getElementById('partialPaySection');
+    var isEditPartial = inv.payStatus==='Partial';
+    var isEditSplit   = inv.payMode==='Split';
+    if(partSec) partSec.style.display = isEditPartial ? 'block' : 'none';
+    // Show correct sub-row
+    var singleRow = document.getElementById('partialSingleRow');
+    var splitRow  = document.getElementById('partialSplitRow');
+    if(singleRow) singleRow.style.display = (isEditPartial && !isEditSplit) ? 'flex' : 'none';
+    if(splitRow)  splitRow.style.display  = (isEditPartial && isEditSplit)  ? 'block' : 'none';
+    if(isEditPartial && !isEditSplit){
+      var partPaid = document.getElementById('partialPaidAmt');
+      if(partPaid) partPaid.value = inv.paidAmount||'';
+      onPartialAmtChange();
+    }
+    if(isEditPartial && isEditSplit){
+      var ppcE = document.getElementById('partialCashAmt');
+      var ppuE = document.getElementById('partialUpiAmt');
+      if(ppcE) ppcE.value = inv.cashAmt||'';
+      if(ppuE) ppuE.value = inv.upiAmt||'';
+      onPartialSplitChange();
+    }
     // Load items
     items = []; itemIdCounter = 1;
     (inv.items||[]).forEach(function(it){
@@ -2979,14 +3287,33 @@ function editInv(id){
 function renderPayments(){
   expenses = LS.get('expenses')||[];
   purchases = LS.get('purchases')||[];
+  pendingPayments = LS.get('pendingPayments')||[];
   var filter = document.getElementById('pay-filter') ? document.getElementById('pay-filter').value : '';
   var selMonth = document.getElementById('pay-month') ? document.getElementById('pay-month').value : '';
+  var selPeriod = document.getElementById('pay-period') ? document.getElementById('pay-period').value : '';
 
-  // Populate month dropdown from all data
+  // Compute date range for daily/weekly
+  var todayStr = nowDate();
+  var periodFrom = '', periodTo = '';
+  if(selPeriod === 'daily'){
+    periodFrom = todayStr; periodTo = todayStr;
+  } else if(selPeriod === 'weekly'){
+    var td = new Date(todayStr);
+    var day = td.getDay(); // 0=Sun
+    var mon = new Date(td); mon.setDate(td.getDate() - ((day+6)%7)); // Monday
+    var sun = new Date(mon); sun.setDate(mon.getDate() + 6); // Sunday
+    periodFrom = mon.toISOString().slice(0,10);
+    periodTo   = sun.toISOString().slice(0,10);
+  }
+  function inPeriod(dateStr){ if(!selPeriod) return true; return dateStr >= periodFrom && dateStr <= periodTo; }
+
+  // Populate month dropdown from all data sources
   var allMonths = [];
-  invoices.forEach(function(i){ var m=monthKey(i.invDate); if(m && allMonths.indexOf(m)===-1) allMonths.push(m); });
-  purchases.forEach(function(p){ var m=monthKey(p.date); if(m && allMonths.indexOf(m)===-1) allMonths.push(m); });
-  expenses.forEach(function(e){ var m=monthKey(e.date); if(m && allMonths.indexOf(m)===-1) allMonths.push(m); });
+  function addMonth(d){ var m=monthKey(d); if(m && allMonths.indexOf(m)===-1) allMonths.push(m); }
+  invoices.forEach(function(i){ addMonth(i.invDate); });
+  purchases.forEach(function(p){ addMonth(p.date); });
+  expenses.forEach(function(e){ addMonth(e.date); });
+  pendingPayments.forEach(function(r){ addMonth(r.date); });
   allMonths.sort().reverse();
   var mSel = document.getElementById('pay-month');
   if(mSel){
@@ -2995,169 +3322,275 @@ function renderPayments(){
       return '<option value="'+m+'"'+(m===cur?' selected':'')+'>'+m+'</option>';
     }).join('');
     selMonth = mSel.value;
+    // Disable month selector when period filter is active
+    mSel.disabled = !!selPeriod;
+    mSel.style.opacity = selPeriod ? '0.45' : '1';
+    if(selPeriod) { mSel.value = ''; selMonth = ''; }
   }
 
-  // Filter invoices/purchases/expenses by month
-  var filtInvoices = invoices.filter(function(i){ return !selMonth || monthKey(i.invDate)===selMonth; });
-  var filtPurchases = purchases.filter(function(p){ return !selMonth || monthKey(p.date)===selMonth; });
-  var filtExpenses  = expenses.filter(function(e){ return !selMonth || monthKey(e.date)===selMonth; });
+  // Month + Period filtered data
+  var filtInvoices  = invoices.filter(function(i){ return (!selMonth || monthKey(i.invDate)===selMonth) && inPeriod(i.invDate||''); });
+  var filtPurchases = purchases.filter(function(p){ return (!selMonth || monthKey(p.date)===selMonth) && inPeriod(p.date||''); });
+  var filtExpenses  = expenses.filter(function(e){ return (!selMonth || monthKey(e.date)===selMonth) && inPeriod(e.date||''); });
+  var filtReceipts  = pendingPayments.filter(function(r){ return (!selMonth || monthKey(r.date)===selMonth) && inPeriod(r.date||''); });
 
-  // ---- Stats (always from month-filtered data) ----
-  pendingPayments = LS.get('pendingPayments')||[];
-
-  var totalCashIn = 0, totalUpiIn = 0;
+  // ============ CALCULATE TOTALS ============
+  // Invoice IN (cash collected from sales)
+  var invCashIn=0, invUpiIn=0, invBankIn=0;
   filtInvoices.forEach(function(inv){
-    var received = inv.payStatus === 'Pending' ? 0
-                 : inv.payStatus === 'Partial'  ? (inv.paidAmount||0)
-                 : inv.total;
-    if(received <= 0) return;
-    if(inv.payMode === 'Cash') totalCashIn += received;
-    else if(inv.payMode === 'UPI' || inv.payMode === 'Bank') totalUpiIn += received;
-    else if(inv.payMode === 'Split'){
-      var splitTotal = (inv.cashAmt||0) + (inv.upiAmt||0);
-      if(splitTotal > 0){
-        var ratio = received / splitTotal;
-        totalCashIn += (inv.cashAmt||0) * ratio;
-        totalUpiIn  += (inv.upiAmt||0) * ratio;
-      } else {
-        totalCashIn += received / 2;
-        totalUpiIn  += received / 2;
-      }
+    if(inv.payStatus==='Pending') return;
+    var received = inv.payStatus==='Partial' ? (inv.paidAmount||0) : inv.total;
+    if(received<=0) return;
+    if(inv.payMode==='Cash') invCashIn += received;
+    else if(inv.payMode==='UPI') invUpiIn += received;
+    else if(inv.payMode==='Bank') invBankIn += received;
+    else if(inv.payMode==='Split'){
+      invCashIn += (inv.cashAmt||0);
+      invUpiIn  += (inv.upiAmt||0);
     }
   });
+  // Receipt IN (pending payment collected)
+  var recCashIn=0, recUpiIn=0;
+  filtReceipts.forEach(function(r){
+    if(r.payMode==='Cash') recCashIn += (r.paidAmt||0);
+    else if(r.payMode==='UPI'||r.payMode==='Bank') recUpiIn += (r.paidAmt||0);
+    else if(r.payMode==='Split'){ recCashIn += (r.cashAmt||0); recUpiIn += (r.upiAmt||0); }
+  });
 
-  var pendAmt = filtInvoices.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
-  var purTotal = filtPurchases.reduce(function(s,p){return s+p.totalCost;},0);
-  var expTotal = filtExpenses.reduce(function(s,e){return s+e.amount;},0);
-  var netTotal = totalCashIn + totalUpiIn - purTotal - expTotal;
+  var totalCashIn  = invCashIn + recCashIn;
+  var totalUpiIn   = invUpiIn + recUpiIn;
+  var totalBankIn  = invBankIn;
+  var totalIn      = totalCashIn + totalUpiIn + totalBankIn;
+  var pendAmt      = filtInvoices.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
+  var purTotal     = filtPurchases.reduce(function(s,p){return s+p.totalCost;},0);
+  var expTotal     = filtExpenses.reduce(function(s,e){return s+e.amount;},0);
+  var totalOut     = purTotal + expTotal;
+  var netTotal     = totalIn - totalOut;
   var totalRevenue = filtInvoices.reduce(function(s,i){return s+i.total;},0);
-  var ps = document.getElementById('pay-stats');
-  if(ps) ps.innerHTML =
-    '<div class="stat-card gold"><div class="stat-label">Total Revenue (Invoiced)</div><div class="stat-value" style="color:#1b5e20;">'+fmt(totalRevenue)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Cash In (Collected)</div><div class="stat-value" style="color:#2e7d32;">'+fmt(totalCashIn)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">UPI In (Collected)</div><div class="stat-value" style="color:#1565c0;">'+fmt(totalUpiIn)+'</div></div>'+
-    '<div class="stat-card red"><div class="stat-label">Purchase Out</div><div class="stat-value" style="color:#1565c0;">'+fmt(purTotal)+'</div></div>'+
-    '<div class="stat-card red"><div class="stat-label">Expense Out</div><div class="stat-value" style="color:#c0392b;">'+fmt(expTotal)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Sale Pending</div><div class="stat-value" style="color:#e65100;">'+fmt(pendAmt)+'</div></div>'+
-    '<div class="stat-card gold"><div class="stat-label">Net (Collected-Pur-Exp)</div><div class="stat-value" style="color:'+(netTotal>=0?'#2e7d32':'#c0392b')+';">'+fmt(netTotal)+'</div></div>';
+  // Today's total revenue (always from today's invoices regardless of filter)
+  var todayRevenue = invoices.filter(function(i){ return i.invDate === todayStr; }).reduce(function(s,i){ return s+i.total; },0);
+  // Label and amount for Invoiced Amount box
+  var invoicedLabel = selPeriod==='daily' ? 'Today\'s Revenue' : (selPeriod==='weekly' ? 'Week Revenue' : 'Invoiced Amount');
+  var invoicedAmt   = totalRevenue;
+
+  // ============ RENDER IN/OUT SUMMARY ============
+  var nc = netTotal>=0 ? '#1b5e20' : '#b71c1c';
+  var summary = document.getElementById('pay-inout-summary');
+  if(summary){
+    summary.innerHTML =
+      // Big IN / OUT / NET row
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">'
+      +'<div style="background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:12px 10px;border-radius:3px;text-align:center;">'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.8;margin-bottom:4px;">💰 Total IN</div>'
+        +'<div style="font-size:20px;font-weight:700;font-family:Arial,sans-serif;">'+fmt(totalIn)+'</div>'
+        +'<div style="font-size:9px;opacity:.75;margin-top:3px;">Invoice + Receipts</div>'
+      +'</div>'
+      +'<div style="background:linear-gradient(135deg,#7f0000,#c0392b);color:#fff;padding:12px 10px;border-radius:3px;text-align:center;">'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.8;margin-bottom:4px;">💸 Total OUT</div>'
+        +'<div style="font-size:20px;font-weight:700;font-family:Arial,sans-serif;">'+fmt(totalOut)+'</div>'
+        +'<div style="font-size:9px;opacity:.75;margin-top:3px;">Purchase + Expense</div>'
+      +'</div>'
+      +'<div style="background:linear-gradient(135deg,'+(netTotal>=0?'#0d47a1,#1565c0':'#880e4f,#c2185b')+');color:#fff;padding:12px 10px;border-radius:3px;text-align:center;">'
+        +'<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.8;margin-bottom:4px;">📊 NET</div>'
+        +'<div style="font-size:20px;font-weight:700;font-family:Arial,sans-serif;">'+fmt(netTotal)+'</div>'
+        +'<div style="font-size:9px;opacity:.75;margin-top:3px;">IN - OUT</div>'
+      +'</div>'
+      +'</div>'
+      // Detail breakdown
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:6px;margin-bottom:8px;">'
+      +'<div style="background:#e8f5e9;border:1.5px solid #66bb6a;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#2e7d32;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;font-weight:700;">📋 '+invoicedLabel+'</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#1b5e20;font-family:Arial,sans-serif;">'+fmt(invoicedAmt)+'</div>'
+      +'</div>'
+      +'<div style="background:#e8f5e9;border:1px solid #a5d6a7;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">💵 Cash IN</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#2e7d32;font-family:Arial,sans-serif;">'+fmt(totalCashIn)+'</div>'
+      +'</div>'
+      +'<div style="background:#e8f2fe;border:1px solid #aecdf5;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">📱 UPI IN</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#1553a0;font-family:Arial,sans-serif;">'+fmt(totalUpiIn)+'</div>'
+      +'</div>'
+      +(totalBankIn>0?'<div style="background:#ede7f6;border:1px solid #c5b4e3;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">🏦 Bank IN</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#4527a0;font-family:Arial,sans-serif;">'+fmt(totalBankIn)+'</div>'
+      +'</div>':'')
+      +'<div style="background:#fff3e0;border:2px solid #ffd4a0;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#c45e00;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;font-weight:700;">⏳ Pending</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;">'+fmt(pendAmt)+'</div>'
+      +'</div>'
+      +'<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">🛒 Purchase</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#c0392b;font-family:Arial,sans-serif;">'+fmt(purTotal)+'</div>'
+      +'</div>'
+      +'<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:9px 8px;text-align:center;border-radius:2px;">'
+        +'<div style="font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">💸 Expense</div>'
+        +'<div style="font-size:14px;font-weight:700;color:#c0392b;font-family:Arial,sans-serif;">'+fmt(expTotal)+'</div>'
+      +'</div>'
+      +'</div>';
+  }
 
   var pl = document.getElementById('payList');
   if(!pl) return;
 
-  // Build combined date-wise map
+  // ============ BUILD DATE-WISE MAP ============
   var dg = {};
-  function getDay(d){ if(!dg[d]) dg[d]={sales:[],purchases:[],expenses:[]}; return dg[d]; }
+  function getDay(d){ if(!dg[d]) dg[d]={sales:[],purchases:[],expenses:[],receipts:[]}; return dg[d]; }
 
-  // Sales - apply type filter on already month-filtered invoices
+  // Apply filter
+  var showInvoices  = !filter || filter==='Invoice' || filter==='Cash' || filter==='UPI' || filter==='Pending';
+  var showReceipts  = !filter || filter==='Receipt';
+  var showPurchases = !filter || filter==='Purchase';
+  var showExpenses  = !filter || filter==='Expense';
+
   var filtInvs = filtInvoices;
-  if(filter==='Cash') filtInvs = filtInvoices.filter(function(i){return i.payMode==='Cash';});
+  if(filter==='Cash')    filtInvs = filtInvoices.filter(function(i){return i.payMode==='Cash';});
   else if(filter==='UPI') filtInvs = filtInvoices.filter(function(i){return i.payMode==='UPI'||i.payMode==='Bank';});
-  else if(filter==='Split') filtInvs = filtInvoices.filter(function(i){return i.payMode==='Split';});
   else if(filter==='Pending') filtInvs = filtInvoices.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';});
-  else if(filter==='Purchase'||filter==='Expense') filtInvs = [];
+  else if(!showInvoices) filtInvs = [];
 
-  filtInvs.forEach(function(i){ getDay(i.invDate||'Unknown').sales.push(i); });
-
-  if(!filter||filter==='Purchase'){
-    filtPurchases.forEach(function(p){ getDay(p.date||'Unknown').purchases.push(p); });
-  }
-  if(!filter||filter==='Expense'){
-    filtExpenses.forEach(function(e){ getDay(e.date||'Unknown').expenses.push(e); });
-  }
+  if(showInvoices)  filtInvs.forEach(function(i){ getDay(i.invDate||'Unknown').sales.push(i); });
+  if(showPurchases) filtPurchases.forEach(function(p){ getDay(p.date||'Unknown').purchases.push(p); });
+  if(showExpenses)  filtExpenses.forEach(function(e){ getDay(e.date||'Unknown').expenses.push(e); });
+  if(showReceipts)  filtReceipts.forEach(function(r){ getDay(r.date||'Unknown').receipts.push(r); });
 
   if(!Object.keys(dg).length){
-    pl.innerHTML = emptyState('💳','Koi payment record nahi','Abhi tak koi payment record nahi bana');
+    pl.innerHTML = '<div style="padding:30px;text-align:center;color:#999;font-family:Arial,sans-serif;font-size:13px;">📭 Koi record nahi mila</div>';
     return;
   }
 
-  // Group dates by month
+  // Group by month
   var mg = {};
   Object.keys(dg).forEach(function(date){
-    var mk = monthKey(date) || 'Unknown';
-    if(!mg[mk]) mg[mk] = {};
+    var mk = monthKey(date)||'Unknown';
+    if(!mg[mk]) mg[mk]={};
     mg[mk][date] = dg[date];
   });
 
-  // Sort months descending
   var sortedMonths = Object.keys(mg).sort(function(a,b){
     var da=new Date(a+'-01'), db=new Date(b+'-01');
-    if(!isNaN(da)&&!isNaN(db)) return db-da;
-    return b.localeCompare(a);
+    return (!isNaN(da)&&!isNaN(db)) ? db-da : b.localeCompare(a);
   });
 
   var h = '';
   sortedMonths.forEach(function(month){
     var monthDates = mg[month];
-    var monthIn=0, monthPur=0, monthExp=0;
+    var mIn=0, mRec=0, mPur=0, mExp=0;
+
     Object.keys(monthDates).forEach(function(d){
       var day=monthDates[d];
       (day.sales||[]).forEach(function(i){
         if(i.payStatus==='Pending') return;
-        if(i.payMode==='Split') monthIn += (i.cashAmt||0)+(i.upiAmt||0);
-        else if(i.payStatus==='Paid') monthIn += i.total;
+        if(i.payMode==='Split') mIn += (i.cashAmt||0)+(i.upiAmt||0);
+        else if(i.payStatus==='Paid'||i.payStatus==='Partial') mIn += (i.paidAmount!=null?i.paidAmount:i.total);
       });
-      monthPur += (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
-      monthExp += (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
+      (day.receipts||[]).forEach(function(r){ mRec += (r.paidAmt||0); });
+      mPur += (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
+      mExp += (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
     });
-    var monthNet = monthIn - monthPur - monthExp;
-    var monthNetCol = monthNet >= 0 ? '#2e7d32' : '#c0392b';
+    var mNet = mIn+mRec-mPur-mExp;
+    var mNetCol = mNet>=0?'#1b5e20':'#b71c1c';
     var mid = 'pmf'+month.replace(/[^a-zA-Z0-9]/g,'');
     var monthLabel = month;
-    try { var mp=new Date(month+'-01'); if(!isNaN(mp)) monthLabel=mp.toLocaleDateString('en-IN',{month:'long',year:'numeric'}); } catch(ex){}
+    try{ var mp=new Date(month+'-01'); if(!isNaN(mp)) monthLabel=mp.toLocaleDateString('en-IN',{month:'long',year:'numeric'}); }catch(ex){}
 
     var dhtml = '';
     Object.keys(monthDates).sort(function(a,b){return b.localeCompare(a);}).forEach(function(date){
       var day = monthDates[date];
-      var dayIn = (day.sales||[]).reduce(function(s,i){
+
+      var dSaleIn = (day.sales||[]).reduce(function(s,i){
         if(i.payStatus==='Pending') return s;
         if(i.payMode==='Split') return s+(i.cashAmt||0)+(i.upiAmt||0);
-        if(i.payStatus==='Paid') return s+i.total;
-        return s;
+        return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));
       },0);
-      var dayPur = (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
-      var dayExp = (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
-      var dayNet = dayIn - dayPur - dayExp;
-      var netCol = dayNet >= 0 ? '#2e7d32' : '#c0392b';
-      var did = 'pf'+date.replace(/[^a-zA-Z0-9]/g,'');
+      var dRecIn  = (day.receipts||[]).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+      var dTotalIn = dSaleIn + dRecIn;
+      var dPur    = (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
+      var dExp    = (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
+      var dNet    = dTotalIn-dPur-dExp;
+      var dNetCol = dNet>=0?'#1b5e20':'#b71c1c';
+      var did     = 'pf'+date.replace(/[^a-zA-Z0-9]/g,'');
       var dateLabel = date;
-      try { var dp=new Date(date); if(!isNaN(dp)) dateLabel=dp.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); } catch(ex){}
+      try{ var dp=new Date(date); if(!isNaN(dp)) dateLabel=dp.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }catch(ex){}
+
       var rows = '';
 
+      // Invoice rows
       (day.sales||[]).forEach(function(i){
-        var pb1='<span class="pay-badge '+(i.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(i.payMode)+'</span>';
-        var pb2='<span class="pay-badge '+(i.payStatus==='Paid'?'pay-paid':i.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(i.payStatus)+'</span>';
-        rows+='<tr style="background:#f0fff4;"><td><span style="font-size:9px;background:#2e7d32;color:#fff;padding:1px 5px;">SALE</span></td><td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(i.custName)+'</td><td style="font-family:Arial,sans-serif;font-size:11px;">'+escH(i.invNo)+'</td><td>'+pb1+' '+pb2+'</td><td style="font-family:Arial,sans-serif;font-weight:700;color:#2e7d32;">+'+fmt(i.total)+'</td></tr>';
-      });
-      (day.purchases||[]).forEach(function(p){
-        rows+='<tr style="background:#e3f2fd;"><td><span style="font-size:9px;background:#1565c0;color:#fff;padding:1px 5px;">BUY</span></td><td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(p.supplier||'-')+'</td><td style="font-family:Arial,sans-serif;font-size:11px;">'+escH(p.item)+'</td><td><span class="pay-badge '+(p.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(p.payMode||'Cash')+'</span></td><td style="font-family:Arial,sans-serif;font-weight:700;color:#1565c0;">-'+fmt(p.totalCost)+'</td></tr>';
-      });
-      (day.expenses||[]).forEach(function(e){
-        rows+='<tr style="background:#fff3e0;"><td><span style="font-size:9px;background:#c0392b;color:#fff;padding:1px 5px;">EXP</span></td><td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(e.category)+'</td><td style="font-family:Arial,sans-serif;font-size:11px;">'+(e.desc&&e.desc!==e.category?escH(e.desc):'-')+'</td><td><span class="pay-badge '+(e.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(e.payMode||'Cash')+'</span></td><td style="font-family:Arial,sans-serif;font-weight:700;color:#c0392b;">-'+fmt(e.amount)+'</td></tr>';
+        var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
+        var modeStr = i.payMode==='Split'?'Cash+UPI':i.payMode;
+        var amtIn = i.payStatus==='Pending'?0:(i.payMode==='Split'?(i.cashAmt||0)+(i.upiAmt||0):(i.payStatus==='Partial'?(i.paidAmount||0):i.total));
+        var statusBadge='<span style="font-size:9px;padding:1px 5px;background:'+(i.payStatus==='Paid'?'#c8e6c9':(i.payStatus==='Partial'?'#fff9c4':'#fff3e0'))+';color:'+(i.payStatus==='Paid'?'#1b5e20':(i.payStatus==='Partial'?'#f57f17':'#c45e00'))+';border:1px solid '+(i.payStatus==='Paid'?'#a5d6a7':(i.payStatus==='Partial'?'#ffe082':'#ffd4a0'))+';border-radius:2px;">'+escH(i.payStatus)+'</span>';
+        rows+='<tr style="border-bottom:1px solid #e8f5e9;">'
+          +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:#2e7d32;color:#fff;padding:2px 6px;border-radius:2px;">INVOICE</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(i.custName)+'<br><span style="font-size:10px;color:#888;font-weight:400;">'+escH(i.invNo)+'</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(modeStr)+'<br>'+statusBadge+'</td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:'+(isPend?'#c45e00':'#2e7d32')+';white-space:nowrap;">'+(isPend?'<span style="font-size:9px;color:#c45e00;">⏳</span> '+fmt(i.total-(i.paidAmount||0)):'+'+fmt(amtIn))+'</td>'
+          +'</tr>';
       });
 
-      dhtml+='<div><div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:6px;padding:8px 12px 8px 24px;cursor:pointer;background:var(--w);border-bottom:1px solid var(--bdr);">'
-        
-        +'<span style="font-weight:600;font-size:12px;font-family:Arial,sans-serif;flex:1;color:#333;">'+dateLabel+'</span>'
-        +(dayIn?'<span style="font-size:10px;color:#2e7d32;font-weight:700;">In:'+fmt(dayIn)+'</span>':'')
-        +(dayPur?'<span style="font-size:10px;color:#1565c0;font-weight:700;margin-left:4px;">Buy:'+fmt(dayPur)+'</span>':'')
-        +(dayExp?'<span style="font-size:10px;color:#c0392b;font-weight:700;margin-left:4px;">Exp:'+fmt(dayExp)+'</span>':'')
-        +'<span style="font-size:10px;font-weight:700;color:'+netCol+';margin-left:4px;">Net:'+fmt(dayNet)+'</span>'
-        +'<span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div>'
-        +'<div id="'+did+'" style="display:none;overflow-x:auto;">'
-        +'<table class="tbl"><thead><tr><th>Type</th><th>Name</th><th>Details</th><th>Mode/Status</th><th>Amount</th></tr></thead>'
-        +'<tbody>'+rows+'</tbody></table></div></div>';
+      // Payment Receipt rows
+      (day.receipts||[]).forEach(function(r){
+        rows+='<tr style="border-bottom:1px solid #e8f2fe;background:#f0f7ff;">'
+          +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:#1553a0;color:#fff;padding:2px 6px;border-radius:2px;">RECEIPT</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(r.custName)+'<br><span style="font-size:10px;color:#888;font-weight:400;">'+escH(r.receiptNo||'-')+'  '+escH(r.invNo||'')+'</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(r.payMode||'Cash')+'<br>'+(r.notes?'<span style="color:#888;font-size:10px;">'+escH(r.notes.substring(0,20))+'</span>':'')+'</td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:#1553a0;white-space:nowrap;">+'+fmt(r.paidAmt||0)+'</td>'
+          +'</tr>';
+      });
+
+      // Purchase rows
+      (day.purchases||[]).forEach(function(p){
+        rows+='<tr style="border-bottom:1px solid #e3f2fd;background:#f5f9ff;">'
+          +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:#1565c0;color:#fff;padding:2px 6px;border-radius:2px;">PURCHASE</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(p.item)+'<br><span style="font-size:10px;color:#888;font-weight:400;">'+escH(p.supplier||'-')+'</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(p.payMode||'Cash')+'<br><span style="color:#888;font-size:10px;">Qty: '+p.qty+'</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:#c0392b;white-space:nowrap;">-'+fmt(p.totalCost)+'</td>'
+          +'</tr>';
+      });
+
+      // Expense rows
+      (day.expenses||[]).forEach(function(e){
+        rows+='<tr style="border-bottom:1px solid #ffeaea;background:#fffaf9;">'
+          +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:#c0392b;color:#fff;padding:2px 6px;border-radius:2px;">EXPENSE</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(e.category)+'<br><span style="font-size:10px;color:#888;font-weight:400;">'+(e.desc&&e.desc!==e.category?escH(e.desc):'-')+'</span></td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(e.payMode||'Cash')+'</td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:#c0392b;white-space:nowrap;">-'+fmt(e.amount)+'</td>'
+          +'</tr>';
+      });
+
+      // Day header with mini IN/OUT/NET chips
+      dhtml+='<div>'
+        +'<div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:4px;padding:8px 12px 8px 20px;cursor:pointer;background:#fafafa;border-bottom:1px solid var(--bdr);">'
+        +'<span style="font-weight:700;font-size:11px;font-family:Arial,sans-serif;flex:1;color:#333;">📅 '+dateLabel+'</span>'
+        +(dTotalIn?'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:2px 6px;border-radius:10px;font-weight:700;">↑'+fmt(dTotalIn)+'</span>':'')
+        +((dPur+dExp)?'<span style="font-size:10px;background:#ffeaea;color:#c0392b;padding:2px 6px;border-radius:10px;font-weight:700;">↓'+fmt(dPur+dExp)+'</span>':'')
+        +'<span style="font-size:10px;background:'+(dNet>=0?'#e3f2fd':'#fce4ec')+';color:'+dNetCol+';padding:2px 6px;border-radius:10px;font-weight:700;">'+fmt(dNet)+'</span>'
+        +'<span class="arrow" style="font-size:9px;color:#aaa;margin-left:2px;">▶</span></div>'
+        +'<div id="'+did+'" style="display:none;">'
+        +'<table style="width:100%;border-collapse:collapse;">'
+        +'<thead><tr style="background:#f5f5f5;"><th style="padding:5px 8px;font-size:9px;text-align:left;color:#888;letter-spacing:1px;text-transform:uppercase;">Type</th><th style="padding:5px 8px;font-size:9px;text-align:left;color:#888;">Name / Ref</th><th style="padding:5px 8px;font-size:9px;text-align:left;color:#888;">Mode</th><th style="padding:5px 8px;font-size:9px;text-align:right;color:#888;">Amount</th></tr></thead>'
+        +'<tbody>'+rows+'</tbody>'
+        // Day total footer
+        +'<tfoot><tr style="background:#f0f0f0;border-top:2px solid #ddd;">'
+        +'<td colspan="3" style="padding:6px 8px;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#333;">Day Total</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;">'
+        +(dTotalIn?'<span style="font-size:11px;font-weight:700;color:#1b5e20;">+'+fmt(dTotalIn)+'</span> ':'')
+        +((dPur+dExp)?'<span style="font-size:11px;font-weight:700;color:#c0392b;margin-left:6px;">-'+fmt(dPur+dExp)+'</span>':'')
+        +'<br><span style="font-size:12px;font-weight:700;color:'+dNetCol+';">Net: '+fmt(dNet)+'</span>'
+        +'</td></tr></tfoot>'
+        +'</table></div></div>';
     });
 
-    h+='<div style="margin-bottom:8px;">'
-      +'<div class="fold-head" data-fid="'+mid+'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;">'
-      
-      +'<span style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;color:var(--gd);flex:1;">'+monthLabel+'</span>'
-      +(monthIn?'<span style="font-size:10px;color:#2e7d32;font-weight:700;">In:'+fmt(monthIn)+'</span>':'')
-      +(monthPur?'<span style="font-size:10px;color:#1565c0;font-weight:700;margin-left:4px;">Buy:'+fmt(monthPur)+'</span>':'')
-      +(monthExp?'<span style="font-size:10px;color:#c0392b;font-weight:700;margin-left:4px;">Exp:'+fmt(monthExp)+'</span>':'')
-      +'<span style="font-size:10px;font-weight:700;color:'+monthNetCol+';margin-left:4px;">Net:'+fmt(monthNet)+'</span>'
-      +'<span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div>'
-      +'<div id="'+mid+'" style="display:none;border:1px solid var(--bdr);border-top:none;">'+dhtml+'</div></div>';
+    // Month header bar
+    h+='<div style="margin-bottom:10px;">'
+      +'<div class="fold-head" data-fid="'+mid+'" style="display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;">'
+      +'<span style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;color:var(--gd);flex:1;">📆 '+monthLabel+'</span>'
+      +((mIn+mRec)?'<span style="font-size:11px;background:#e8f5e9;color:#1b5e20;padding:3px 8px;border-radius:10px;font-weight:700;">↑ IN '+fmt(mIn+mRec)+'</span>':'')
+      +((mPur+mExp)?'<span style="font-size:11px;background:#ffeaea;color:#c0392b;padding:3px 8px;border-radius:10px;font-weight:700;">↓ OUT '+fmt(mPur+mExp)+'</span>':'')
+      +'<span style="font-size:11px;background:'+(mNet>=0?'#e3f2fd':'#fce4ec')+';color:'+mNetCol+';padding:3px 8px;border-radius:10px;font-weight:700;">NET '+fmt(mNet)+'</span>'
+      +'<span class="arrow" style="font-size:10px;margin-left:4px;">▶</span></div>'
+      +'<div id="'+mid+'" style="display:none;border:1px solid var(--bdr);border-top:none;">'+dhtml+'</div>'
+      +'</div>';
   });
 
   pl.innerHTML = h;
@@ -3963,6 +4396,8 @@ function exportAll(){if(typeof XLSX==='undefined'){showToast('Loading...');retur
 function clearAll(){if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can clear data');return;}if(!confirm('ALL data delete hoga!'))return;if(!confirm('Sure? Undo nahi hoga!'))return;LS.del('invoices');LS.del('stock');LS.del('customers');invoices=[];stockItems=[];savedCustomers=[];showToast('Cleared');renderDashboard();}
 
 function loadSettings(){
+  // Render staff permissions panel (admin only)
+  if(CURRENT_ROLE === 'admin') renderStaffPermsUI();
   AUTH=LS.get('auth')||{user:'alphamen',pass:'alpha@123'};
   SETTINGS=LS.get('settings')||{biz:'Alphamen Clothing Co.',ph:'',addr:'',gst:''};
   FIREBASE_URL = getFirebaseUrl();
@@ -3999,6 +4434,28 @@ function loadSettings(){
     } else if(isAdmin) {
       sec.style.display = '';
     }
+  });
+
+  // Accordion: toggle on head click
+  var settingSections = document.querySelectorAll('#page-settings .set-section');
+  settingSections.forEach(function(sec){
+    var head = sec.querySelector('.set-head');
+    var body = sec.querySelector('.set-body');
+    if(!head || !body) return;
+    // Remove old listener to avoid duplicates on re-load
+    var newHead = head.cloneNode(true);
+    head.parentNode.replaceChild(newHead, head);
+    newHead.addEventListener('click', function(){
+      var isOpen = body.classList.contains('open');
+      // Close all
+      document.querySelectorAll('#page-settings .set-body').forEach(function(b){ b.classList.remove('open'); });
+      document.querySelectorAll('#page-settings .set-head').forEach(function(h){ h.classList.remove('open'); });
+      // Open clicked one if it was closed
+      if(!isOpen){
+        body.classList.add('open');
+        newHead.classList.add('open');
+      }
+    });
   });
 }
 
@@ -5370,121 +5827,218 @@ async function downloadExpenseDatePDF(date){
 async function generateDailyPDF(reportDate){
   if(!reportDate) reportDate = nowDate();
   showToast('Generating PDF...');
-  
+
   var biz = SETTINGS.biz || 'Alphamen Clothing Co.';
-  var dateStr = new Date(reportDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
-  
+  var dateStr = new Date(reportDate).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
   // Collect data for the date
-  var dayInvs = invoices.filter(function(i){ return i.invDate === reportDate; });
-  var dayPurs = purchases.filter(function(p){ return p.date === reportDate; });
-  var dayExps = expenses.filter(function(e){ return e.date === reportDate; });
+  var dayInvs  = invoices.filter(function(i){ return i.invDate === reportDate; });
+  var dayPurs  = purchases.filter(function(p){ return p.date === reportDate; });
+  var dayExps  = expenses.filter(function(e){ return e.date === reportDate; });
+  var dayRecs  = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date === reportDate; });
 
-  var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
-  var saleCash = dayInvs.filter(function(i){return i.payMode==='Cash';}).reduce(function(s,i){return s+i.total;},0);
-  var splitCash = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
-  var saleUPI = dayInvs.filter(function(i){return i.payMode==='UPI'||i.payMode==='Bank';}).reduce(function(s,i){return s+i.total;},0);
-  var splitUPI = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.upiAmt||0);},0);
-  var purTotal = dayPurs.reduce(function(s,p){return s+p.totalCost;},0);
-  var expTotal = dayExps.reduce(function(s,e){return s+e.amount;},0);
-  var netAmount = saleTotal - purTotal - expTotal;
+  // ---- Calculate amounts ----
+  var saleTotal  = dayInvs.reduce(function(s,i){return s+i.total;},0);
+  var saleCash   = dayInvs.filter(function(i){return i.payMode==='Cash'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
+  var splitCash  = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
+  var saleUPI    = dayInvs.filter(function(i){return i.payMode==='UPI'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
+  var saleBank   = dayInvs.filter(function(i){return i.payMode==='Bank'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
+  var splitUPI   = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.upiAmt||0);},0);
+  var salePend   = dayInvs.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
+  var recCash    = dayRecs.filter(function(r){return r.payMode==='Cash';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var recUPI     = dayRecs.filter(function(r){return r.payMode==='UPI'||r.payMode==='Bank';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var recSplitC  = dayRecs.filter(function(r){return r.payMode==='Split';}).reduce(function(s,r){return s+(r.cashAmt||0);},0);
+  var recSplitU  = dayRecs.filter(function(r){return r.payMode==='Split';}).reduce(function(s,r){return s+(r.upiAmt||0);},0);
+  var recTotal   = dayRecs.reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var totalCashIn= saleCash+splitCash+recCash+recSplitC;
+  var totalUpiIn = saleUPI+splitUPI+recUPI+recSplitU;
+  var totalBankIn= saleBank;
+  var totalIn    = totalCashIn+totalUpiIn+totalBankIn;
+  var purTotal   = dayPurs.reduce(function(s,p){return s+p.totalCost;},0);
+  var expTotal   = dayExps.reduce(function(s,e){return s+e.amount;},0);
+  var totalOut   = purTotal+expTotal;
+  var netAmount  = totalIn - totalOut;
+  var netColor   = netAmount>=0 ? '#1b5e20' : '#b71c1c';
 
-  // Build HTML for PDF
+  // ---- Build table rows ----
   var custRows = '';
   dayInvs.forEach(function(i){
-    var pm = i.payMode==='Split' ? 'Cash:'+fmt(i.cashAmt||0)+' UPI:'+fmt(i.upiAmt||0) : escH(i.payMode);
-    custRows += '<tr><td style="font-family:Arial,sans-serif;">'+escH(i.invNo)+'</td><td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(i.custName)+'</td><td style="font-family:Arial,sans-serif;">'+escH(i.custPhone||'-')+'</td><td>'+pm+'</td><td style="font-family:Arial,sans-serif;font-weight:700;text-align:right;color:#2e7d32;">'+fmt(i.total)+'</td></tr>';
+    var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
+    var pm = i.payMode==='Split'?'Cash: '+fmt(i.cashAmt||0)+' / UPI: '+fmt(i.upiAmt||0):escH(i.payMode);
+    var statusCol = i.payStatus==='Paid'?'#1b5e20':(i.payStatus==='Partial'?'#f57f17':'#c45e00');
+    var amtCol = isPend?'#c45e00':'#1b5e20';
+    var pendBal = isPend ? ' <span style="font-size:8px;color:#c45e00;">(Due:'+fmt(i.total-(i.paidAmount||0))+')</span>' : '';
+    custRows+='<tr style="border-bottom:1px solid #e8f5e9;">'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(i.invNo)+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;font-size:11px;">'+escH(i.custName)+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(i.custPhone||'-')+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+pm+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;color:'+statusCol+';">'+escH(i.payStatus||'Paid')+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;text-align:right;color:'+amtCol+';">'+fmt(i.total)+pendBal+'</td>'
+      +'</tr>';
   });
-  
+
+  var recRows = '';
+  dayRecs.forEach(function(r){
+    recRows+='<tr style="border-bottom:1px solid #e8f2fe;">'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(r.receiptNo||'-')+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;font-size:11px;">'+escH(r.custName)+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(r.invNo||'-')+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(r.payMode||'Cash')+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;text-align:right;color:#1553a0;">'+fmt(r.paidAmt||0)+'</td>'
+      +'</tr>';
+  });
+
   var purRows = '';
   dayPurs.forEach(function(p){
-    purRows += '<tr><td style="font-family:Arial,sans-serif;">'+escH(p.item)+'</td><td style="font-family:Arial,sans-serif;">'+escH(p.supplier||'-')+'</td><td style="font-family:Arial,sans-serif;text-align:center;">'+p.qty+'</td><td style="font-family:Arial,sans-serif;text-align:right;">'+fmt(p.rate)+'</td><td style="font-family:Arial,sans-serif;font-weight:700;text-align:right;color:#1565c0;">'+fmt(p.totalCost)+'</td></tr>';
+    purRows+='<tr style="border-bottom:1px solid #e3f2fd;">'
+      +'<td style="padding:5px 6px;font-weight:700;font-size:11px;">'+escH(p.item)+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(p.supplier||'-')+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;text-align:center;">'+p.qty+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;text-align:right;">'+fmt(p.rate)+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;text-align:right;color:#1565c0;">'+fmt(p.totalCost)+'</td>'
+      +'</tr>';
   });
 
   var expRows = '';
   dayExps.forEach(function(e){
-    expRows += '<tr><td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(e.category)+'</td><td style="font-family:Arial,sans-serif;">'+(e.desc&&e.desc!==e.category?escH(e.desc):'-')+'</td><td style="font-family:Arial,sans-serif;">'+escH(e.payMode||'Cash')+'</td><td style="font-family:Arial,sans-serif;font-weight:700;text-align:right;color:#c0392b;">'+fmt(e.amount)+'</td></tr>';
+    expRows+='<tr style="border-bottom:1px solid #ffeaea;">'
+      +'<td style="padding:5px 6px;font-weight:700;font-size:11px;">'+escH(e.category)+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+(e.desc&&e.desc!==e.category?escH(e.desc):'-')+'</td>'
+      +'<td style="padding:5px 6px;font-size:10px;">'+escH(e.payMode||'Cash')+'</td>'
+      +'<td style="padding:5px 6px;font-weight:700;text-align:right;color:#c0392b;">'+fmt(e.amount)+'</td>'
+      +'</tr>';
   });
 
-  var netColor = netAmount >= 0 ? '#2e7d32' : '#c0392b';
+  var reportHTML = '<div id="dailyReportPrint" style="background:#fff;padding:18px 22px;font-family:Arial,sans-serif;width:794px;box-sizing:border-box;">'
 
-  var reportHTML = '<div id="dailyReportPrint" style="background:#fff;padding:20px 24px;font-family:Arial,sans-serif;width:794px;box-sizing:border-box;">'
-    +'<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #1565c0;padding-bottom:12px;margin-bottom:16px;">'
+    // ── Header ──
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:14px;border-bottom:3px solid #1a3a2a;">'
     +'<div style="display:flex;align-items:center;gap:10px;">'
-    +(LOGO_URL?'<img src="'+LOGO_URL+'" style="width:44px;height:44px;object-fit:contain;" alt="Logo"/>':'')
-    +'<div><div style="font-family:Cormorant Garamond,serif;font-size:20px;font-weight:700;color:#0d2818;">'+escH(biz)+'</div>'
-    +'<div style="font-size:10px;color:#666;">Daily Report - '+dateStr+'</div></div></div>'
-    +'<div style="text-align:right;"><div style="font-size:11px;color:#666;">Net Balance</div>'
-    +'<div style="font-family:Arial,sans-serif;font-size:28px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div></div>'
+    +(LOGO_URL?'<img src="'+LOGO_URL+'" style="width:42px;height:42px;object-fit:contain;"/>':'')
+    +'<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:#0d2818;">'+escH(biz)+'</div>'
+    +'<div style="font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">Daily Payment Report</div>'
+    +'<div style="font-size:11px;color:#444;margin-top:2px;">'+dateStr+'</div></div></div>'
+    +'<div style="text-align:right;">'
+    +'<div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Net Balance</div>'
+    +'<div style="font-size:30px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div>'
+    +'<div style="font-size:10px;color:#888;">Total IN: '+fmt(totalIn)+' &nbsp;|&nbsp; OUT: '+fmt(totalOut)+'</div>'
+    +'</div></div>'
+
+    // ── IN / OUT big boxes ──
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    +'<div style="background:#f0faf2;border:1.5px solid #81c784;padding:12px;border-radius:3px;text-align:center;">'
+    +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#2e7d32;margin-bottom:4px;">💰 TOTAL IN</div>'
+    +'<div style="font-size:20px;font-weight:700;color:#1b5e20;">'+fmt(totalIn)+'</div>'
+    +'<div style="font-size:8px;color:#555;margin-top:3px;">Invoice + Receipts</div></div>'
+    +'<div style="background:#fff5f5;border:1.5px solid #ef9a9a;padding:12px;border-radius:3px;text-align:center;">'
+    +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#c0392b;margin-bottom:4px;">💸 TOTAL OUT</div>'
+    +'<div style="font-size:20px;font-weight:700;color:#c0392b;">'+fmt(totalOut)+'</div>'
+    +'<div style="font-size:8px;color:#555;margin-top:3px;">Purchase + Expense</div></div>'
+    +'<div style="background:'+(netAmount>=0?'#f0f4ff':'#fff0f6')+';border:1.5px solid '+(netAmount>=0?'#90a4e8':'#f48fb1')+';padding:12px;border-radius:3px;text-align:center;">'
+    +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:'+(netAmount>=0?'#1565c0':'#880e4f')+';margin-bottom:4px;">📊 NET BALANCE</div>'
+    +'<div style="font-size:20px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div>'
+    +'<div style="font-size:8px;color:#555;margin-top:3px;">IN − OUT</div></div>'
     +'</div>'
-    // Summary boxes
-    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
-    +'<div style="background:#e8f5e9;padding:10px;text-align:center;"><div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:1px;">Sale Total</div><div style="font-size:16px;font-weight:700;color:#2e7d32;">'+fmt(saleTotal)+'</div></div>'
-    +'<div style="background:#e3f2fd;padding:10px;text-align:center;"><div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:1px;">Purchase</div><div style="font-size:16px;font-weight:700;color:#1565c0;">'+fmt(purTotal)+'</div></div>'
-    +'<div style="background:#ffeaea;padding:10px;text-align:center;"><div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:1px;">Expenses</div><div style="font-size:16px;font-weight:700;color:#c0392b;">'+fmt(expTotal)+'</div></div>'
-    +'<div style="background:#fff8e1;padding:10px;text-align:center;"><div style="font-size:9px;color:#666;text-transform:uppercase;letter-spacing:1px;">Cash In</div><div style="font-size:16px;font-weight:700;color:#e65100;">'+fmt(saleCash+splitCash)+'</div></div>'
+
+    // ── Detail breakdown boxes ──
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'
+    +'<div style="background:#e8f5e9;border:1px solid #a5d6a7;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💵 Cash IN</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#1b5e20;">'+fmt(totalCashIn)+'</div></div>'
+    +'<div style="background:#e8f2fe;border:1px solid #aecdf5;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">📱 UPI IN</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#1553a0;">'+fmt(totalUpiIn)+'</div></div>'
+    +(totalBankIn>0?'<div style="background:#ede7f6;border:1px solid #c5b4e3;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">🏦 Bank IN</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#4527a0;">'+fmt(totalBankIn)+'</div></div>':'')
+    +(salePend>0?'<div style="background:#fff3e0;border:2px solid #ffd4a0;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#c45e00;text-transform:uppercase;font-weight:700;margin-bottom:2px;">⏳ Pending</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#c45e00;">'+fmt(salePend)+'</div></div>':'')
+    +'<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">🛒 Purchase</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(purTotal)+'</div></div>'
+    +'<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;">'
+    +'<div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💸 Expense</div>'
+    +'<div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(expTotal)+'</div></div>'
     +'</div>'
-    // Sales section
-    +(dayInvs.length?'<div style="margin-bottom:14px;">'
-      +'<div style="background:#2e7d32;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">SALES ('+dayInvs.length+' invoices)</div>'
-      +'<table style="width:100%;border-collapse:collapse;">'
-      +'<thead><tr style="background:#e8f5e9;">'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Invoice</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Customer</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Phone</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Mode</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:right;">Amount</th>'
-      +'</tr></thead><tbody>'+custRows+'</tbody>'
-      +'<tfoot>'
-      +'<tr style="background:#f1f8f1;">'
-      +'<td colspan="4" style="padding:5px 8px;font-size:10px;color:#555;">&#128181; Total Cash</td>'
-      +'<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;color:#2e7d32;">'+fmt(saleCash+splitCash)+'</td>'
-      +'</tr>'
-      +'<tr style="background:#f1f8f1;">'
-      +'<td colspan="4" style="padding:5px 8px;font-size:10px;color:#555;">&#128242; Total UPI</td>'
-      +'<td style="padding:5px 8px;font-size:11px;text-align:right;font-weight:700;color:#1565c0;">'+fmt(saleUPI+splitUPI)+'</td>'
-      +'</tr>'
-      +'<tr style="background:#2e7d32;">'
-      +'<td colspan="4" style="padding:7px 8px;font-size:11px;font-weight:700;color:#fff;letter-spacing:1px;">&#9733; TOTAL SALE (Cash + UPI)</td>'
-      +'<td style="padding:7px 8px;font-size:14px;text-align:right;font-weight:700;color:#fff;">'+fmt(saleTotal)+'</td>'
-      +'</tr>'
-      +'</tfoot></table></div>':'')
-    // Purchase section
-    +(dayPurs.length?'<div style="margin-bottom:14px;">'
-      +'<div style="background:#1565c0;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">PURCHASES ('+dayPurs.length+' entries)</div>'
-      +'<table style="width:100%;border-collapse:collapse;">'
-      +'<thead><tr style="background:#e3f2fd;">'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Item</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Supplier</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:center;">Qty</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:right;">Rate</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:right;">Total</th>'
-      +'</tr></thead><tbody>'+purRows+'</tbody>'
-      +'<tfoot><tr style="background:#e3f2fd;font-weight:700;">'
-      +'<td colspan="4" style="padding:6px 8px;font-size:11px;">Total Purchase</td>'
-      +'<td style="padding:6px 8px;font-size:13px;text-align:right;color:#1565c0;">'+fmt(purTotal)+'</td>'
-      +'</tr></tfoot></table></div>':'')
-    // Expenses section
-    +(dayExps.length?'<div style="margin-bottom:14px;">'
-      +'<div style="background:#c0392b;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">EXPENSES ('+dayExps.length+' entries)</div>'
-      +'<table style="width:100%;border-collapse:collapse;">'
-      +'<thead><tr style="background:#ffeaea;">'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Category</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Description</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:left;">Mode</th>'
-      +'<th style="padding:6px 8px;font-size:10px;text-align:right;">Amount</th>'
-      +'</tr></thead><tbody>'+expRows+'</tbody>'
-      +'<tfoot><tr style="background:#ffeaea;font-weight:700;">'
-      +'<td colspan="3" style="padding:6px 8px;font-size:11px;">Total Expenses</td>'
-      +'<td style="padding:6px 8px;font-size:13px;text-align:right;color:#c0392b;">'+fmt(expTotal)+'</td>'
-      +'</tr></tfoot></table></div>':'')
-    // Net summary
-    +'<div style="border-top:2px solid #1565c0;padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-    +'<div><div style="font-size:10px;color:#666;margin-bottom:2px;">Cash In Hand (Sale Cash)</div><div style="font-size:15px;font-weight:700;color:#2e7d32;">'+fmt(saleCash+splitCash)+'</div></div>'
-    +'<div><div style="font-size:10px;color:#666;margin-bottom:2px;">UPI Received</div><div style="font-size:15px;font-weight:700;color:#1565c0;">'+fmt(saleUPI+splitUPI)+'</div></div>'
-    +'<div><div style="font-size:10px;color:#666;margin-bottom:2px;">Total Out (Pur+Exp)</div><div style="font-size:15px;font-weight:700;color:#c0392b;">'+fmt(purTotal+expTotal)+'</div></div>'
-    +'<div style="background:'+netColor+'1a;padding:8px;"><div style="font-size:10px;color:#666;margin-bottom:2px;">NET BALANCE</div><div style="font-size:18px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div></div>'
-    +'</div>'
-    +'<div style="text-align:center;margin-top:12px;font-size:9px;color:#aaa;">Generated: '+new Date().toLocaleString('en-IN')+' | '+escH(biz)+'</div>'
+
+    // ── Sales / Invoices ──
+    +(dayInvs.length?'<div style="margin-bottom:12px;">'
+    +'<div style="background:#e8f5e9;border-left:4px solid #2e7d32;color:#1a3a2a;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;">'
+    +'<span>📋 INVOICES / SALES ('+dayInvs.length+')</span><span>Total: '+fmt(saleTotal)+'</span></div>'
+    +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e8f5e9;">'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Invoice#</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Customer</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Phone</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Mode</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Status</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:right;">Amount</th>'
+    +'</tr></thead><tbody>'+custRows+'</tbody>'
+    +'<tfoot>'
+    +(totalCashIn?'<tr style="background:#f9f9f9;"><td colspan="5" style="padding:5px 6px;font-size:9px;color:#555;">💵 Cash Collected (Invoice+Receipt)</td><td style="padding:5px 6px;text-align:right;font-weight:700;font-size:10px;color:#1b5e20;">'+fmt(totalCashIn)+'</td></tr>':'')
+    +(totalUpiIn?'<tr style="background:#f9f9f9;"><td colspan="5" style="padding:5px 6px;font-size:9px;color:#555;">📱 UPI/Bank Collected</td><td style="padding:5px 6px;text-align:right;font-weight:700;font-size:10px;color:#1553a0;">'+fmt(totalUpiIn)+'</td></tr>':'')
+    +(salePend>0?'<tr style="background:#fff3e0;"><td colspan="5" style="padding:5px 6px;font-size:9px;color:#c45e00;font-weight:700;">⏳ Balance Pending</td><td style="padding:5px 6px;text-align:right;font-weight:700;font-size:10px;color:#c45e00;">'+fmt(salePend)+'</td></tr>':'')
+    +'<tr style="background:#e8f5e9;border-top:2px solid #2e7d32;"><td colspan="5" style="padding:6px;font-size:10px;font-weight:700;color:#1a3a2a;">★ TOTAL INVOICED</td><td style="padding:6px;text-align:right;font-size:13px;font-weight:700;color:#1b5e20;">'+fmt(saleTotal)+'</td></tr>'
+    +'</tfoot></table></div>':'')
+
+    // ── Payment Receipts ──
+    +(dayRecs.length?'<div style="margin-bottom:12px;">'
+    +'<div style="background:#e8f2fe;border-left:4px solid #1553a0;color:#1553a0;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;">'
+    +'<span>📄 PAYMENT RECEIPTS ('+dayRecs.length+')</span><span>Collected: '+fmt(recTotal)+'</span></div>'
+    +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e8f2fe;">'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Receipt#</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Customer</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Invoice#</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Mode</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:right;">Collected</th>'
+    +'</tr></thead><tbody>'+recRows+'</tbody>'
+    +'<tfoot><tr style="background:#e8f2fe;border-top:2px solid #1553a0;">'
+    +'<td colspan="4" style="padding:6px;font-size:10px;font-weight:700;color:#1553a0;">★ TOTAL COLLECTED</td>'
+    +'<td style="padding:6px;text-align:right;font-size:13px;font-weight:700;color:#1553a0;">'+fmt(recTotal)+'</td>'
+    +'</tr></tfoot></table></div>':'')
+
+    // ── Purchases ──
+    +(dayPurs.length?'<div style="margin-bottom:12px;">'
+    +'<div style="background:#e3f2fd;border-left:4px solid #1565c0;color:#1565c0;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;">'
+    +'<span>🛒 PURCHASES ('+dayPurs.length+')</span><span>Total: '+fmt(purTotal)+'</span></div>'
+    +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e3f2fd;">'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Item</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Supplier</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:center;">Qty</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:right;">Rate</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:right;">Total</th>'
+    +'</tr></thead><tbody>'+purRows+'</tbody>'
+    +'<tfoot><tr style="background:#e3f2fd;border-top:2px solid #1565c0;">'
+    +'<td colspan="4" style="padding:6px;font-size:10px;font-weight:700;color:#1565c0;">★ TOTAL PURCHASE</td>'
+    +'<td style="padding:6px;text-align:right;font-size:13px;font-weight:700;color:#1565c0;">'+fmt(purTotal)+'</td>'
+    +'</tr></tfoot></table></div>':'')
+
+    // ── Expenses ──
+    +(dayExps.length?'<div style="margin-bottom:12px;">'
+    +'<div style="background:#ffeaea;border-left:4px solid #c0392b;color:#c0392b;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;">'
+    +'<span>💸 EXPENSES ('+dayExps.length+')</span><span>Total: '+fmt(expTotal)+'</span></div>'
+    +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#ffeaea;">'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Category</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Description</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:left;">Mode</th>'
+    +'<th style="padding:5px 6px;font-size:9px;text-align:right;">Amount</th>'
+    +'</tr></thead><tbody>'+expRows+'</tbody>'
+    +'<tfoot><tr style="background:#ffeaea;border-top:2px solid #c0392b;">'
+    +'<td colspan="3" style="padding:6px;font-size:10px;font-weight:700;color:#c0392b;">★ TOTAL EXPENSES</td>'
+    +'<td style="padding:6px;text-align:right;font-size:13px;font-weight:700;color:#c0392b;">'+fmt(expTotal)+'</td>'
+    +'</tr></tfoot></table></div>':'')
+
+    // ── Final Summary Bar ──
+    +'<div style="background:#f9f9f9;border:1.5px solid #bdbdbd;padding:12px;margin-top:4px;">'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">'
+    +'<div><div style="font-size:8px;color:#666;text-transform:uppercase;margin-bottom:3px;">Total IN</div><div style="font-size:15px;font-weight:700;color:#1b5e20;">'+fmt(totalIn)+'</div></div>'
+    +'<div><div style="font-size:8px;color:#666;text-transform:uppercase;margin-bottom:3px;">Total OUT</div><div style="font-size:15px;font-weight:700;color:#c0392b;">'+fmt(totalOut)+'</div></div>'
+    +(salePend>0?'<div><div style="font-size:8px;color:#c45e00;text-transform:uppercase;font-weight:700;margin-bottom:3px;">Pending</div><div style="font-size:15px;font-weight:700;color:#c45e00;">'+fmt(salePend)+'</div></div>':'<div></div>')
+    +'<div style="background:'+netColor+'22;padding:6px;"><div style="font-size:8px;color:#666;text-transform:uppercase;margin-bottom:3px;">NET</div><div style="font-size:18px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div></div>'
+    +'</div></div>'
+
+    +'<div style="text-align:center;margin-top:10px;font-size:8px;color:#bbb;">Generated: '+new Date().toLocaleString('en-IN')+' &nbsp;|&nbsp; '+escH(biz)+'</div>'
     +'</div>';
 
   // Render to DOM, capture, PDF
@@ -6084,6 +6638,8 @@ function dateInRange(dateStr, from, to){
 }
 
 function fmtNum(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function fmtDate(d){ if(!d) return ''; var parts=d.split('-'); return parts[2]+'/'+parts[1]+'/'+parts[0]; }
+function escHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtPct(n){ return (n||0).toFixed(1) + '%'; }
 
 function renderPnL(){
@@ -6478,8 +7034,426 @@ function exportPnLPDF(){
 }
 // ===== END P&L FUNCTIONS =====
 
+// ===== KHATA LEDGER FUNCTIONS =====
 
-</script></script>
+function khataGetParties(){
+  var parties = [];
+  khataEntries.forEach(function(e){
+    if(e.party && parties.indexOf(e.party) === -1) parties.push(e.party);
+  });
+  // Also add from savedCustomers
+  (savedCustomers||[]).forEach(function(c){
+    var name = c.name || c;
+    if(name && parties.indexOf(name) === -1) parties.push(name);
+  });
+  return parties.sort();
+}
+
+function khataPartyBalance(party, entries){
+  var credit = 0, debit = 0;
+  (entries||khataEntries).filter(function(e){ return e.party===party; }).forEach(function(e){
+    if(e.type==='credit') credit += parseFloat(e.amount)||0;
+    else debit += parseFloat(e.amount)||0;
+  });
+  return { credit:credit, debit:debit, net: credit - debit };
+}
+
+function renderKhata(){
+  khataEntries = LS.get('khataEntries')||[];
+
+  // Populate party filter
+  var pf = document.getElementById('khata-party-filter');
+  var selParty = pf ? pf.value : '';
+  if(pf){
+    var parties = khataGetParties();
+    pf.innerHTML = '<option value="">— All Parties —</option>';
+    parties.forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      if(p===selParty) opt.selected=true;
+      pf.appendChild(opt);
+    });
+  }
+
+  var fromEl = document.getElementById('khata-from');
+  var toEl = document.getElementById('khata-to');
+  var from = fromEl ? fromEl.value : '';
+  var to = toEl ? toEl.value : '';
+
+  // Filter entries by date range
+  var filtered = khataEntries.filter(function(e){
+    if(from && e.date < from) return false;
+    if(to && e.date > to) return false;
+    if(selParty && e.party !== selParty) return false;
+    return true;
+  });
+
+  // Summary
+  var totalCredit=0, totalDebit=0;
+  filtered.forEach(function(e){
+    if(e.type==='credit') totalCredit += parseFloat(e.amount)||0;
+    else totalDebit += parseFloat(e.amount)||0;
+  });
+  var net = totalCredit - totalDebit;
+
+  var sumEl = document.getElementById('khata-summary');
+  if(sumEl){
+    sumEl.innerHTML = ''
+      +'<div class="stat-card gold"><div class="stat-card-icon">&#128200;</div><div class="stat-label">Total Credit (Hamara)</div><div class="stat-value">'+fmtNum(totalCredit)+'</div><div class="stat-sub">They owe us</div></div>'
+      +'<div class="stat-card red"><div class="stat-card-icon">&#128201;</div><div class="stat-label">Total Debit (Humara)</div><div class="stat-value">'+fmtNum(totalDebit)+'</div><div class="stat-sub">We owe them</div></div>'
+      +'<div class="stat-card '+(net>=0?'':'red')+'"><div class="stat-card-icon">&#9878;</div><div class="stat-label">Net Balance</div><div class="stat-value" style="color:'+(net>=0?'var(--gd2)':'#c0392b')+';">'+fmtNum(Math.abs(net))+'</div><div class="stat-sub">'+(net>=0?'Net Receivable':'Net Payable')+'</div></div>'
+      +'<div class="stat-card blue"><div class="stat-card-icon">&#128203;</div><div class="stat-label">Total Entries</div><div class="stat-value" style="color:#1565c0;">'+filtered.length+'</div><div class="stat-sub">Transactions</div></div>';
+  }
+
+  var plWrap = document.getElementById('khata-partylist-wrap');
+  var ldWrap = document.getElementById('khata-ledger-wrap');
+
+  if(!selParty){
+    // Show party-wise summary
+    if(ldWrap) ldWrap.innerHTML = '';
+    var parties = khataGetParties();
+    var html = '<div class="card"><div class="card-head"><div class="card-icon">&#128218;</div><div class="card-title">Party-wise Summary</div></div><div class="card-body" style="padding:0;">';
+    if(parties.length===0){
+      html += '<div style="padding:24px;text-align:center;color:var(--mu);font-size:13px;">Koi entry nahi mili. "Add Entry" karein.</div>';
+    } else {
+      html += '<table class="tbl"><thead><tr><th>Party Name</th><th style="text-align:right;">Credit (Hamara)</th><th style="text-align:right;">Debit (Humara)</th><th style="text-align:right;">Net Balance</th><th style="text-align:right;">Entries</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
+      parties.forEach(function(p){
+        var bal = khataPartyBalance(p);
+        var cnt = filtered.filter(function(e){ return e.party===p; }).length;
+        var netColor = bal.net>=0 ? '#2e7d32' : '#c0392b';
+        var netLabel = bal.net>=0 ? 'Receivable' : 'Payable';
+        html += '<tr>'
+          +'<td style="font-weight:600;color:var(--gd);">'+escHtml(p)+'</td>'
+          +'<td style="text-align:right;color:#2e7d32;">'+fmtNum(bal.credit)+'</td>'
+          +'<td style="text-align:right;color:#c0392b;">'+fmtNum(bal.debit)+'</td>'
+          +'<td style="text-align:right;font-weight:700;color:'+netColor+';">'+fmtNum(Math.abs(bal.net))+' <span style="font-size:9px;font-weight:400;">'+netLabel+'</span></td>'
+          +'<td style="text-align:right;">'+cnt+'</td>'
+          +'<td style="text-align:right;"><button class="btn btn-outline" style="padding:4px 10px;font-size:9px;" onclick="khataViewParty('+JSON.stringify(p)+')">View</button></td>'
+          +'</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div></div>';
+    if(plWrap) plWrap.innerHTML = html;
+  } else {
+    // Show selected party ledger
+    if(plWrap) plWrap.innerHTML = '';
+    var partyEntries = filtered.filter(function(e){ return e.party===selParty; });
+    partyEntries.sort(function(a,b){ return a.date<b.date?-1:1; });
+
+    var runBal = 0;
+    var html = '<div class="card"><div class="card-head"><div class="card-icon">&#128218;</div><div class="card-title">Ledger: '+escHtml(selParty)+'</div>';
+    html += '<button class="btn btn-green" style="margin-left:auto;padding:6px 12px;font-size:9px;" onclick="navTo(\'khataentry\',null)">&#10133; Add</button>';
+    html += '</div><div class="card-body" style="padding:0;">';
+
+    if(partyEntries.length===0){
+      html += '<div style="padding:24px;text-align:center;color:var(--mu);">Is party ki koi entry nahi.</div>';
+    } else {
+      html += '<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Reference</th><th style="text-align:right;">Credit &#9650;</th><th style="text-align:right;">Debit &#9660;</th><th style="text-align:right;">Balance</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
+      partyEntries.forEach(function(e){
+        var amt = parseFloat(e.amount)||0;
+        if(e.type==='credit') runBal += amt;
+        else runBal -= amt;
+        var balColor = runBal>=0?'#2e7d32':'#c0392b';
+        var balLabel = runBal>=0?'Rcv':'Pay';
+        html += '<tr>'
+          +'<td style="white-space:nowrap;">'+fmtDate(e.date)+'</td>'
+          +'<td><span style="padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:1px;border-radius:2px;background:'+(e.type==='credit'?'#e8f5e9':'#ffebee')+';color:'+(e.type==='credit'?'#2e7d32':'#c0392b')+';">'+e.type.toUpperCase()+'</span></td>'
+          +'<td style="color:var(--mu);font-size:11px;">'+escHtml(e.category||'General')+'</td>'
+          +'<td style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(e.ref||'—')+'</td>'
+          +'<td style="text-align:right;color:#2e7d32;font-weight:600;">'+(e.type==='credit'?fmtNum(amt):'')+'</td>'
+          +'<td style="text-align:right;color:#c0392b;font-weight:600;">'+(e.type==='debit'?fmtNum(amt):'')+'</td>'
+          +'<td style="text-align:right;font-weight:700;color:'+balColor+';white-space:nowrap;">'+fmtNum(Math.abs(runBal))+' <span style="font-size:9px;font-weight:400;">'+balLabel+'</span></td>'
+          +'<td style="text-align:right;">'
+          +'<button class="btn btn-outline" style="padding:3px 7px;font-size:9px;margin-right:3px;" onclick="khataEditEntry(\'' + e.id + '\')">Edit</button>'
+          +'<button class="btn btn-red" style="padding:3px 7px;font-size:9px;" onclick="khataDeleteEntry(\'' + e.id + '\')">Del</button>'
+          +'</td>'
+          +'</tr>';
+      });
+      var finalBal = runBal;
+      var finalColor = finalBal>=0?'#2e7d32':'#c0392b';
+      html += '<tr style="background:var(--ow);font-weight:700;"><td colspan="4">CLOSING BALANCE</td><td style="text-align:right;color:#2e7d32;">'+fmtNum(khataPartyBalance(selParty).credit)+'</td><td style="text-align:right;color:#c0392b;">'+fmtNum(khataPartyBalance(selParty).debit)+'</td><td style="text-align:right;color:'+finalColor+';">'+fmtNum(Math.abs(finalBal))+' '+(finalBal>=0?'Rcv':'Pay')+'</td><td></td></tr>';
+      html += '</tbody></table></div>';
+    }
+    html += '</div></div>';
+    if(ldWrap) ldWrap.innerHTML = html;
+  }
+}
+
+function khataViewParty(p){
+  var pf = document.getElementById('khata-party-filter');
+  if(pf){ pf.value = p; }
+  renderKhata();
+}
+
+function initKhataEntry(id){
+  // Populate party datalist
+  var dl = document.getElementById('ke-party-list');
+  if(dl){
+    dl.innerHTML = '';
+    khataGetParties().forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p; dl.appendChild(opt);
+    });
+  }
+  // Set today date
+  if(!id){
+    var d = document.getElementById('ke-date');
+    if(d && !d.value) d.value = new Date().toISOString().slice(0,10);
+    // Reset form
+    ['ke-party','ke-amount','ke-ref','ke-remarks'].forEach(function(i){ var el=document.getElementById(i); if(el) el.value=''; });
+    var t=document.getElementById('ke-type'); if(t) t.value='debit';
+    var c=document.getElementById('ke-category'); if(c) c.value='General';
+    khataTypeChange();
+    // Remove edit id
+    document.getElementById('page-khataentry').dataset.editId='';
+  }
+}
+
+function khataTypeChange(){
+  var t = document.getElementById('ke-type');
+  var badge = document.getElementById('ke-type-badge');
+  if(!badge) return;
+  if(t && t.value==='credit'){
+    badge.style.background='#e8f5e9'; badge.style.color='#2e7d32'; badge.style.borderColor='#a5d6a7';
+    badge.innerHTML='✅ Credit = Unka hampe dena hai / They owe us';
+  } else {
+    badge.style.background='#fff3cd'; badge.style.color='#856404'; badge.style.borderColor='#ffc107';
+    badge.innerHTML='⚠️ Debit = Hum unhe denge / We owe them';
+  }
+}
+
+function saveKhataEntry(){
+  var type = document.getElementById('ke-type').value;
+  var date = document.getElementById('ke-date').value;
+  var party = document.getElementById('ke-party').value.trim();
+  var amount = parseFloat(document.getElementById('ke-amount').value)||0;
+  var category = document.getElementById('ke-category').value;
+  var ref = document.getElementById('ke-ref').value.trim();
+  var remarks = document.getElementById('ke-remarks').value.trim();
+  var editId = document.getElementById('page-khataentry').dataset.editId;
+
+  if(!party){ showToast('⚠️ Party name required'); return; }
+  if(!date){ showToast('⚠️ Date required'); return; }
+  if(amount<=0){ showToast('⚠️ Valid amount required'); return; }
+
+  khataEntries = LS.get('khataEntries')||[];
+
+  if(editId){
+    var idx = khataEntries.findIndex(function(e){ return e.id===editId; });
+    if(idx>-1){
+      khataEntries[idx] = {id:editId, type:type, date:date, party:party, amount:amount, category:category, ref:ref, remarks:remarks, updated:new Date().toISOString()};
+    }
+    showToast('✅ Entry updated!');
+  } else {
+    var entry = {
+      id: 'KE'+Date.now(),
+      type: type,
+      date: date,
+      party: party,
+      amount: amount,
+      category: category,
+      ref: ref,
+      remarks: remarks,
+      created: new Date().toISOString()
+    };
+    khataEntries.push(entry);
+    showToast('✅ Khata entry saved!');
+  }
+
+  LS.sync('khataEntries', khataEntries);
+  document.getElementById('page-khataentry').dataset.editId='';
+  navTo('khata', null);
+}
+
+function khataEditEntry(id){
+  khataEntries = LS.get('khataEntries')||[];
+  var e = khataEntries.find(function(x){ return x.id===id; });
+  if(!e) return;
+  navTo('khataentry', null);
+  setTimeout(function(){
+    document.getElementById('ke-type').value = e.type;
+    document.getElementById('ke-date').value = e.date;
+    document.getElementById('ke-party').value = e.party;
+    document.getElementById('ke-amount').value = e.amount;
+    document.getElementById('ke-category').value = e.category||'General';
+    document.getElementById('ke-ref').value = e.ref||'';
+    document.getElementById('ke-remarks').value = e.remarks||'';
+    document.getElementById('page-khataentry').dataset.editId = id;
+    khataTypeChange();
+  }, 80);
+}
+
+function khataDeleteEntry(id){
+  if(!confirm('Is entry ko delete karna chahte hain?')) return;
+  khataEntries = LS.get('khataEntries')||[];
+  khataEntries = khataEntries.filter(function(e){ return e.id!==id; });
+  LS.sync('khataEntries', khataEntries);
+  showToast('🗑️ Entry deleted');
+  renderKhata();
+}
+
+function khataExportPDF(){
+  khataEntries = LS.get('khataEntries')||[];
+  var pf = document.getElementById('khata-party-filter');
+  var selParty = pf ? pf.value : '';
+  var fromEl = document.getElementById('khata-from');
+  var toEl = document.getElementById('khata-to');
+  var from = fromEl ? fromEl.value : '';
+  var to = toEl ? toEl.value : '';
+
+  var filtered = khataEntries.filter(function(e){
+    if(from && e.date < from) return false;
+    if(to && e.date > to) return false;
+    if(selParty && e.party !== selParty) return false;
+    return true;
+  }).sort(function(a,b){ return a.date<b.date?-1:1; });
+
+  var title = selParty ? 'Khata Ledger — '+selParty : 'Khata Ledger — All Parties';
+  var rows = '';
+  var runBal = 0;
+  filtered.forEach(function(e){
+    var amt = parseFloat(e.amount)||0;
+    if(e.type==='credit') runBal+=amt; else runBal-=amt;
+    rows += '<tr>'
+      +'<td>'+fmtDate(e.date)+'</td>'
+      +'<td>'+escHtml(e.party)+'</td>'
+      +'<td style="color:'+(e.type==='credit'?'#2e7d32':'#c0392b')+';font-weight:600;">'+e.type.toUpperCase()+'</td>'
+      +'<td>'+escHtml(e.category||'')+'</td>'
+      +'<td>'+escHtml(e.ref||'')+'</td>'
+      +'<td style="text-align:right;color:#2e7d32;">'+(e.type==='credit'?fmtNum(amt):'')+'</td>'
+      +'<td style="text-align:right;color:#c0392b;">'+(e.type==='debit'?fmtNum(amt):'')+'</td>'
+      +'<td style="text-align:right;font-weight:700;color:'+(runBal>=0?'#2e7d32':'#c0392b')+';">'+fmtNum(Math.abs(runBal))+(runBal>=0?' Rcv':' Pay')+'</td>'
+      +'</tr>';
+  });
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
+    +'<title>'+title+'</title>'
+    +'<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:20px;}h2{font-size:16px;color:#14342A;}table{width:100%;border-collapse:collapse;margin-top:14px;}th{background:#14342A;color:#fff;padding:6px 8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:left;}td{padding:6px 8px;border-bottom:1px solid #eee;}.footer{margin-top:20px;text-align:center;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:10px;}</style>'
+    +'</head><body>'
+    +'<h2>'+title+'</h2>'
+    +'<div style="font-size:10px;color:#666;">Generated: '+new Date().toLocaleString('en-IN')+(from||to?' | Period: '+(from||'start')+' to '+(to||'now'):'')+'</div>'
+    +'<table><thead><tr><th>Date</th><th>Party</th><th>Type</th><th>Category</th><th>Reference</th><th style="text-align:right;">Credit</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Balance</th></tr></thead><tbody>'
+    +rows
+    +'</tbody></table>'
+    +'<div class="footer">Alphamen Business Suite — Khata Ledger</div>'
+    +'</body></html>';
+
+  var win = window.open('','_blank');
+  if(!win){showToast('Popup blocked!');return;}
+  win.document.write(html);
+  win.document.close();
+  win.onload=function(){win.focus();win.print();};
+  showToast('PDF ready!');
+}
+
+// ===== END KHATA FUNCTIONS =====
+
+// ===== STAFF PERMISSIONS UI FUNCTIONS =====
+
+function renderStaffPermsUI(){
+  loadStaffPerms();
+  var container = document.getElementById('staff-perms-list');
+  if(!container) return;
+
+  // Group by category
+  var groups = [
+    { title:'📊 Reports & Analytics', keys:['dashboard','salesreport','invreport','pnl','costing'] },
+    { title:'🧾 Invoicing',            keys:['invoice','history','payments'] },
+    { title:'📦 Inventory & Purchase', keys:['inventory','purchases','purchaselist'] },
+    { title:'⏰ Pending & Receipts',   keys:['pending','pendingreceipts','pendingnew'] },
+    { title:'💸 Expenses',             keys:['expenses','expensenew','expenselist'] },
+    { title:'⚙️ System',              keys:['settings'] },
+  ];
+
+  var html = '';
+  groups.forEach(function(grp){
+    html += '<div style="margin-bottom:6px;">';
+    html += '<div style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;padding:4px 0 6px;border-bottom:1px solid var(--bdr);margin-bottom:6px;">'+grp.title+'</div>';
+    grp.keys.forEach(function(key){
+      var def = STAFF_PERMISSION_DEFS.find(function(d){ return d.key===key; });
+      if(!def) return;
+      var isOn = STAFF_PERMISSIONS[key] !== false && key !== 'settings' && key !== 'pnl';
+      // settings & pnl always off
+      var alwaysOff = (key === 'settings' || key === 'pnl');
+      var checkedAttr = (isOn && !alwaysOff) ? 'checked' : '';
+      var disabledAttr = alwaysOff ? 'disabled' : '';
+      var lockIcon = alwaysOff ? ' 🔒' : '';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--ow);border:1px solid var(--bdr);border-radius:2px;margin-bottom:4px;">';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span style="font-size:14px;">'+def.icon+'</span>';
+      html += '<div><div style="font-size:12px;font-weight:600;color:var(--txt);">'+def.label+lockIcon+'</div>';
+      if(alwaysOff) html += '<div style="font-size:9px;color:#e74c3c;">Always blocked for staff</div>';
+      html += '</div></div>';
+      html += '<label class="perm-toggle" style="position:relative;display:inline-block;width:42px;height:22px;'+(alwaysOff?'opacity:0.4;':'')+'">';
+      html += '<input type="checkbox" data-perm-key="'+key+'" '+checkedAttr+' '+disabledAttr+' style="opacity:0;width:0;height:0;" onchange="onPermToggle(this)">';
+      html += '<span class="perm-slider"></span>';
+      html += '</label>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  container.innerHTML = html;
+
+  // Add toggle slider CSS if not already added
+  if(!document.getElementById('perm-toggle-style')){
+    var style = document.createElement('style');
+    style.id = 'perm-toggle-style';
+    style.textContent = '.perm-toggle .perm-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:22px;transition:.3s;}.perm-toggle input:checked + .perm-slider{background:var(--g);}.perm-slider:before{content:"";position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;}.perm-toggle input:checked + .perm-slider:before{transform:translateX(20px);}';
+    document.head.appendChild(style);
+  }
+}
+
+function onPermToggle(checkbox){
+  var key = checkbox.getAttribute('data-perm-key');
+  STAFF_PERMISSIONS[key] = checkbox.checked;
+  // Live preview badge update
+  var msg = document.getElementById('perms-save-msg');
+  if(msg){ msg.style.display='block'; msg.style.color='#856404'; msg.textContent='⚠️ Unsaved changes — Save karna mat bhoolo!'; }
+}
+
+function staffPermsSelectAll(state){
+  STAFF_PERMISSION_DEFS.forEach(function(def){
+    if(def.key !== 'settings' && def.key !== 'pnl'){
+      STAFF_PERMISSIONS[def.key] = state;
+    }
+  });
+  renderStaffPermsUI();
+  var msg = document.getElementById('perms-save-msg');
+  if(msg){ msg.style.display='block'; msg.style.color='#856404'; msg.textContent='⚠️ Unsaved changes — Save karna mat bhoolo!'; }
+}
+
+function saveStaffPerms(){
+  // Read current toggle states from UI
+  var checkboxes = document.querySelectorAll('[data-perm-key]');
+  checkboxes.forEach(function(cb){
+    var key = cb.getAttribute('data-perm-key');
+    if(key !== 'settings' && key !== 'pnl'){
+      STAFF_PERMISSIONS[key] = cb.checked;
+    }
+  });
+  // Always force off
+  STAFF_PERMISSIONS['settings'] = false;
+  STAFF_PERMISSIONS['pnl'] = false;
+
+  LS.sync('staffPerms', STAFF_PERMISSIONS);
+
+  var msg = document.getElementById('perms-save-msg');
+  if(msg){ msg.style.display='block'; msg.style.color='#2e7d32'; msg.textContent='✅ Permissions save ho gayi! Staff next login par apply honge.'; }
+  setTimeout(function(){ if(msg) msg.style.display='none'; }, 3000);
+  showToast('✅ Staff permissions saved!');
+
+  // Re-render permissions UI to show fresh state
+  renderStaffPermsUI();
+}
+
+// ===== END STAFF PERMISSIONS FUNCTIONS =====
+
+
+
+
+</script>
 
 <!-- PDF Date Picker Modal -->
 <div id="pdfDateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
