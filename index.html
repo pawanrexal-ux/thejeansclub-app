@@ -598,7 +598,7 @@ input[type=tel], textarea, select {
     <div class="lig">
       <label>Login As</label>
       <select id="loginRole" onchange="onRoleChange()" style="width:100%;padding:10px 14px;font-family:'DM Sans',sans-serif;font-size:14px;border:1px solid var(--bdr);background:var(--ow);outline:none;">
-        <option value="admin">&#128081; Owner / Admin</option>
+        <option value="admin">&#128081; Admin</option>
         <option value="staff">&#128100; Staff</option>
       </select>
     </div>
@@ -625,7 +625,11 @@ input[type=tel], textarea, select {
       <div class="nav-sec">Sales</div>
       <div class="nav-item" onclick="navTo('invoice',this)"><span class="nav-icon">&#128221;</span>New Invoice</div>
       <div class="nav-item" onclick="navTo('history',this)"><span class="nav-icon">&#128194;</span>Invoice History</div>
-      <div class="nav-item" onclick="navTo('payments',this)"><span class="nav-icon">&#128179;</span>Payments</div>
+      <div class="nav-sec">Collections &#128178;</div>
+      <div class="nav-item" onclick="navTo('payments',this)"><span class="nav-icon">&#128179;</span>Payments Ledger</div>
+      <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Dues</div>
+      <div class="nav-item" onclick="navTo('pendingnew',this)"><span class="nav-icon">&#10133;</span>New Payment Receipt</div>
+      <div class="nav-item" onclick="navTo('pendingreceipts',this)"><span class="nav-icon">&#128203;</span>Payment Receipts</div>
       <div class="nav-sec">Purchase</div>
       <div class="nav-item" onclick="navTo('purchases',this)"><span class="nav-icon">&#128666;</span>Purchase Dashboard</div>
       <div class="nav-item" onclick="navTo('purchaselist',this)"><span class="nav-icon">&#128203;</span>Purchase Records</div>
@@ -637,9 +641,6 @@ input[type=tel], textarea, select {
       <div class="nav-item" onclick="navTo('salesreport',this)"><span class="nav-icon">&#128200;</span>Sales Report</div>
 
       <div class="nav-item" id="navitem-pl" onclick="navTo('pnl',this)"><span class="nav-icon">&#128185;</span>P&amp;L Dashboard</div>
-      <div class="nav-sec">Pending</div>
-      <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Payments</div>
-      <div class="nav-item" onclick="navTo('pendingreceipts',this)"><span class="nav-icon">&#128203;</span>Payment Receipts</div>
       <div class="nav-sec">Expenses</div>
       <div class="nav-item" onclick="navTo('expenses',this)"><span class="nav-icon">&#128181;</span>Expense Dashboard</div>
       <div class="nav-item" onclick="navTo('expensenew',this)"><span class="nav-icon">&#10133;</span>Add Expense</div>
@@ -731,10 +732,12 @@ input[type=tel], textarea, select {
                   <option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Bank">Bank Transfer</option><option value="Split">Split (Cash+UPI)</option>
                 </select>
               </div>
-              <div class="ig"><label>Status</label>
-                <select id="invPayStatus" onchange="onPayStatusChange()"><option value="Paid">Paid</option><option value="Pending">Pending</option><option value="Partial">Partial</option></select>
+              <div class="ig"><label>Payment Status</label>
+                <select id="invPayStatus" onchange="onPayStatusChange()"><option value="Paid">&#9989; Paid — Poora mil gaya</option><option value="Pending">&#9203; Pending — Abhi nahi mila</option><option value="Partial">&#128203; Partial — Kuch mila, kuch baaki</option></select>
               </div>
             </div>
+            <!-- Dynamic helper text based on status -->
+            <div id="payStatusHelper" style="display:none;font-size:11px;font-family:Arial,sans-serif;padding:7px 10px;border-radius:2px;margin-bottom:2px;"></div>
             <!-- FULL PAID: Split section (only when Paid + Split mode) -->
             <div id="splitPaySection" style="display:none;">
               <div style="font-size:11px;font-weight:700;color:var(--g);margin-bottom:8px;font-family:Arial,sans-serif;">Split Amount: <span id="split-total-hint" style="color:#546e7a;font-weight:600;"></span></div>
@@ -835,8 +838,22 @@ input[type=tel], textarea, select {
             <option value="Cash">Cash Only</option>
             <option value="UPI">UPI Only</option>
           </select>
-          <button class="btn btn-gold" onclick="exportPayExcel()" style="padding:9px 12px;">&#128202; Excel</button>
-          <button class="btn btn-green" onclick="showDatePickerForPDF('daily')" style="padding:9px 12px;">&#128196; PDF</button>
+          <div style="position:relative;display:inline-block;" id="payExcelDropWrap">
+            <button class="btn btn-gold" onclick="togglePayDropdown('payExcelDrop')" style="padding:9px 12px;">&#128202; Excel ▾</button>
+            <div id="payExcelDrop" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #ddd;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:999;min-width:160px;border-radius:3px;">
+              <div onclick="exportPayExcelPeriod('daily');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#fffbea'" onmouseout="this.style.background=''">📅 Daily Excel</div>
+              <div onclick="exportPayExcelPeriod('weekly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#fffbea'" onmouseout="this.style.background=''">📆 Weekly Excel</div>
+              <div onclick="exportPayExcelPeriod('monthly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;" onmouseover="this.style.background='#fffbea'" onmouseout="this.style.background=''">🗓️ Monthly Excel</div>
+            </div>
+          </div>
+          <div style="position:relative;display:inline-block;" id="payPdfDropWrap">
+            <button class="btn btn-green" onclick="togglePayDropdown('payPdfDrop')" style="padding:9px 12px;">&#128196; PDF ▾</button>
+            <div id="payPdfDrop" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #ddd;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:999;min-width:160px;border-radius:3px;">
+              <div onclick="showDatePickerForPDF('daily');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">📅 Daily PDF</div>
+              <div onclick="showDatePickerForPDF('weekly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">📆 Weekly PDF</div>
+              <div onclick="showDatePickerForPDF('monthly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">🗓️ Monthly PDF</div>
+            </div>
+          </div>
         </div>
         <!-- IN/OUT Summary -->
         <div id="pay-inout-summary" style="margin-bottom:12px;"></div>
@@ -869,8 +886,31 @@ input[type=tel], textarea, select {
 
       <!-- NEW PAYMENT RECEIPT -->
       <div class="page" id="page-pendingnew">
+        <!-- Step Progress Indicator -->
+        <div id="pp-steps" style="display:flex;align-items:stretch;margin-bottom:14px;border:1px solid var(--bdr);border-radius:2px;overflow:hidden;background:var(--cb);box-shadow:var(--sh0);">
+          <div class="pp-step active" id="pp-step-1" style="flex:1;padding:10px 6px;text-align:center;border-right:1px solid var(--bdr);cursor:default;">
+            <div style="font-size:16px;margin-bottom:2px;">📅</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--g);">Step 1</div>
+            <div style="font-size:10px;color:var(--t2);font-family:Arial,sans-serif;">Date &amp; Mode</div>
+          </div>
+          <div class="pp-step" id="pp-step-2" style="flex:1;padding:10px 6px;text-align:center;border-right:1px solid var(--bdr);cursor:default;opacity:.45;">
+            <div style="font-size:16px;margin-bottom:2px;">👤</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Step 2</div>
+            <div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">Customer</div>
+          </div>
+          <div class="pp-step" id="pp-step-3" style="flex:1;padding:10px 6px;text-align:center;border-right:1px solid var(--bdr);cursor:default;opacity:.45;">
+            <div style="font-size:16px;margin-bottom:2px;">🧾</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Step 3</div>
+            <div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">Invoice</div>
+          </div>
+          <div class="pp-step" id="pp-step-4" style="flex:1;padding:10px 6px;text-align:center;cursor:default;opacity:.45;">
+            <div style="font-size:16px;margin-bottom:2px;">💰</div>
+            <div style="font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Step 4</div>
+            <div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">Amount</div>
+          </div>
+        </div>
         <div class="card">
-          <div class="card-head"><div class="card-icon">&#128179;</div><div class="card-title">Payment Receipt Details</div></div>
+          <div class="card-head"><div class="card-icon">&#128179;</div><div class="card-title">Step 1 — Date &amp; Payment Mode</div></div>
           <div class="card-body">
             <div class="row2">
               <div class="ig"><label>Date</label><input type="date" id="pp-date"/></div>
@@ -881,7 +921,7 @@ input[type=tel], textarea, select {
           </div>
         </div>
         <div class="card">
-          <div class="card-head"><div class="card-icon">&#128100;</div><div class="card-title">Customer (Pending Customers Only)</div></div>
+          <div class="card-head"><div class="card-icon">&#128100;</div><div class="card-title">Step 2 — Customer (Pending wale hi dikhenge)</div></div>
           <div class="card-body">
             <div class="ig">
               <label>Customer Name</label>
@@ -894,14 +934,14 @@ input[type=tel], textarea, select {
           </div>
         </div>
         <div class="card">
-          <div class="card-head"><div class="card-icon">&#128196;</div><div class="card-title">Select Pending Invoice</div></div>
+          <div class="card-head"><div class="card-icon">&#128196;</div><div class="card-title">Step 3 — Pending Invoice Select Karo</div></div>
           <div class="card-body">
             <div id="pp-invList" style="display:none;background:var(--ow);border:1px solid var(--bdr);padding:10px;margin-bottom:10px;border-radius:2px;"></div>
             <div class="ig"><label>Invoice No. (auto-filled)</label><input type="text" id="pp-invNo" placeholder="Select customer above" style="font-family:Arial,sans-serif;font-weight:700;"/></div>
           </div>
         </div>
         <div class="card">
-          <div class="card-head"><div class="card-icon">&#128176;</div><div class="card-title">Payment Amount</div></div>
+          <div class="card-head"><div class="card-icon">&#128176;</div><div class="card-title">Step 4 — Amount Received Enter Karo</div></div>
           <div class="card-body">
             <div class="ig"><label>Pending Amount (auto-filled)</label><input type="number" id="pp-pendingAmt" placeholder="0" inputmode="numeric" style="font-family:Arial,sans-serif;background:#fff3e0;font-weight:700;"/></div>
             <div class="ig"><label>Amount Paid Now (Rs.)</label><input type="number" id="pp-paidAmt" placeholder="Enter amount received" inputmode="numeric" oninput="onPPAmtChange()" style="font-family:Arial,sans-serif;font-weight:700;font-size:16px;border-color:var(--g);"/></div>
@@ -2253,7 +2293,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pending:'Pending Payments', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', khata:'Khata Ledger', khataentry:'Add Khata Entry'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', khata:'Khata Ledger', khataentry:'Add Khata Entry'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
@@ -2515,6 +2555,25 @@ function onPayModeChange(){ refreshPaymentSections(); }
 function onPayStatusChange(){
   var ps = document.getElementById('invPayStatus').value;
   var isPartial = ps === 'Partial';
+  // Show helper text based on status
+  var helper = document.getElementById('payStatusHelper');
+  if(helper){
+    if(ps==='Paid'){
+      helper.style.display='none';
+    } else if(ps==='Pending'){
+      helper.style.display='block';
+      helper.style.background='#fff3e0';
+      helper.style.border='1px solid #ffd4a0';
+      helper.style.color='#c45e00';
+      helper.innerHTML='&#9203; <strong>Pending:</strong> Customer ne abhi kuch nahi diya. Baad mein Payment Receipt bana ke collect karna.';
+    } else if(ps==='Partial'){
+      helper.style.display='block';
+      helper.style.background='#fffbea';
+      helper.style.border='1px solid #ffe18a';
+      helper.style.color='#9a6a00';
+      helper.innerHTML='&#128203; <strong>Partial:</strong> Neeche enter karo — kitna abhi mila aur kitna baaki hai.';
+    }
+  }
   // Reset partial fields on toggle
   if(!isPartial){
     var pEl = document.getElementById('partialPaidAmt'); if(pEl) pEl.value='';
@@ -3000,6 +3059,8 @@ function collectInvoice(){ return collectFormData(); } // backward compat alias
 function prepareNextInvoice(){} // no-op, kept for compatibility
 
 function buildPreview(inv){
+  // Always fetch latest receipts from storage so invoice PDF shows updated payments
+  pendingPayments = LS.get('pendingPayments') || pendingPayments || [];
   var dateStr = inv.invDate ? new Date(inv.invDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
   var rows = '';
   inv.items.filter(function(i){return i.name||i.price>0;}).forEach(function(i,idx){
@@ -3042,22 +3103,72 @@ function buildPreview(inv){
     if(inv.totalGst>0) gstHtml+='<div class="inv-tot-row" style="border-top:1px dashed #d4c9a8;padding-top:5px;"><span style="font-family:Arial,sans-serif;font-weight:700;color:#00796b;">Total GST</span><span style="font-family:Arial,sans-serif;font-weight:700;color:#00796b;">'+fmt(inv.totalGst)+'</span></div>';
   }
 
-  var isPartialInv = inv.payStatus === 'Partial';
+  // ── Collect linked payment receipts for this invoice ──
+  var linkedReceipts = (pendingPayments||[]).filter(function(r){ return r.invNo === inv.invNo; })
+    .sort(function(a,b){ return (a.savedAt||a.date||'').localeCompare(b.savedAt||b.date||''); });
+  var totalReceiptPaid = linkedReceipts.reduce(function(s,r){ return s+(r.paidAmt||0); }, 0);
+
+  // ── Build payment rows for the invoice PDF ──
   var splitRows = '';
-  if(isPartialInv){
-    var paidAmt = inv.paidAmount || 0;
-    var remAmt  = Math.max(0, inv.total - paidAmt);
-    if(isSplit){
-      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>';
-      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:800;">&#128242; UPI Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1a237e;">'+fmt(inv.upiAmt)+'</span></div>';
-      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">&#10003; Total Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#9a6a00;">'+fmt(paidAmt)+'</span></div>';
-    } else {
-      var modeIcon = inv.payMode==='Cash' ? '&#128181;' : '&#128242;';
-      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">'+modeIcon+' Paid ('+escH(inv.payMode)+')</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#9a6a00;">'+fmt(paidAmt)+'</span></div>';
+  var isPartialInv = inv.payStatus === 'Partial';
+  var isPaidFull   = inv.payStatus === 'Paid';
+
+  // Original invoice payment (the amount paid AT the time of invoice creation)
+  // = inv.paidAmount (total ever paid) − all subsequent receipts
+  var origInvPaid = Math.max(0, (inv.paidAmount||0) - totalReceiptPaid);
+
+  if(isPartialInv || isPaidFull){
+    // ── Show original invoice payment ──
+    if(origInvPaid > 0){
+      if(isSplit){
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#546e7a;font-weight:700;font-size:10px;letter-spacing:1px;">AT INVOICE</span><span></span></div>';
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:4px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:700;">&#128181; Cash</span><span style="font-family:Arial,sans-serif;font-weight:700;font-size:12px;color:#2e7d32;">'+fmt(inv.cashAmt||0)+'</span></div>';
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:4px 0;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:700;">&#128242; UPI</span><span style="font-family:Arial,sans-serif;font-weight:700;font-size:12px;color:#1a237e;">'+fmt(inv.upiAmt||0)+'</span></div>';
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:4px 0;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">&#10003; Invoice Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:12px;color:#9a6a00;">'+fmt(origInvPaid)+'</span></div>';
+      } else {
+        var modeIcon0 = inv.payMode==='Cash' ? '&#128181;' : '&#128242;';
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#9a6a00;font-weight:800;">'+modeIcon0+' Paid at Invoice ('+escH(inv.payMode)+')</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:12px;color:#9a6a00;">'+fmt(origInvPaid)+'</span></div>';
+      }
     }
-    splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:7px 4px;border-bottom:none;background:#fff3e0;"><span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;">&#9203; Balance Due</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;">'+fmt(remAmt)+'</span></div>';
+
+    // ── Show each payment receipt row ──
+    if(linkedReceipts.length > 0){
+      splitRows += '<div class="inv-tot-row" style="font-size:10px;padding:5px 0 2px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#1553a0;font-weight:700;letter-spacing:1px;">PAYMENT RECEIPTS</span><span></span></div>';
+      linkedReceipts.forEach(function(r){
+        var rDateStr = r.date ? new Date(r.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
+        var rModeIcon = r.payMode==='Cash' ? '&#128181;' : (r.payMode==='UPI'||r.payMode==='Bank') ? '&#128242;' : '&#128181;+&#128242;';
+        var rLabel = '<span style="font-size:9px;background:#e8f2fe;color:#1553a0;padding:2px 5px;font-weight:700;white-space:nowrap;font-family:Arial,sans-serif;">via Receipt</span> '
+          +'<span style="font-size:9px;color:#37474f;font-family:Arial,sans-serif;">'+escH(r.receiptNo)+'</span>'
+          +(rDateStr ? '<br><span style="font-size:8px;color:#888;font-family:Arial,sans-serif;">'+rDateStr+' · '+escH(r.payMode)+'</span>' : '');
+        splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:4px 0;align-items:flex-start;">'
+          +'<span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:700;line-height:1.5;">'+rModeIcon+' '+rLabel+'</span>'
+          +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;white-space:nowrap;">'+fmt(r.paidAmt)+'</span>'
+          +'</div>';
+        // If split receipt, show breakdown
+        if(r.payMode==='Split'){
+          if(r.cashAmt>0) splitRows += '<div class="inv-tot-row" style="font-size:11px;padding:2px 0 2px 12px;"><span style="font-family:Arial,sans-serif;color:#888;">&#8627; Cash</span><span style="font-family:Arial,sans-serif;color:#2e7d32;font-size:11px;">'+fmt(r.cashAmt)+'</span></div>';
+          if(r.upiAmt>0)  splitRows += '<div class="inv-tot-row" style="font-size:11px;padding:2px 0 2px 12px;"><span style="font-family:Arial,sans-serif;color:#888;">&#8627; UPI</span><span style="font-family:Arial,sans-serif;color:#1a237e;font-size:11px;">'+fmt(r.upiAmt)+'</span></div>';
+        }
+      });
+    }
+
+    // ── Total paid (original + receipts) ──
+    var totalPaidAll = origInvPaid + totalReceiptPaid;
+    if(linkedReceipts.length > 0 || origInvPaid > 0){
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 4px;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;">&#10003; Total Received</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(totalPaidAll)+'</span></div>';
+    }
+
+    // ── Balance due ──
+    var remAmt = Math.max(0, inv.total - totalPaidAll);
+    if(isPartialInv){
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:7px 4px;border-bottom:none;background:#fff3e0;"><span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;">&#9203; Balance Due</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;">'+fmt(remAmt)+'</span></div>';
+    } else if(isPaidFull && linkedReceipts.length > 0){
+      // Paid fully via receipts - show PAID stamp in totals
+      splitRows += '<div class="inv-tot-row" style="font-size:11px;padding:7px 4px;border-bottom:none;background:#e8f5e9;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;letter-spacing:1px;">&#10003; PAID IN FULL</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:11px;color:#2e7d32;">'+fmt(inv.total)+'</span></div>';
+    }
   } else if(isSplit){
-    splitRows = '<div class="inv-tot-row" style="font-size:12px;padding:7px 0;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;letter-spacing:.3px;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>'
+    // Normal fully paid split invoice (no receipts involved)
+    splitRows = '<div class="inv-tot-row" style="font-size:12px;padding:7px 0;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;letter-spacing:.3px;">&#128181; Cash Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(inv.cashAmt)+'</span></div>'
       +'<div class="inv-tot-row" style="font-size:12px;padding:7px 0;border-bottom:none;"><span style="font-family:Arial,sans-serif;color:#1a237e;font-weight:800;letter-spacing:.3px;">&#128242; UPI Paid</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1a237e;">'+fmt(inv.upiAmt)+'</span></div>';
   }
 
@@ -3494,8 +3605,14 @@ function renderPayments(){
       var day=monthDates[d];
       (day.sales||[]).forEach(function(i){
         if(i.payStatus==='Pending') return;
-        if(i.payMode==='Split') mIn += (i.cashAmt||0)+(i.upiAmt||0);
-        else if(i.payStatus==='Paid'||i.payStatus==='Partial') mIn += (i.paidAmount!=null?i.paidAmount:i.total);
+        var recTotal = (allReceiptByInv[i.invNo]||{total:0}).total;
+        if(i.payMode==='Split'){
+          var splitOriginal = Math.max(0, ((i.cashAmt||0)+(i.upiAmt||0)) - recTotal);
+          mIn += splitOriginal;
+        } else if(i.payStatus==='Paid'||i.payStatus==='Partial'){
+          var invPaid = (i.paidAmount!=null?i.paidAmount:i.total);
+          mIn += Math.max(0, invPaid - recTotal);
+        }
       });
       (day.receipts||[]).forEach(function(r){ mRec += (r.paidAmt||0); });
       mPur += (day.purchases||[]).reduce(function(s,p){return s+p.totalCost;},0);
@@ -3513,8 +3630,10 @@ function renderPayments(){
 
       var dSaleIn = (day.sales||[]).reduce(function(s,i){
         if(i.payStatus==='Pending') return s;
-        if(i.payMode==='Split') return s+(i.cashAmt||0)+(i.upiAmt||0);
-        return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));
+        var recTotal = (allReceiptByInv[i.invNo]||{total:0}).total;
+        if(i.payMode==='Split') return s+Math.max(0,((i.cashAmt||0)+(i.upiAmt||0))-recTotal);
+        var invPaid = (i.payStatus==='Paid'?i.total:(i.paidAmount||0));
+        return s+Math.max(0, invPaid - recTotal);
       },0);
       var dRecIn  = (day.receipts||[]).reduce(function(s,r){return s+(r.paidAmt||0);},0);
       var dTotalIn = dSaleIn + dRecIn;
@@ -3532,13 +3651,14 @@ function renderPayments(){
       (day.sales||[]).forEach(function(i){
         var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
         var modeStr = i.payMode==='Split'?'Cash+UPI':i.payMode;
-        var amtIn = i.payStatus==='Pending'?0:(i.payMode==='Split'?(i.cashAmt||0)+(i.upiAmt||0):(i.payStatus==='Partial'?(i.paidAmount||0):i.total));
+        var recTotalForInv = (allReceiptByInv[i.invNo]||{total:0}).total;
+        var amtIn = i.payStatus==='Pending'?0:(i.payMode==='Split'?Math.max(0,((i.cashAmt||0)+(i.upiAmt||0))-recTotalForInv):(i.payStatus==='Partial'?Math.max(0,(i.paidAmount||0)-recTotalForInv):Math.max(0,i.total-recTotalForInv)));
         var statusBadge='<span style="font-size:9px;padding:1px 5px;background:'+(i.payStatus==='Paid'?'#c8e6c9':(i.payStatus==='Partial'?'#fff9c4':'#fff3e0'))+';color:'+(i.payStatus==='Paid'?'#1b5e20':(i.payStatus==='Partial'?'#f57f17':'#c45e00'))+';border:1px solid '+(i.payStatus==='Paid'?'#a5d6a7':(i.payStatus==='Partial'?'#ffe082':'#ffd4a0'))+';border-radius:2px;">'+escH(i.payStatus)+'</span>';
         rows+='<tr style="border-bottom:1px solid #e8f5e9;">'
           +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:#2e7d32;color:#fff;padding:2px 6px;border-radius:2px;">INVOICE</span></td>'
           +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(i.custName)+'<br><span style="font-size:10px;color:#888;font-weight:400;">'+escH(i.invNo)+'</span></td>'
           +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(modeStr)+'<br>'+statusBadge+'</td>'
-          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:'+(isPend?'#c45e00':'#2e7d32')+';white-space:nowrap;">'+(isPend?'<span style="font-size:9px;color:#c45e00;">⏳</span> '+fmt(i.total-(i.paidAmount||0)):'+'+fmt(amtIn))+'</td>'
+          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:'+(isPend?'#c45e00':'#2e7d32')+';white-space:nowrap;">'+(isPend?'<span style="font-size:9px;color:#c45e00;">⏳</span> '+fmt(i.total-(i.paidAmount||0)):(amtIn>0?'+'+fmt(amtIn):'<span style="font-size:9px;color:#1553a0;">via Receipt</span>'))+'</td>'
           +'</tr>';
       });
 
@@ -3859,10 +3979,10 @@ function renderDashboard(){
   var hm=document.getElementById('headerMonth'); if(hm)hm.textContent=cm;
   var ds=document.getElementById('dash-stats');
   if(ds)ds.innerHTML=
-    '<div class="stat-card gold"><div class="stat-card-icon">🧾</div><div class="stat-label">Today Sales</div><div class="stat-value">'+fmt(ts)+'</div><div class="stat-sub">'+ti.length+' invoices today</div></div>'+
-    '<div class="stat-card"><div class="stat-card-icon">📈</div><div class="stat-label">This Month</div><div class="stat-value">'+fmt(ms)+'</div><div class="stat-sub">'+mi.length+' invoices</div></div>'+
-    '<div class="stat-card red"><div class="stat-card-icon">⏳</div><div class="stat-label">Pending</div><div class="stat-value">'+fmt(pa)+'</div><div class="stat-sub">Outstanding amount</div></div>'+
-    '<div class="stat-card blue"><div class="stat-card-icon">📦</div><div class="stat-label">Low Stock</div><div class="stat-value">'+ls+'</div><div class="stat-sub">Items need restock</div></div>';
+    '<div class="stat-card gold" onclick="navTo(\'history\',null)" style="cursor:pointer;" title="Aaj ki invoices dekho"><div class="stat-card-icon">🧾</div><div class="stat-label">Today Sales</div><div class="stat-value">'+fmt(ts)+'</div><div class="stat-sub">'+ti.length+' invoices today &nbsp;›</div></div>'+
+    '<div class="stat-card" onclick="navTo(\'payments\',null)" style="cursor:pointer;" title="Is mahine ka payment ledger"><div class="stat-card-icon">📈</div><div class="stat-label">This Month</div><div class="stat-value">'+fmt(ms)+'</div><div class="stat-sub">'+mi.length+' invoices &nbsp;›</div></div>'+
+    '<div class="stat-card red" onclick="navTo(\'pending\',null)" style="cursor:pointer;" title="Pending dues dekho"><div class="stat-card-icon">⏳</div><div class="stat-label">Pending Dues</div><div class="stat-value">'+fmt(pa)+'</div><div class="stat-sub">Tap to collect &nbsp;›</div></div>'+
+    '<div class="stat-card blue" onclick="navTo(\'inventory\',null)" style="cursor:pointer;" title="Stock manager"><div class="stat-card-icon">📦</div><div class="stat-label">Low Stock</div><div class="stat-value">'+ls+'</div><div class="stat-sub">Items low &nbsp;›</div></div>';
   var cashM=mi.filter(function(i){return i.payMode==='Cash';}).reduce(function(s,i){return s+i.total;},0);
   var upiM=mi.filter(function(i){return i.payMode==='UPI'||i.payMode==='Bank';}).reduce(function(s,i){return s+i.total;},0);
   var cSM=mi.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
@@ -4611,6 +4731,55 @@ function pickPurItem(name, rate){
 // ===== PENDING PAYMENTS MODULE =====
 var pendingPayments = []; // separate pay receipts
 
+function updatePPSteps(){
+  var custFilled = !!(document.getElementById('pp-custName') && document.getElementById('pp-custName').value.trim());
+  var invFilled  = !!(document.getElementById('pp-invNo')   && document.getElementById('pp-invNo').value.trim());
+  var amtFilled  = !!(document.getElementById('pp-paidAmt') && parseFloat(document.getElementById('pp-paidAmt').value)>0);
+  var stepData = [
+    {id:'pp-step-1', done:true,        icon:'📅', label:'Date & Mode'},
+    {id:'pp-step-2', done:custFilled,  icon:'👤', label:'Customer'},
+    {id:'pp-step-3', done:invFilled,   icon:'🧾', label:'Invoice'},
+    {id:'pp-step-4', done:amtFilled,   icon:'💰', label:'Amount'}
+  ];
+  // Active = first unfilled step
+  var activeIdx = 0;
+  if(custFilled) activeIdx=1;
+  if(custFilled && invFilled) activeIdx=2;
+  if(custFilled && invFilled && amtFilled) activeIdx=3;
+
+  var allDone = custFilled && invFilled && amtFilled;
+
+  stepData.forEach(function(s, i){
+    var el = document.getElementById(s.id);
+    if(!el) return;
+    var iconEl  = el.querySelector('div:nth-child(1)');
+    var numEl   = el.querySelector('div:nth-child(2)');
+    var labelEl = el.querySelector('div:nth-child(3)');
+    if(s.done && i < activeIdx || (s.done && allDone)){
+      // Completed step — green checkmark
+      el.style.opacity='1';
+      el.style.background='rgba(36,97,77,.07)';
+      if(iconEl) iconEl.textContent='✅';
+      if(numEl){ numEl.style.color='var(--g)'; numEl.textContent='Step '+(i+1); }
+      if(labelEl){ labelEl.style.color='var(--g)'; labelEl.textContent=s.label; }
+    } else if(i===activeIdx){
+      // Current active step — gold highlight
+      el.style.opacity='1';
+      el.style.background='rgba(184,148,46,.09)';
+      if(iconEl) iconEl.textContent=s.icon;
+      if(numEl){ numEl.style.color='#9a6a00'; numEl.textContent='▶ Step '+(i+1); }
+      if(labelEl){ labelEl.style.color='#9a6a00'; labelEl.textContent=s.label; }
+    } else {
+      // Future step — faded
+      el.style.opacity='0.38';
+      el.style.background='';
+      if(iconEl) iconEl.textContent=s.icon;
+      if(numEl){ numEl.style.color='var(--mu)'; numEl.textContent='Step '+(i+1); }
+      if(labelEl){ labelEl.style.color='var(--mu)'; labelEl.textContent=s.label; }
+    }
+  });
+}
+
 function initPendingForm(){
   document.getElementById('pp-date').value = nowDate();
   document.getElementById('pp-custName').value = '';
@@ -4627,6 +4796,7 @@ function initPendingForm(){
   var ca = document.getElementById('pp-cashAmt'); if(ca) ca.value='';
   var ua = document.getElementById('pp-upiAmt'); if(ua) ua.value='';
   var tc = document.getElementById('pp-split-total-check'); if(tc) tc.textContent='';
+  updatePPSteps(); // Reset step indicator to Step 1
 }
 
 function onPPPayModeChange(){
@@ -4649,6 +4819,7 @@ function onPPAmtChange(){
     var total = parseFloat(document.getElementById('pp-paidAmt').value)||0;
     if(tc) tc.innerHTML = total>0 ? 'Total: <strong style="color:#1565c0;">Rs.'+Math.round(total).toLocaleString('en-IN')+'</strong> — Cash ya UPI fill karo, baaki auto-fill hoga.' : '';
   }
+  updatePPSteps(); // Update step 4 highlight as user types amount
 }
 
 function onPPSplitChange(changedField){
@@ -4727,6 +4898,7 @@ function fillPPCust(name, phone){
   var s=document.getElementById('pp-custSugg'); if(s) s.style.display='none';
   // Load pending invoices for this customer
   loadPPInvoices(name);
+  updatePPSteps();
 }
 
 function loadPPInvoices(custName){
@@ -4753,6 +4925,7 @@ function loadPPInvoices(custName){
       document.getElementById('pp-invNo').value=item.getAttribute('data-inv');
       document.getElementById('pp-paidAmt').value=item.getAttribute('data-amt');
       document.getElementById('pp-pendingAmt').value=item.getAttribute('data-amt');
+      updatePPSteps();
     }
   };
 }
@@ -4778,8 +4951,21 @@ function savePendingPayment(){
   if(!invNo){showToast('Invoice number required!');return;}
   if(paidAmt<=0){showToast('Paid amount required!');return;}
 
-  // Update original invoice status
+  // Overpayment validation — paidAmt cannot exceed actual remaining balance
   var inv = invoices.find(function(i){return i.invNo===invNo;});
+  if(inv){
+    var currentRemaining = Math.max(0, inv.total - (inv.paidAmount||0));
+    if(currentRemaining <= 0){
+      showToast('⚠️ Yeh invoice pehle se Paid hai!');
+      return;
+    }
+    if(paidAmt > currentRemaining){
+      showToast('⚠️ Amount Rs.'+paidAmt+' baaki balance Rs.'+currentRemaining+' se zyada hai! Sahi amount daalo.');
+      return;
+    }
+  }
+
+  // Update original invoice status
   if(inv){
     inv.paidAmount = (inv.paidAmount||0) + paidAmt;
     var remaining = inv.total - inv.paidAmount;
@@ -4828,8 +5014,16 @@ function genReceiptNo(){
   var d=new Date();
   var mon=d.toLocaleString('en-IN',{month:'short'}).toUpperCase().slice(0,3);
   var yr=String(d.getFullYear()).slice(-2);
-  var cnt=pendingPayments.filter(function(p){return p.date && p.date.startsWith(d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1));}).length;
-  return 'PR/'+mon+yr+'/'+String(cnt+1).padStart(3,'0');
+  var prefix='PR/'+mon+yr+'/';
+  // Use max existing serial for this month prefix (not count) — prevents duplicates after edit/delete
+  var maxSerial=0;
+  pendingPayments.forEach(function(p){
+    if(p.receiptNo && p.receiptNo.indexOf(prefix)===0){
+      var serial=parseInt(p.receiptNo.slice(prefix.length),10);
+      if(!isNaN(serial) && serial>maxSerial) maxSerial=serial;
+    }
+  });
+  return prefix+String(maxSerial+1).padStart(3,'0');
 }
 
 function buildPendingPreview(r){
@@ -5101,7 +5295,6 @@ async function downloadReceiptPDF(){
     // Add watermark to receipt
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     var nm=(currentPendingReceipt?currentPendingReceipt.receiptNo:'receipt').replace(/\//g,'_');
-    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     pdf.save('Alphamen_Receipt_'+nm+'.pdf');
     showToast('PDF downloaded!');
   }catch(e){showToast('PDF error: '+e.message);}
@@ -5852,12 +6045,40 @@ async function generateDailyPDF(reportDate){
   var dayRecs  = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date === reportDate; });
 
   // ---- Calculate amounts ----
+  // Build per-invoice receipt totals to avoid double counting
+  var allDayReceiptByInv = {};
+  (LS.get('pendingPayments')||[]).forEach(function(r){
+    if(!r.invNo) return;
+    if(!allDayReceiptByInv[r.invNo]) allDayReceiptByInv[r.invNo] = {total:0, cash:0, upi:0};
+    allDayReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    if(r.payMode==='Cash') allDayReceiptByInv[r.invNo].cash += (r.paidAmt||0);
+    else if(r.payMode==='UPI'||r.payMode==='Bank') allDayReceiptByInv[r.invNo].upi += (r.paidAmt||0);
+    else if(r.payMode==='Split'){ allDayReceiptByInv[r.invNo].cash += (r.cashAmt||0); allDayReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
+  });
   var saleTotal  = dayInvs.reduce(function(s,i){return s+i.total;},0);
-  var saleCash   = dayInvs.filter(function(i){return i.payMode==='Cash'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
-  var splitCash  = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.cashAmt||0);},0);
-  var saleUPI    = dayInvs.filter(function(i){return i.payMode==='UPI'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
-  var saleBank   = dayInvs.filter(function(i){return i.payMode==='Bank'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+i.total;},0);
-  var splitUPI   = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){return s+(i.upiAmt||0);},0);
+  var saleCash   = dayInvs.filter(function(i){return i.payMode==='Cash'&&i.payStatus!=='Pending';}).reduce(function(s,i){
+    var recAmt = (allDayReceiptByInv[i.invNo]||{total:0}).total;
+    var collected = i.payStatus==='Paid' ? i.total : (i.paidAmount||0);
+    return s+Math.max(0,collected-recAmt);
+  },0);
+  var splitCash  = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){
+    var recAmt = (allDayReceiptByInv[i.invNo]||{total:0}).total;
+    return s+Math.max(0,(i.cashAmt||0)-recAmt);
+  },0);
+  var saleUPI    = dayInvs.filter(function(i){return i.payMode==='UPI'&&i.payStatus!=='Pending';}).reduce(function(s,i){
+    var recAmt = (allDayReceiptByInv[i.invNo]||{total:0}).total;
+    var collected = i.payStatus==='Paid' ? i.total : (i.paidAmount||0);
+    return s+Math.max(0,collected-recAmt);
+  },0);
+  var saleBank   = dayInvs.filter(function(i){return i.payMode==='Bank'&&i.payStatus!=='Pending';}).reduce(function(s,i){
+    var recAmt = (allDayReceiptByInv[i.invNo]||{total:0}).total;
+    var collected = i.payStatus==='Paid' ? i.total : (i.paidAmount||0);
+    return s+Math.max(0,collected-recAmt);
+  },0);
+  var splitUPI   = dayInvs.filter(function(i){return i.payMode==='Split';}).reduce(function(s,i){
+    var recAmt = (allDayReceiptByInv[i.invNo]||{total:0}).total;
+    return s+Math.max(0,(i.upiAmt||0)-recAmt);
+  },0);
   var salePend   = dayInvs.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
   var recCash    = dayRecs.filter(function(r){return r.payMode==='Cash';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
   var recUPI     = dayRecs.filter(function(r){return r.payMode==='UPI'||r.payMode==='Bank';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
@@ -5879,6 +6100,11 @@ async function generateDailyPDF(reportDate){
   dayInvs.forEach(function(i){
     var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
     var pm = i.payMode==='Split'?'Cash: '+fmt(i.cashAmt||0)+' / UPI: '+fmt(i.upiAmt||0):escH(i.payMode);
+    var invRecs = dayRecs.filter(function(r){ return r.invNo===i.invNo; });
+    if(invRecs.length){
+      var prNos = invRecs.map(function(r){ return r.receiptNo||'PR'; }).join(', ');
+      pm += ' <span style="font-size:8px;background:#e8f2fe;color:#1553a0;padding:1px 5px;font-weight:700;white-space:nowrap;">via '+escH(prNos)+'</span>';
+    }
     var statusCol = i.payStatus==='Paid'?'#1b5e20':(i.payStatus==='Partial'?'#f57f17':'#c45e00');
     var amtCol = isPend?'#c45e00':'#1b5e20';
     var pendBal = isPend ? ' <span style="font-size:8px;color:#c45e00;">(Due:'+fmt(i.total-(i.paidAmount||0))+')</span>' : '';
@@ -6101,22 +6327,548 @@ async function generateDailyPDF(reportDate){
   }
 }
 
+function togglePayDropdown(id){
+  var all = ['payExcelDrop','payPdfDrop'];
+  all.forEach(function(did){
+    var el = document.getElementById(did);
+    if(el) el.style.display = (did===id && el.style.display==='none') ? 'block' : 'none';
+  });
+}
+function closePayDropdowns(){
+  ['payExcelDrop','payPdfDrop'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.style.display='none';
+  });
+}
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#payExcelDropWrap') && !e.target.closest('#payPdfDropWrap')) closePayDropdowns();
+});
+
 function showDatePickerForPDF(type){
   var modal = document.getElementById('pdfDateModal');
   if(!modal) return;
-  document.getElementById('pdfDateInput').value = nowDate();
   document.getElementById('pdfDateType').value = type;
+  // Show/hide correct inputs
+  document.getElementById('pdfDailyWrap').style.display   = type==='daily'   ? '' : 'none';
+  document.getElementById('pdfWeeklyWrap').style.display  = type==='weekly'  ? '' : 'none';
+  document.getElementById('pdfMonthlyWrap').style.display = type==='monthly' ? '' : 'none';
+  var titles = {daily:'📅 Daily PDF Report', weekly:'📆 Weekly PDF Report', monthly:'🗓️ Monthly PDF Report'};
+  document.getElementById('pdfModalTitle').textContent = titles[type]||'Select Date';
+  var today = nowDate();
+  if(type==='daily'){
+    document.getElementById('pdfDateInput').value = today;
+  } else if(type==='weekly'){
+    document.getElementById('pdfWeekInput').value = today;
+    updateWeekRangeLabel(today);
+  } else if(type==='monthly'){
+    document.getElementById('pdfMonthInput').value = today.slice(0,7);
+  }
   modal.style.display = 'flex';
 }
+function updateWeekRangeLabel(dateStr){
+  var lbl = document.getElementById('pdfWeekRange');
+  if(!lbl||!dateStr) return;
+  var d = new Date(dateStr);
+  var day = d.getDay();
+  var mon = new Date(d); mon.setDate(d.getDate()-((day+6)%7));
+  var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  var fmt2=function(dt){return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});};
+  lbl.textContent = '📅 Week: '+fmt2(mon)+' → '+fmt2(sun);
+}
+// Update week range label when user changes the week date input
+document.addEventListener('DOMContentLoaded',function(){
+  var wi=document.getElementById('pdfWeekInput');
+  if(wi) wi.addEventListener('change',function(){ updateWeekRangeLabel(this.value); });
+});
+// Also attach after load (in case DOMContentLoaded already fired)
+(function(){
+  function attachWeekInput(){
+    var wi=document.getElementById('pdfWeekInput');
+    if(wi && !wi._weekAttached){ wi._weekAttached=true; wi.addEventListener('change',function(){ updateWeekRangeLabel(this.value); }); }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',attachWeekInput);
+  else attachWeekInput();
+})();
+
 function closePdfDateModal(){
   var modal = document.getElementById('pdfDateModal');
   if(modal) modal.style.display = 'none';
 }
 function confirmPdfDate(){
-  var date = document.getElementById('pdfDateInput').value;
   var type = document.getElementById('pdfDateType').value;
   closePdfDateModal();
-  if(type === 'daily') generateDailyPDF(date);
+  if(type === 'daily'){
+    var date = document.getElementById('pdfDateInput').value;
+    generateDailyPDF(date);
+  } else if(type === 'weekly'){
+    var date = document.getElementById('pdfWeekInput').value;
+    generateWeeklyPDF(date);
+  } else if(type === 'monthly'){
+    var month = document.getElementById('pdfMonthInput').value; // "YYYY-MM"
+    generateMonthlyPDF(month);
+  }
+}
+
+// ===== WEEKLY PDF =====
+async function generateWeeklyPDF(anyDateInWeek){
+  if(!anyDateInWeek) anyDateInWeek = nowDate();
+  showToast('Generating Weekly PDF...');
+  var biz = SETTINGS.biz || 'Alphamen Clothing Co.';
+
+  var d = new Date(anyDateInWeek);
+  var day = d.getDay();
+  var mon = new Date(d); mon.setDate(d.getDate()-((day+6)%7));
+  var sun = new Date(mon); sun.setDate(mon.getDate()+6);
+  var periodFrom = mon.toISOString().slice(0,10);
+  var periodTo   = sun.toISOString().slice(0,10);
+  function inWeek(ds){ return ds >= periodFrom && ds <= periodTo; }
+  var fmt2 = function(dt){ return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); };
+  var weekLabel = fmt2(mon) + ' to ' + fmt2(sun);
+
+  var allPP = LS.get('pendingPayments')||[];
+  var wkInvs = invoices.filter(function(i){ return inWeek(i.invDate||''); });
+  var wkPurs = purchases.filter(function(p){ return inWeek(p.date||''); });
+  var wkExps = expenses.filter(function(e){ return inWeek(e.date||''); });
+  var wkRecs = allPP.filter(function(r){ return inWeek(r.date||''); });
+
+  var allReceiptByInv = {};
+  allPP.forEach(function(r){
+    if(!r.invNo) return;
+    if(!allReceiptByInv[r.invNo]) allReceiptByInv[r.invNo] = {total:0,cash:0,upi:0};
+    allReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    if(r.payMode==='Cash') allReceiptByInv[r.invNo].cash += (r.paidAmt||0);
+    else if(r.payMode==='UPI'||r.payMode==='Bank') allReceiptByInv[r.invNo].upi += (r.paidAmt||0);
+    else if(r.payMode==='Split'){ allReceiptByInv[r.invNo].cash += (r.cashAmt||0); allReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
+  });
+
+  var saleTotal = wkInvs.reduce(function(s,i){ return s+i.total; },0);
+  var totalCashIn=0, totalUpiIn=0, totalBankIn=0;
+  wkInvs.forEach(function(i){
+    if(i.payStatus==='Pending') return;
+    var recData = allReceiptByInv[i.invNo]||{total:0,cash:0,upi:0};
+    var origPaid = Math.max(0,(i.paidAmount||0)-recData.total);
+    if(i.payMode==='Cash') totalCashIn += origPaid;
+    else if(i.payMode==='UPI') totalUpiIn += origPaid;
+    else if(i.payMode==='Bank') totalBankIn += origPaid;
+    else if(i.payMode==='Split'){
+      var ot = (i.cashAmt||0)+(i.upiAmt||0);
+      if(ot>0){ totalCashIn += origPaid*((i.cashAmt||0)/ot); totalUpiIn += origPaid*((i.upiAmt||0)/ot); }
+      else totalCashIn += origPaid;
+    }
+  });
+  wkRecs.forEach(function(r){
+    var amt = r.paidAmt||0;
+    if(r.payMode==='Cash') totalCashIn += amt;
+    else if(r.payMode==='UPI'||r.payMode==='Bank') totalUpiIn += amt;
+    else if(r.payMode==='Split'){ totalCashIn += (r.cashAmt||0); totalUpiIn += (r.upiAmt||0); }
+  });
+
+  var salePend = wkInvs.reduce(function(s,i){ return i.payStatus==='Paid'?s:s+Math.max(0,i.total-(i.paidAmount||0)); },0);
+  var recTotal = wkRecs.reduce(function(s,r){ return s+(r.paidAmt||0); },0);
+  var totalIn  = totalCashIn+totalUpiIn+totalBankIn;
+  var purTotal = wkPurs.reduce(function(s,p){ return s+p.totalCost; },0);
+  var expTotal = wkExps.reduce(function(s,e){ return s+e.amount; },0);
+  var totalOut = purTotal+expTotal;
+  var netAmount = totalIn-totalOut;
+  var netColor = netAmount>=0 ? '#1b5e20' : '#b71c1c';
+
+  // Day-by-day rows
+  var dayRows = '';
+  var dates = [];
+  var cur = new Date(mon);
+  while(cur <= sun){ dates.push(cur.toISOString().slice(0,10)); cur.setDate(cur.getDate()+1); }
+  dates.forEach(function(ds){
+    var di = wkInvs.filter(function(i){ return i.invDate===ds; });
+    var dp = wkPurs.filter(function(p){ return p.date===ds; });
+    var de = wkExps.filter(function(e){ return e.date===ds; });
+    var dr = wkRecs.filter(function(r){ return r.date===ds; });
+    var dIn = di.reduce(function(s,i){
+      if(i.payStatus==='Pending') return s;
+      var rc = (allReceiptByInv[i.invNo]||{total:0}).total;
+      return s+Math.max(0,(i.paidAmount||0)-rc);
+    },0) + dr.reduce(function(s,r){ return s+(r.paidAmt||0); },0);
+    var dOut = dp.reduce(function(s,p){ return s+p.totalCost; },0) + de.reduce(function(s,e){ return s+e.amount; },0);
+    var dNet = dIn - dOut;
+    var dl = new Date(ds).toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
+    dayRows += '<tr style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:5px 7px;font-size:10px;font-family:Arial,sans-serif;">'+dl+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:#1b5e20;text-align:right;">'+fmt(dIn)+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:#c0392b;text-align:right;">'+fmt(dOut)+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:'+(dNet>=0?'#1565c0':'#b71c1c')+';text-align:right;">'+fmt(dNet)+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;text-align:center;color:#888;">'+di.length+' inv</td>'
+      + '</tr>';
+  });
+
+  // Invoice rows
+  var invRows = '';
+  wkInvs.forEach(function(i){
+    var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
+    invRows += '<tr style="border-bottom:1px solid #e8f5e9;">'
+      + '<td style="padding:4px 6px;font-size:9px;">'+escH(i.invDate)+'</td>'
+      + '<td style="padding:4px 6px;font-size:9px;">'+escH(i.invNo)+'</td>'
+      + '<td style="padding:4px 6px;font-size:10px;font-weight:700;">'+escH(i.custName)+'</td>'
+      + '<td style="padding:4px 6px;font-size:9px;">'+escH(i.payMode)+'</td>'
+      + '<td style="padding:4px 6px;font-size:9px;color:'+(isPend?'#c45e00':'#2e7d32')+';">'+escH(i.payStatus)+'</td>'
+      + '<td style="padding:4px 6px;font-weight:700;text-align:right;font-size:10px;">'+fmt(i.total)+'</td>'
+      + '</tr>';
+  });
+
+  var statCards = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'
+    + '<div style="background:#e8f5e9;border:1px solid #a5d6a7;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💵 Cash IN</div><div style="font-size:14px;font-weight:700;color:#1b5e20;">'+fmt(totalCashIn)+'</div></div>'
+    + '<div style="background:#e8f2fe;border:1px solid #aecdf5;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">📱 UPI IN</div><div style="font-size:14px;font-weight:700;color:#1553a0;">'+fmt(totalUpiIn)+'</div></div>'
+    + (salePend>0 ? '<div style="background:#fff3e0;border:2px solid #ffd4a0;padding:8px;text-align:center;"><div style="font-size:8px;color:#c45e00;text-transform:uppercase;font-weight:700;margin-bottom:2px;">⏳ Pending</div><div style="font-size:14px;font-weight:700;color:#c45e00;">'+fmt(salePend)+'</div></div>' : '')
+    + (recTotal>0 ? '<div style="background:#ede7f6;border:1px solid #c5b4e3;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">📄 Receipts</div><div style="font-size:14px;font-weight:700;color:#4527a0;">'+fmt(recTotal)+'</div></div>' : '')
+    + '<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">🛒 Purchase</div><div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(purTotal)+'</div></div>'
+    + '<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💸 Expense</div><div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(expTotal)+'</div></div>'
+    + '</div>';
+
+  var invSection = wkInvs.length ? (
+    '<div style="margin-bottom:12px;">'
+    + '<div style="background:#e8f5e9;border-left:4px solid #2e7d32;color:#1a3a2a;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;display:flex;justify-content:space-between;">'
+    + '<span>📋 INVOICES ('+wkInvs.length+')</span><span>'+fmt(saleTotal)+'</span></div>'
+    + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e8f5e9;">'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:left;">Date</th>'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:left;">Invoice#</th>'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:left;">Customer</th>'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:left;">Mode</th>'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:left;">Status</th>'
+    + '<th style="padding:5px 6px;font-size:9px;text-align:right;">Amount</th>'
+    + '</tr></thead><tbody>'+invRows+'</tbody></table></div>'
+  ) : '';
+
+  var reportHTML = '<div id="weeklyReportPrint" style="background:#fff;padding:18px 22px;font-family:Arial,sans-serif;width:794px;box-sizing:border-box;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:14px;border-bottom:3px solid #1a3a2a;">'
+    + '<div style="display:flex;align-items:center;gap:10px;">'
+    + (LOGO_URL ? '<img src="'+LOGO_URL+'" style="width:42px;height:42px;object-fit:contain;"/>' : '')
+    + '<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:#0d2818;">'+escH(biz)+'</div>'
+    + '<div style="font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">Weekly Payment Report</div>'
+    + '<div style="font-size:11px;color:#444;margin-top:2px;">'+weekLabel+'</div></div></div>'
+    + '<div style="text-align:right;">'
+    + '<div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Net Balance</div>'
+    + '<div style="font-size:30px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div>'
+    + '<div style="font-size:10px;color:#888;">IN: '+fmt(totalIn)+' &nbsp;|&nbsp; OUT: '+fmt(totalOut)+'</div>'
+    + '</div></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    + '<div style="background:#f0faf2;border:1.5px solid #81c784;padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#2e7d32;margin-bottom:4px;">💰 TOTAL IN</div><div style="font-size:20px;font-weight:700;color:#1b5e20;">'+fmt(totalIn)+'</div></div>'
+    + '<div style="background:#fff5f5;border:1.5px solid #ef9a9a;padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#c0392b;margin-bottom:4px;">💸 TOTAL OUT</div><div style="font-size:20px;font-weight:700;color:#c0392b;">'+fmt(totalOut)+'</div></div>'
+    + '<div style="background:'+(netAmount>=0?'#f0f4ff':'#fff0f6')+';border:1.5px solid '+(netAmount>=0?'#90a4e8':'#f48fb1')+';padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:'+(netAmount>=0?'#1565c0':'#880e4f')+';margin-bottom:4px;">📊 NET</div><div style="font-size:20px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div></div>'
+    + '</div>'
+    + statCards
+    + '<div style="margin-bottom:12px;">'
+    + '<div style="background:#e3f2fd;border-left:4px solid #1565c0;color:#1565c0;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">📅 DAY-BY-DAY SUMMARY</div>'
+    + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e3f2fd;">'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:left;">Day</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;color:#1b5e20;">IN</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;color:#c0392b;">OUT</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;">Net</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:center;">Invoices</th>'
+    + '</tr></thead><tbody>'+dayRows+'</tbody>'
+    + '<tfoot><tr style="background:#e3f2fd;border-top:2px solid #1565c0;font-weight:700;">'
+    + '<td style="padding:6px 7px;font-size:10px;">★ TOTAL</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:#1b5e20;">'+fmt(totalIn)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:#c0392b;">'+fmt(totalOut)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:'+netColor+';">'+fmt(netAmount)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:center;">'+wkInvs.length+'</td>'
+    + '</tr></tfoot></table></div>'
+    + invSection
+    + '<div style="text-align:center;margin-top:10px;font-size:8px;color:#bbb;">Generated: '+new Date().toLocaleString('en-IN')+' &nbsp;|&nbsp; '+escH(biz)+'</div>'
+    + '</div>';
+
+  await _renderAndSavePDF(reportHTML, '#weeklyReportPrint', 'Alphamen_Weekly_'+periodFrom+'_to_'+periodTo+'.pdf', 'Weekly PDF downloaded!');
+}
+
+// ===== MONTHLY PDF =====
+async function generateMonthlyPDF(monthStr){
+  if(!monthStr) monthStr = nowDate().slice(0,7);
+  showToast('Generating Monthly PDF...');
+  var biz = SETTINGS.biz || 'Alphamen Clothing Co.';
+  var periodFrom = monthStr+'-01';
+  var lastDay = new Date(parseInt(monthStr.slice(0,4)), parseInt(monthStr.slice(5,7)), 0).getDate();
+  var periodTo = monthStr+'-'+String(lastDay).padStart(2,'0');
+  function inMonth(ds){ return ds >= periodFrom && ds <= periodTo; }
+  var monthLabel = new Date(periodFrom).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+
+  var allPP = LS.get('pendingPayments')||[];
+  var mInvs = invoices.filter(function(i){ return inMonth(i.invDate||''); });
+  var mPurs = purchases.filter(function(p){ return inMonth(p.date||''); });
+  var mExps = expenses.filter(function(e){ return inMonth(e.date||''); });
+  var mRecs = allPP.filter(function(r){ return inMonth(r.date||''); });
+
+  var allReceiptByInv = {};
+  allPP.forEach(function(r){
+    if(!r.invNo) return;
+    if(!allReceiptByInv[r.invNo]) allReceiptByInv[r.invNo] = {total:0,cash:0,upi:0};
+    allReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    if(r.payMode==='Cash') allReceiptByInv[r.invNo].cash += (r.paidAmt||0);
+    else if(r.payMode==='UPI'||r.payMode==='Bank') allReceiptByInv[r.invNo].upi += (r.paidAmt||0);
+    else if(r.payMode==='Split'){ allReceiptByInv[r.invNo].cash += (r.cashAmt||0); allReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
+  });
+
+  var saleTotal = mInvs.reduce(function(s,i){ return s+i.total; },0);
+  var totalCashIn=0, totalUpiIn=0, totalBankIn=0;
+  mInvs.forEach(function(i){
+    if(i.payStatus==='Pending') return;
+    var recData = allReceiptByInv[i.invNo]||{total:0,cash:0,upi:0};
+    var origPaid = Math.max(0,(i.paidAmount||0)-recData.total);
+    if(i.payMode==='Cash') totalCashIn += origPaid;
+    else if(i.payMode==='UPI') totalUpiIn += origPaid;
+    else if(i.payMode==='Bank') totalBankIn += origPaid;
+    else if(i.payMode==='Split'){
+      var ot = (i.cashAmt||0)+(i.upiAmt||0);
+      if(ot>0){ totalCashIn += origPaid*((i.cashAmt||0)/ot); totalUpiIn += origPaid*((i.upiAmt||0)/ot); }
+      else totalCashIn += origPaid;
+    }
+  });
+  mRecs.forEach(function(r){
+    var amt = r.paidAmt||0;
+    if(r.payMode==='Cash') totalCashIn += amt;
+    else if(r.payMode==='UPI'||r.payMode==='Bank') totalUpiIn += amt;
+    else if(r.payMode==='Split'){ totalCashIn += (r.cashAmt||0); totalUpiIn += (r.upiAmt||0); }
+  });
+
+  var salePend = mInvs.reduce(function(s,i){ return i.payStatus==='Paid'?s:s+Math.max(0,i.total-(i.paidAmount||0)); },0);
+  var recTotal = mRecs.reduce(function(s,r){ return s+(r.paidAmt||0); },0);
+  var totalIn  = totalCashIn+totalUpiIn+totalBankIn;
+  var purTotal = mPurs.reduce(function(s,p){ return s+p.totalCost; },0);
+  var expTotal = mExps.reduce(function(s,e){ return s+e.amount; },0);
+  var totalOut = purTotal+expTotal;
+  var netAmount = totalIn-totalOut;
+  var netColor = netAmount>=0 ? '#1b5e20' : '#b71c1c';
+
+  // ── DATE-WISE summary (din ke hisab se) ──
+  var allDates = [];
+  function collectDate(ds){ if(ds && allDates.indexOf(ds)===-1) allDates.push(ds); }
+  mInvs.forEach(function(i){ collectDate(i.invDate); });
+  mPurs.forEach(function(p){ collectDate(p.date); });
+  mExps.forEach(function(e){ collectDate(e.date); });
+  mRecs.forEach(function(r){ collectDate(r.date); });
+  allDates.sort();
+
+  var dateRows = '';
+  allDates.forEach(function(ds){
+    var di = mInvs.filter(function(i){ return i.invDate===ds; });
+    var dp = mPurs.filter(function(p){ return p.date===ds; });
+    var de = mExps.filter(function(e){ return e.date===ds; });
+    var dr = mRecs.filter(function(r){ return r.date===ds; });
+    var dIn = di.reduce(function(s,i){
+      if(i.payStatus==='Pending') return s;
+      var rc = (allReceiptByInv[i.invNo]||{total:0}).total;
+      return s+Math.max(0,(i.paidAmount||0)-rc);
+    },0) + dr.reduce(function(s,r){ return s+(r.paidAmt||0); },0);
+    var dOut = dp.reduce(function(s,p){ return s+p.totalCost; },0) + de.reduce(function(s,e){ return s+e.amount; },0);
+    var dNet = dIn - dOut;
+    var dl = new Date(ds).toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
+    dateRows += '<tr style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:5px 7px;font-size:10px;font-family:Arial,sans-serif;">'+dl+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:#1b5e20;text-align:right;">'+(dIn>0?fmt(dIn):'-')+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:#c0392b;text-align:right;">'+(dOut>0?fmt(dOut):'-')+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;font-weight:700;color:'+(dNet>=0?'#1565c0':'#b71c1c')+';text-align:right;">'+fmt(dNet)+'</td>'
+      + '<td style="padding:5px 7px;font-size:10px;text-align:center;color:#888;">'+di.length+(di.length?'':'-')+'</td>'
+      + '</tr>';
+  });
+
+  // Payment mode breakdown
+  var modeMap = {};
+  mInvs.forEach(function(i){ modeMap[i.payMode] = (modeMap[i.payMode]||0)+i.total; });
+  var modeBreak = '';
+  Object.keys(modeMap).forEach(function(m){
+    if(modeMap[m]) modeBreak += '<tr><td style="padding:4px 7px;font-size:10px;">'+escH(m)+'</td><td style="padding:4px 7px;font-size:10px;text-align:right;font-weight:700;">'+fmt(modeMap[m])+'</td></tr>';
+  });
+
+  var statCards = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'
+    + '<div style="background:#e8f5e9;border:1px solid #a5d6a7;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💵 Cash IN</div><div style="font-size:14px;font-weight:700;color:#1b5e20;">'+fmt(totalCashIn)+'</div></div>'
+    + '<div style="background:#e8f2fe;border:1px solid #aecdf5;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">📱 UPI IN</div><div style="font-size:14px;font-weight:700;color:#1553a0;">'+fmt(totalUpiIn)+'</div></div>'
+    + (salePend>0 ? '<div style="background:#fff3e0;border:2px solid #ffd4a0;padding:8px;text-align:center;"><div style="font-size:8px;color:#c45e00;text-transform:uppercase;font-weight:700;margin-bottom:2px;">⏳ Pending</div><div style="font-size:14px;font-weight:700;color:#c45e00;">'+fmt(salePend)+'</div></div>' : '')
+    + '<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">🛒 Purchase</div><div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(purTotal)+'</div></div>'
+    + '<div style="background:#ffeaea;border:1px solid #ffcdd2;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">💸 Expense</div><div style="font-size:14px;font-weight:700;color:#c0392b;">'+fmt(expTotal)+'</div></div>'
+    + '<div style="background:#f3e5f5;border:1px solid #d1a8e0;padding:8px;text-align:center;"><div style="font-size:8px;color:#555;text-transform:uppercase;margin-bottom:2px;">📦 Invoices</div><div style="font-size:14px;font-weight:700;color:#6a1b9a;">'+mInvs.length+'</div></div>'
+    + '</div>';
+
+  var reportHTML = '<div id="monthlyReportPrint" style="background:#fff;padding:18px 22px;font-family:Arial,sans-serif;width:794px;box-sizing:border-box;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:12px;margin-bottom:14px;border-bottom:3px solid #1a3a2a;">'
+    + '<div style="display:flex;align-items:center;gap:10px;">'
+    + (LOGO_URL ? '<img src="'+LOGO_URL+'" style="width:42px;height:42px;object-fit:contain;"/>' : '')
+    + '<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:#0d2818;">'+escH(biz)+'</div>'
+    + '<div style="font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">Monthly Payment Report</div>'
+    + '<div style="font-size:11px;color:#444;margin-top:2px;">'+monthLabel+'</div></div></div>'
+    + '<div style="text-align:right;">'
+    + '<div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Net Balance</div>'
+    + '<div style="font-size:30px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div>'
+    + '<div style="font-size:10px;color:#888;">IN: '+fmt(totalIn)+' &nbsp;|&nbsp; OUT: '+fmt(totalOut)+'</div>'
+    + '</div></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">'
+    + '<div style="background:#f0faf2;border:1.5px solid #81c784;padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#2e7d32;margin-bottom:4px;">💰 TOTAL IN</div><div style="font-size:20px;font-weight:700;color:#1b5e20;">'+fmt(totalIn)+'</div></div>'
+    + '<div style="background:#fff5f5;border:1.5px solid #ef9a9a;padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#c0392b;margin-bottom:4px;">💸 TOTAL OUT</div><div style="font-size:20px;font-weight:700;color:#c0392b;">'+fmt(totalOut)+'</div></div>'
+    + '<div style="background:'+(netAmount>=0?'#f0f4ff':'#fff0f6')+';border:1.5px solid '+(netAmount>=0?'#90a4e8':'#f48fb1')+';padding:12px;text-align:center;"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:'+(netAmount>=0?'#1565c0':'#880e4f')+';margin-bottom:4px;">📊 NET</div><div style="font-size:20px;font-weight:700;color:'+netColor+';">'+fmt(netAmount)+'</div></div>'
+    + '</div>'
+    + statCards
+    + '<div style="margin-bottom:12px;">'
+    + '<div style="background:#e3f2fd;border-left:4px solid #1565c0;color:#1565c0;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">📅 DATE-WISE SUMMARY</div>'
+    + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e3f2fd;">'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:left;">Date</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;color:#1b5e20;">IN</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;color:#c0392b;">OUT</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:right;">Net</th>'
+    + '<th style="padding:5px 7px;font-size:9px;text-align:center;">Invoices</th>'
+    + '</tr></thead><tbody>'+dateRows+'</tbody>'
+    + '<tfoot><tr style="background:#e3f2fd;border-top:2px solid #1565c0;font-weight:700;">'
+    + '<td style="padding:6px 7px;font-size:10px;">★ TOTAL</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:#1b5e20;">'+fmt(totalIn)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:#c0392b;">'+fmt(totalOut)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:right;color:'+netColor+';">'+fmt(netAmount)+'</td>'
+    + '<td style="padding:6px 7px;font-size:10px;text-align:center;">'+mInvs.length+'</td>'
+    + '</tr></tfoot></table></div>'
+    + (modeBreak ? (
+      '<div style="margin-bottom:12px;">'
+      + '<div style="background:#e8f5e9;border-left:4px solid #2e7d32;color:#1a3a2a;padding:7px 10px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">📋 PAYMENT MODE BREAKDOWN</div>'
+      + '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#e8f5e9;">'
+      + '<th style="padding:5px 7px;font-size:9px;text-align:left;">Mode</th>'
+      + '<th style="padding:5px 7px;font-size:9px;text-align:right;">Total Sale</th>'
+      + '</tr></thead><tbody>'+modeBreak+'</tbody></table></div>'
+    ) : '')
+    + '<div style="text-align:center;margin-top:10px;font-size:8px;color:#bbb;">Generated: '+new Date().toLocaleString('en-IN')+' &nbsp;|&nbsp; '+escH(biz)+'</div>'
+    + '</div>';
+
+  await _renderAndSavePDF(reportHTML, '#monthlyReportPrint', 'Alphamen_Monthly_'+monthStr+'.pdf', 'Monthly PDF downloaded!');
+}
+
+// ===== SHARED PDF RENDER HELPER =====
+async function _renderAndSavePDF(html, selector, filename, toast){
+  var container=document.createElement('div');
+  container.style.cssText='position:fixed;left:-9999px;top:0;z-index:-1;width:794px;margin:0;padding:0;';
+  container.innerHTML=html;
+  document.body.appendChild(container);
+  try{
+    var el=container.querySelector(selector);
+    await new Promise(function(r){setTimeout(r,200);});
+    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:794,windowWidth:794,scrollX:0,scrollY:0,x:0,y:0});
+    document.body.removeChild(container);
+    var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw=pdf.internal.pageSize.getWidth();
+    var ph=pdf.internal.pageSize.getHeight();
+    var margin=8;
+    var imgW=pw-margin*2;
+    var imgH=(canvas.height*imgW)/canvas.width;
+    var pageH=ph-margin*2;
+    var imgData=canvas.toDataURL('image/jpeg',0.82);
+    if(imgH<=pageH){
+      pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
+    } else {
+      var pxpm=canvas.width/imgW,pageHpx=pageH*pxpm,off=0,pn=0;
+      while(off<canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl=Math.min(pageHpx,canvas.height-off);
+        var slmm=sl/pxpm;
+        var tc=document.createElement('canvas');
+        tc.width=canvas.width; tc.height=Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.82),'JPEG',margin,margin,imgW,slmm);
+        off+=sl; pn++;
+      }
+    }
+    pdf.save(filename);
+    showToast(toast||'PDF downloaded!');
+  } catch(e){
+    if(document.body.contains(container)) document.body.removeChild(container);
+    showToast('PDF error: '+e.message);
+    console.error(e);
+  }
+}
+
+// ===== PERIOD EXCEL EXPORTS =====
+function exportPayExcelPeriod(period){
+  var today=nowDate();
+  var from='', to='';
+  if(period==='daily'){
+    from=today; to=today;
+  } else if(period==='weekly'){
+    var d=new Date(today);
+    var day=d.getDay();
+    var mon=new Date(d); mon.setDate(d.getDate()-((day+6)%7));
+    var sun=new Date(mon); sun.setDate(mon.getDate()+6);
+    from=mon.toISOString().slice(0,10); to=sun.toISOString().slice(0,10);
+  } else if(period==='monthly'){
+    from=today.slice(0,7)+'-01';
+    var lastD=new Date(parseInt(today.slice(0,4)),parseInt(today.slice(5,7)),0).getDate();
+    to=today.slice(0,7)+'-'+String(lastD).padStart(2,'0');
+  }
+  function inRange(ds){ return ds>=from && ds<=to; }
+  var allPP=LS.get('pendingPayments')||[];
+  var fInvs=invoices.filter(function(i){ return inRange(i.invDate||''); });
+  var fPurs=purchases.filter(function(p){ return inRange(p.date||''); });
+  var fExps=expenses.filter(function(e){ return inRange(e.date||''); });
+  var fRecs=allPP.filter(function(r){ return inRange(r.date||''); });
+
+  var periodLabel=period==='daily'?today:(period==='weekly'?from+' to '+to:today.slice(0,7));
+  var label=period==='daily'?'Daily':period==='weekly'?'Weekly':'Monthly';
+
+  // Sheet 1: Summary
+  var totalIn=fInvs.filter(function(i){return i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
+              +fRecs.reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var purTotal=fPurs.reduce(function(s,p){return s+p.totalCost;},0);
+  var expTotal=fExps.reduce(function(s,e){return s+e.amount;},0);
+  var totalOut=purTotal+expTotal;
+  var netAmt=totalIn-totalOut;
+  var cashIn=fInvs.filter(function(i){return i.payMode==='Cash'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
+            +fRecs.filter(function(r){return r.payMode==='Cash';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var upiIn=fInvs.filter(function(i){return (i.payMode==='UPI'||i.payMode==='Bank')&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
+           +fRecs.filter(function(r){return r.payMode==='UPI'||r.payMode==='Bank';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var summaryRows=[
+    ['ALPHAMEN CLOTHING CO.','',''],
+    [label+' Payment Report','Period:',periodLabel],
+    ['Generated:',new Date().toLocaleString('en-IN'),''],
+    [''],
+    ['SUMMARY','',''],
+    ['Total IN (Collected)','',totalIn],
+    ['  Cash IN','',cashIn],
+    ['  UPI/Bank IN','',upiIn],
+    ['Total OUT','',totalOut],
+    ['  Purchases','',purTotal],
+    ['  Expenses','',expTotal],
+    ['NET BALANCE','',netAmt],
+    [''],
+    ['Total Invoices','',fInvs.length],
+    ['Total Receipts','',fRecs.length],
+    ['Total Purchases','',fPurs.length],
+    ['Total Expenses','',fExps.length],
+  ];
+
+  // Sheet 2: Invoices
+  var invRows=[['Date','Invoice#','Customer','Phone','Items','Amount','Paid Amt','Payment Mode','Status','Cash','UPI']];
+  fInvs.forEach(function(i){
+    invRows.push([i.invDate,i.invNo,i.custName,i.custPhone||'-',i.items?i.items.length:0,i.total,i.paidAmount||i.total,i.payMode,i.payStatus,i.cashAmt||0,i.upiAmt||0]);
+  });
+
+  // Sheet 3: Receipts
+  var recRows=[['Date','Receipt#','Customer','Invoice#','Pending Amt','Paid Amt','Remaining','Mode']];
+  fRecs.forEach(function(r){
+    recRows.push([r.date,r.receiptNo||'-',r.custName,r.invNo||'-',r.pendingAmt||0,r.paidAmt||0,r.remainingAmt||0,r.payMode||'Cash']);
+  });
+
+  // Sheet 4: Purchases
+  var purRows=[['Date','Item','Supplier','Qty','Rate','Total','Mode']];
+  fPurs.forEach(function(p){ purRows.push([p.date,p.item,p.supplier||'-',p.qty,p.rate,p.totalCost,p.payMode||'-']); });
+
+  // Sheet 5: Expenses
+  var expRows=[['Date','Category','Description','Amount','Mode']];
+  fExps.forEach(function(e){ expRows.push([e.date,e.category,e.desc||'-',e.amount,e.payMode||'-']); });
+
+  if(typeof XLSX==='undefined'){
+    // Fallback CSV
+    var csv=[summaryRows,invRows].map(function(sh){ return sh.map(function(r){return r.join(',');}).join('\n'); }).join('\n\n');
+    var blob=new Blob(['\uFEFF'+csv],{type:'text/csv'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='Alphamen_'+label+'_Payments_'+periodLabel.replace(/ /g,'_')+'.csv'; a.click();
+    showToast('CSV downloaded!');
+    return;
+  }
+  var wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(summaryRows),'Summary');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(invRows),'Invoices');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(recRows),'Receipts');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(purRows),'Purchases');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(expRows),'Expenses');
+  XLSX.writeFile(wb,'Alphamen_'+label+'_Payments_'+periodLabel.replace(/ /g,'_')+'.xlsx');
+  showToast(label+' Excel downloaded!');
 }
 
 
@@ -6684,7 +7436,8 @@ function renderPnL(){
   var netProfit = grossProfit - totalExpenses;
   var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100) : 0;
   var netMargin = totalSales > 0 ? (netProfit/totalSales*100) : 0;
-  var totalPaid = filtInv.filter(function(i){ return i.payStatus==='Paid'; }).reduce(function(s,i){ return s+(i.total||0); }, 0);
+  // totalPaid = sum of all paidAmounts (includes Paid, Partial direct payments, and receipt-updated invoices)
+  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
 
   // KPI Cards
@@ -6952,7 +7705,7 @@ function exportPnLPDF(){
   var netProfit = grossProfit - totalExpenses;
   var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100).toFixed(1) : '0.0';
   var netMargin = totalSales > 0 ? (netProfit/totalSales*100).toFixed(1) : '0.0';
-  var totalPaid = filtInv.filter(function(i){ return i.payStatus==='Paid'; }).reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
 
   // Category breakdown
@@ -7472,11 +8225,23 @@ function saveStaffPerms(){
 <!-- PDF Date Picker Modal -->
 <div id="pdfDateModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;padding:20px;max-width:320px;width:90%;border-radius:4px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-    <div style="font-family:Cormorant Garamond,serif;font-size:18px;font-weight:700;color:#0d2818;margin-bottom:14px;">Select Date for PDF</div>
+    <div id="pdfModalTitle" style="font-family:Cormorant Garamond,serif;font-size:18px;font-weight:700;color:#0d2818;margin-bottom:14px;">Select Date for PDF</div>
     <input type="hidden" id="pdfDateType" value="daily"/>
-    <div style="margin-bottom:14px;">
+    <!-- Daily -->
+    <div id="pdfDailyWrap" style="margin-bottom:14px;">
       <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">Date</label>
       <input type="date" id="pdfDateInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;"/>
+    </div>
+    <!-- Weekly -->
+    <div id="pdfWeeklyWrap" style="display:none;margin-bottom:14px;">
+      <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">Select Any Date in the Week</label>
+      <input type="date" id="pdfWeekInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;"/>
+      <div id="pdfWeekRange" style="font-size:11px;color:#1b5e20;margin-top:6px;font-family:Arial,sans-serif;font-weight:700;"></div>
+    </div>
+    <!-- Monthly -->
+    <div id="pdfMonthlyWrap" style="display:none;margin-bottom:14px;">
+      <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">Month</label>
+      <input type="month" id="pdfMonthInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;"/>
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-outline btn-full" onclick="closePdfDateModal()">Cancel</button>
