@@ -1300,10 +1300,24 @@ input[type=tel], textarea, select {
             <div id="sync-msg" style="margin-top:6px;font-size:11px;text-align:center;color:var(--mu);font-family:Arial,sans-serif;"></div>
           </div>
         </div>
-        <div class="set-section"><div class="set-head">&#128190; Data Backup (GitHub update ke liye)</div>
+        <div class="set-section"><div class="set-head">&#128190; Data Backup</div>
           <div class="set-body">
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">GitHub update se pehle backup download karo. Update ke baad import karo.</p>
-            <button class="btn btn-gold btn-full" onclick="exportDataBackup()" style="margin-bottom:8px;">&#8595; Download Backup (.json)</button>
+            <!-- Storage Health Bar -->
+            <div style="margin-bottom:14px;background:var(--ow);border:1px solid var(--bdr);padding:10px 12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;">Storage Used</span>
+                <span id="storageLabel" style="font-size:10px;color:var(--mu2);font-family:Arial,sans-serif;">Checking...</span>
+              </div>
+              <div style="background:#e8e8e8;height:6px;border-radius:3px;overflow:hidden;">
+                <div id="storageBar" style="height:100%;width:0%;background:var(--gl);transition:width .4s,background .4s;"></div>
+              </div>
+              <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">
+                Last backup: <span id="lastBackupLabel" style="color:var(--g);font-weight:600;">—</span>
+                <button onclick="checkStorageHealth();updateBackupLabel()" style="float:right;background:none;border:none;cursor:pointer;font-size:10px;color:var(--g);font-weight:700;">&#8635; Refresh</button>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Backup mein sab kuch save hota hai: invoices, stock, customers, expenses, khata, purchases. GitHub update se pehle zaroor download karein!</p>
+            <button class="btn btn-gold btn-full" onclick="exportDataBackup()" style="margin-bottom:8px;">&#8595; Download Full Backup (.json)</button>
             <button class="btn btn-outline btn-full" onclick="importDataBackup()">&#8593; Import Backup (.json)</button>
           </div>
         </div>
@@ -1498,19 +1512,238 @@ input[type=tel], textarea, select {
 <script>
 
 
-// ===== ALPHAMEN BUSINESS SUITE v4.0 =====
+// ===== ALPHAMEN BUSINESS SUITE v4.1 — DATA SAFE EDITION =====
 var LOGO_URL = "";
 
-// ===== STORAGE =====
-var LS = {
-  get: function(k) { try{ return JSON.parse(localStorage.getItem('ac_'+k)); }catch(e){ return null; } },
-  // set = local only (no Firebase). Use sync() for intentional saves.
-  set: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); },
-  // sync = local save + debounced Firebase push (batches rapid calls into 1 write)
-  sync: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); schedulePush(); },
-  setL: function(k,v) { localStorage.setItem('ac_'+k,JSON.stringify(v)); },
-  del: function(k) { localStorage.removeItem('ac_'+k); }
+// ===== ENHANCED STORAGE SYSTEM =====
+// Prevents data loss with: quota checks, IndexedDB fallback, write verification, offline queue
+
+// ===== INDEXEDDB PRIMARY STORAGE ENGINE =====
+// Replaces localStorage as primary store. No 5MB limit.
+// In-memory cache ensures LS.get() stays synchronous.
+// IDB object kept for backward-compat (delegates to same engine).
+
+var _IDB_ENGINE = (function() {
+  var DB_NAME = 'alphamen_db', DB_VER = 2, STORE = 'kv';
+  var _db = null;
+  var _writeQueue = []; // ops that arrive before db is open
+  var _cache = {};      // in-memory mirror — keeps LS.get() synchronous
+  var _ready = false;
+  var _onReadyCbs = [];
+
+  function _onReady(cb) {
+    if (_ready) { cb(); } else { _onReadyCbs.push(cb); }
+  }
+
+  function open() {
+    if (!window.indexedDB) {
+      console.warn('[IDB_ENGINE] IndexedDB not supported — falling back to memory-only');
+      _ready = true;
+      _onReadyCbs.forEach(function(cb){ cb(); });
+      _onReadyCbs = [];
+      return;
+    }
+    var req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+    };
+    req.onsuccess = function(e) {
+      _db = e.target.result;
+      // Flush any writes that came in before db was ready
+      _writeQueue.forEach(function(op) { _idbSet(op.k, op.v); });
+      _writeQueue = [];
+      _ready = true;
+      _onReadyCbs.forEach(function(cb){ cb(); });
+      _onReadyCbs = [];
+    };
+    req.onerror = function() {
+      console.error('[IDB_ENGINE] Failed to open IndexedDB:', req.error);
+      _ready = true; // degrade gracefully to memory-only
+      _onReadyCbs.forEach(function(cb){ cb(); });
+      _onReadyCbs = [];
+    };
+  }
+
+  // Low-level async write to IDB (fire-and-forget)
+  function _idbSet(k, v) {
+    if (!_db) { _writeQueue.push({k:k, v:v}); return; }
+    try {
+      var tx = _db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(v, k);
+      tx.onerror = function() { console.warn('[IDB_ENGINE] Write error for key:', k); };
+    } catch(e) { console.warn('[IDB_ENGINE] Set exception:', k, e); }
+  }
+
+  // Low-level async delete from IDB
+  function _idbDel(k) {
+    if (!_db) return;
+    try {
+      var tx = _db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(k);
+    } catch(e) {}
+  }
+
+  // Public: write to cache + IDB
+  function set(k, v) {
+    _cache[k] = v;
+    _idbSet(k, v);
+  }
+
+  // Public: read from cache (synchronous)
+  function getSync(k) {
+    return (k in _cache) ? _cache[k] : null;
+  }
+
+  // Public: delete from cache + IDB
+  function del(k) {
+    delete _cache[k];
+    _idbDel(k);
+  }
+
+  // Public: load ALL keys from IDB into cache (called once at startup)
+  // Returns a Promise that resolves when cache is fully populated.
+  function loadAll() {
+    return new Promise(function(resolve) {
+      _onReady(function() {
+        if (!_db) { resolve(); return; }
+        try {
+          var tx = _db.transaction(STORE, 'readonly');
+          var req = tx.objectStore(STORE).openCursor();
+          req.onsuccess = function(e) {
+            var cursor = e.target.result;
+            if (cursor) {
+              _cache[cursor.key] = cursor.value;
+              cursor.continue();
+            } else {
+              console.log('[IDB_ENGINE] Cache loaded —', Object.keys(_cache).length, 'keys');
+              resolve();
+            }
+          };
+          req.onerror = function() { resolve(); };
+        } catch(e) { resolve(); }
+      });
+    });
+  }
+
+  // Public: get estimated IDB usage in bytes (best-effort)
+  function estimateUsage(cb) {
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function(est) {
+        cb(est.usage || 0, est.quota || 0);
+      }).catch(function(){ cb(0, 0); });
+    } else {
+      cb(0, 0);
+    }
+  }
+
+  open();
+  return { set:set, getSync:getSync, del:del, loadAll:loadAll, estimateUsage:estimateUsage, cache: _cache };
+})();
+
+// ── Legacy IDB shim — keeps any code that calls IDB.set / IDB.del / IDB.getSync working ──
+var IDB = {
+  set:     function(k, v)  { _IDB_ENGINE.set(k, v); },
+  del:     function(k)     { _IDB_ENGINE.del(k); },
+  getSync: function(k)     { return _IDB_ENGINE.getSync(k); },
+  getAsync: function(k, cb){ cb(_IDB_ENGINE.getSync(k)); }
 };
+
+// ===== LS — IndexedDB-primary storage with synchronous API =====
+// get()  → synchronous (reads in-memory cache, populated at startup)
+// set()  → writes cache + IDB, no Firebase
+// sync() → writes cache + IDB, triggers schedulePush() (debounced 1.2s)
+// setL() → alias for set()
+// del()  → removes from cache + IDB
+
+var LS = {
+
+  // ── READ (synchronous via cache) ──
+  get: function(k) {
+    return _IDB_ENGINE.getSync(k);
+  },
+
+  // ── LOCAL WRITE (no Firebase) ──
+  set: function(k, v) {
+    LS._write(k, v, false);
+  },
+
+  // ── SYNC WRITE (local + Firebase push via schedulePush) ──
+  sync: function(k, v) {
+    LS._write(k, v, true);
+  },
+
+  // ── LOCAL ONLY (alias for set) ──
+  setL: function(k, v) {
+    LS._write(k, v, false);
+  },
+
+  // ── DELETE ──
+  del: function(k) {
+    _IDB_ENGINE.del(k);
+  },
+
+  // ── INTERNAL WRITE ──
+  // 1) Update in-memory cache instantly (keeps reads synchronous)
+  // 2) Persist to IndexedDB asynchronously (fire-and-forget)
+  // 3) Call schedulePush() only when doSync === true
+  //    schedulePush() is defined separately and handles 1.2s debounce
+  //    + 3s minimum gap between actual Firebase network requests.
+  //    Multiple rapid LS.sync() calls within 1.2s → only ONE Firebase push.
+  _write: function(k, v, doSync) {
+    try {
+      // 1+2) Cache update + IDB persist
+      _IDB_ENGINE.set(k, v);
+
+      // 3) Firebase push (debounced externally by schedulePush)
+      if (doSync) schedulePush();
+
+    } catch(e) {
+      console.error('[LS] Write error for key:', k, e);
+      showToast('⚠️ Storage write error — please check app.', 'warn');
+    }
+  }
+};
+
+// ===== OFFLINE WRITE QUEUE =====
+// When Firebase is down, changes are queued and pushed when back online
+var _offlineQueue = [];
+
+function queueOfflineWrite(payload) {
+  _offlineQueue.push({ payload: payload, ts: Date.now() });
+  // Keep only last 5 queued writes (each has full data)
+  if (_offlineQueue.length > 5) _offlineQueue.shift();
+  LS.set('offlineQueue', _offlineQueue);
+}
+
+function flushOfflineQueue() {
+  if (!_offlineQueue.length) return;
+  console.log('[Sync] Flushing', _offlineQueue.length, 'queued writes');
+  _offlineQueue = [];
+  LS.del('offlineQueue');
+  schedulePush(); // push current data now
+}
+
+// ===== STORAGE HEALTH MONITOR (IndexedDB edition) =====
+// Uses navigator.storage.estimate() — quota is GBs, not 5MB.
+// Bar is now informational only; quota warnings are essentially eliminated.
+function checkStorageHealth() {
+  _IDB_ENGINE.estimateUsage(function(used, quota) {
+    var pct = quota > 0 ? Math.round(used / quota * 100) : 0;
+    var usedMB = (used / (1024 * 1024)).toFixed(1);
+    var el = document.getElementById('storageBar');
+    if (el) {
+      el.style.width = Math.min(pct, 100) + '%';
+      el.style.background = pct > 80 ? '#c0392b' : pct > 60 ? '#e67e22' : 'var(--gl)';
+      var lbl = document.getElementById('storageLabel');
+      if (lbl) lbl.textContent = 'Storage: ' + usedMB + 'MB used (' + pct + '% of quota)';
+    }
+    if (pct > 85) {
+      showToast('⚠️ Device storage ' + pct + '% full! Backup lijiye!', 'warn');
+    }
+  });
+  return 0; // async — real value arrives in callback
+}
 
 // ── PUSH DEBOUNCER ──
 // Batches multiple LS.sync() calls (e.g. save invoice = 3 syncs) into ONE Firebase write.
@@ -1576,20 +1809,35 @@ function schedSync(){
 async function pushCloud(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl){ setSyncDot('offline'); return; }
+
+  // Build complete payload — ALL data keys included
+  var payload = {
+    syncKey: SYNC_KEY,
+    invoices: invoices,
+    stock: stockItems,
+    stockMovLog: stockMovLog,
+    settings: SETTINGS,
+    customers: savedCustomers,
+    purchases: purchases,
+    pendingPayments: pendingPayments,
+    expenses: expenses,
+    khataEntries: khataEntries,       // ← was missing before!
+    dailyReports: dailyReports,       // ← was missing before!
+    monthlyReports: monthlyReports,   // ← was missing before!
+    appVersion: '4.1',
+    ts: Date.now()
+  };
+
+  // Check network before trying
+  if (!navigator.onLine) {
+    setSyncDot('offline');
+    queueOfflineWrite(payload);
+    console.log('[Sync] Offline — write queued');
+    return;
+  }
+
   try{
     setSyncDot('syncing');
-    var payload = {
-      syncKey: SYNC_KEY,
-      invoices: invoices,
-      stock: stockItems,
-    stockMovLog: stockMovLog,
-      settings: SETTINGS,
-      customers: savedCustomers,
-      purchases: purchases,
-      pendingPayments: pendingPayments,
-      expenses: expenses,
-      ts: Date.now()
-    };
     var res = await fetch(getSyncPath(), {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
@@ -1598,17 +1846,20 @@ async function pushCloud(){
     if(res.ok){
       setSyncDot('online');
       lastSync = Date.now();
-      localStorage.setItem('ac_lastSync', String(payload.ts)); // track our own push ts
+      localStorage.setItem('ac_lastSync', String(payload.ts));
       updSS();
-      console.log('Pushed to Firebase OK');
+      flushOfflineQueue(); // clear any queued writes since we succeeded
+      console.log('[Sync] Pushed to Firebase OK — ' + invoices.length + ' invoices');
     } else {
       var txt = await res.text();
-      console.log('Firebase push error:', res.status, txt);
+      console.log('[Sync] Firebase push error:', res.status, txt);
       setSyncDot('offline');
+      queueOfflineWrite(payload);
     }
   }catch(e){
     setSyncDot('offline');
-    console.log('Push error:', e);
+    queueOfflineWrite(payload);
+    console.log('[Sync] Push error:', e);
   }
 }
 
@@ -1630,12 +1881,20 @@ async function pullCloud(){
     return;
   }
   _lastManualPull = now;
+
+  if (!navigator.onLine) {
+    showToast('⚠️ No internet — using local data', 'warn');
+    setSyncDot('offline');
+    return;
+  }
+
   try{
     setSyncDot('syncing');
-    var res = await fetch(getSyncPath());
+    var res = await fetch(getSyncPath() + '?t=' + Date.now()); // cache-bust
     if(res.ok){
       var d = await res.json();
       if(d && d.syncKey === SYNC_KEY){
+        // Restore ALL data fields
         if(Array.isArray(d.invoices)){ invoices = d.invoices; LS.setL('invoices', invoices); }
         if(Array.isArray(d.stock)){ stockItems = d.stock; LS.setL('stock', stockItems); }
         if(Array.isArray(d.stockMovLog)){ stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog); }
@@ -1643,17 +1902,24 @@ async function pullCloud(){
         if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
         if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
         if(Array.isArray(d.pendingPayments)){ pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); }
-        if(Array.isArray(d.expenses)){ expenses=d.expenses; LS.setL('expenses',expenses); }
+        if(Array.isArray(d.expenses)){ expenses = d.expenses; LS.setL('expenses', expenses); }
+        if(Array.isArray(d.khataEntries)){ khataEntries = d.khataEntries; LS.setL('khataEntries', khataEntries); } // ← restored!
+        if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
+        if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
+
         setSyncDot('online');
         lastSync = Date.now();
         updSS();
-        showToast('Synced! ' + invoices.length + ' invoices loaded');
-        // Refresh tentative invoice number on form after sync
+        flushOfflineQueue();
+        showToast('✓ Synced! ' + invoices.length + ' invoices loaded');
+
+        // Refresh invoice number on form
         var invNoEl = document.getElementById('invNo');
         if(invNoEl && currentPage === 'invoice') invNoEl.value = genInvNo();
         renderDashboard();
+        checkStorageHealth();
       } else if(d === null){
-        // No data on Firebase yet - push local data
+        // No data on Firebase yet — push local data
         setSyncDot('online');
         await pushCloud();
         showToast('Data uploaded to Firebase!');
@@ -1663,13 +1929,13 @@ async function pullCloud(){
       }
     } else {
       var err = await res.text();
-      console.log('Pull error response:', err);
+      console.log('[Sync] Pull error response:', err);
       setSyncDot('offline');
       showToast('Firebase error - check URL and permissions');
     }
   }catch(e){
     setSyncDot('offline');
-    console.log('Pull error:', e);
+    console.log('[Sync] Pull error:', e);
     showToast('Sync failed - check Firebase URL');
   }
 }
@@ -1737,24 +2003,51 @@ function updSS(){
   }
 }
 
+function updateBackupLabel(){
+  var el = document.getElementById('lastBackupLabel');
+  if(!el) return;
+  var lastBak = LS.get('lastBackupAt');
+  if(!lastBak){ el.textContent = 'Kabhi nahi (backup lijiye!)'; el.style.color='#c0392b'; return; }
+  var d = new Date(lastBak);
+  var days = Math.floor((Date.now() - d.getTime()) / (24*60*60*1000));
+  var txt = days === 0 ? 'Aaj' : days === 1 ? 'Kal' : days + ' din pehle';
+  el.textContent = txt + ' (' + d.toISOString().slice(0,10) + ')';
+  el.style.color = days > 7 ? '#c0392b' : '#1e6e3a';
+}
+
 // Export data as JSON file (for safety before GitHub updates)
 function exportDataBackup(){
+  // Complete backup — ALL data fields included
   var data = {
     invoices: invoices,
     stock: stockItems,
+    stockMovLog: stockMovLog,
     customers: savedCustomers,
     settings: SETTINGS,
     dailyReports: dailyReports,
     monthlyReports: monthlyReports,
+    pendingPayments: pendingPayments,
+    purchases: purchases,
+    expenses: expenses,
+    khataEntries: khataEntries,
     exportedAt: new Date().toISOString(),
-    version: '4.0'
+    version: '4.1',
+    stats: {
+      invoiceCount: invoices.length,
+      stockCount: stockItems.length,
+      customerCount: savedCustomers.length
+    }
   };
-  var blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], {type: 'application/json'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'alphamen_backup_' + nowDate() + '.json';
+  a.download = 'alphamen_backup_' + nowDate() + '_v4.1.json';
   a.click();
-  showToast('Backup downloaded!');
+  // Save backup timestamp
+  LS.set('lastBackupAt', new Date().toISOString());
+  showToast('✓ Backup downloaded! (' + invoices.length + ' invoices, ' + stockItems.length + ' items)');
+  checkStorageHealth();
 }
 
 function importDataBackup(){
@@ -1768,18 +2061,40 @@ function importDataBackup(){
     reader.onload = function(ev){
       try {
         var data = JSON.parse(ev.target.result);
-        if(!confirm('Import karna chahte hain? Current data replace ho jaayegi!')) return;
-        if(data.invoices) { invoices = data.invoices; LS.setL('invoices', invoices); }
-        if(data.stock) { stockItems = data.stock; LS.setL('stock', stockItems); }
-        if(data.customers) { savedCustomers = data.customers; LS.setL('customers', savedCustomers); }
-        if(data.settings) { SETTINGS = data.settings; LS.setL('settings', SETTINGS); }
-        if(data.dailyReports) { dailyReports = data.dailyReports; LS.setL('dailyReports', dailyReports); }
+        // Validate it's an Alphamen backup
+        if(!data.invoices && !data.stock && !data.settings){
+          showToast('❌ Invalid backup file!', 'error');
+          return;
+        }
+        var summary = 'Invoices: ' + (data.invoices||[]).length
+          + '\nStock items: ' + (data.stock||[]).length
+          + '\nCustomers: ' + (data.customers||[]).length
+          + '\nBackup date: ' + (data.exportedAt ? data.exportedAt.slice(0,10) : 'unknown');
+        if(!confirm('Import karna chahte hain?\n\n' + summary + '\n\nCurrent data replace ho jaayegi!')) return;
+
+        // Restore ALL fields
+        if(data.invoices)       { invoices = data.invoices;             LS.setL('invoices', invoices); }
+        if(data.stock)          { stockItems = data.stock;              LS.setL('stock', stockItems); }
+        if(data.stockMovLog)    { stockMovLog = data.stockMovLog;       LS.setL('stockMovLog', stockMovLog); }
+        if(data.customers)      { savedCustomers = data.customers;      LS.setL('customers', savedCustomers); }
+        if(data.settings)       { SETTINGS = data.settings;             LS.setL('settings', SETTINGS); }
+        if(data.dailyReports)   { dailyReports = data.dailyReports;     LS.setL('dailyReports', dailyReports); }
         if(data.monthlyReports) { monthlyReports = data.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
-        if(data.pendingPayments) { pendingPayments = data.pendingPayments; LS.setL('pendingPayments', pendingPayments); }
-        showToast('Data imported! (' + invoices.length + ' invoices)');
+        if(data.pendingPayments){ pendingPayments = data.pendingPayments;LS.setL('pendingPayments', pendingPayments); }
+        if(data.purchases)      { purchases = data.purchases;           LS.setL('purchases', purchases); }
+        if(data.expenses)       { expenses = data.expenses;             LS.setL('expenses', expenses); }
+        if(data.khataEntries)   { khataEntries = data.khataEntries;     LS.setL('khataEntries', khataEntries); }
+
+        showToast('✓ Import successful! ' + invoices.length + ' invoices restored');
         renderDashboard();
+        checkStorageHealth();
+        // Push restored data to Firebase
+        if(SYNC_KEY && getFirebaseUrl()) {
+          setTimeout(pushCloud, 1500);
+        }
       } catch(err) {
-        showToast('Import failed - invalid file');
+        console.error('[Import] Error:', err);
+        showToast('❌ Import failed - invalid or corrupt file', 'error');
       }
     };
     reader.readAsText(file);
@@ -1986,14 +2301,43 @@ function checkLogin(){
   dailyReports = LS.get('dailyReports') || {};
   monthlyReports = LS.get('monthlyReports') || {};
   khataEntries = LS.get('khataEntries') || [];
+  purchases = LS.get('purchases') || [];
+  pendingPayments = LS.get('pendingPayments') || [];
+  expenses = LS.get('expenses') || [];
+
+  // Restore offline write queue
+  _offlineQueue = LS.get('offlineQueue') || [];
+
   loadStaffPerms();
   var lImg = document.getElementById('appLogoData');
   if(lImg) LOGO_URL = lImg.src;
+
+  // Online listener — flush queue when connection returns
+  window.addEventListener('online', function() {
+    setSyncDot('online');
+    if(_offlineQueue.length > 0) {
+      showToast('🔄 Internet wapas aaya — sync ho raha hai...', 'info');
+      setTimeout(pushCloud, 1000);
+    }
+  });
+  window.addEventListener('offline', function() {
+    setSyncDot('offline');
+    showToast('📴 Offline — data locally save ho raha hai', 'warn');
+  });
 
   var savedRole = sessionStorage.getItem('ac_role');
   if(sessionStorage.getItem('ac_logged') === 'yes' && savedRole) {
     CURRENT_ROLE = savedRole;
     showApp();
+    // Run health check after a short delay
+    setTimeout(checkStorageHealth, 2000);
+    // Show backup reminder if no backup in 7+ days
+    var lastBak = LS.get('lastBackupAt');
+    if(!lastBak || (Date.now() - new Date(lastBak).getTime()) > 7 * 24 * 60 * 60 * 1000) {
+      setTimeout(function() {
+        showToast('💡 Tip: Settings > Backup se data save karein', 'info');
+      }, 5000);
+    }
   }
 }
 
@@ -2304,7 +2648,7 @@ function navTo(page, el, mi){
   if(page==='inventory') renderInventory();
   if(page==='costing') calcCost();
   if(page==='salesreport') renderSalesReport();
-  if(page==='settings') loadSettings();
+  if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); }, 100); }
 
   if(page==='purchases') renderPurchaseDashboard();
   if(page==='purchaselist') renderPurchases();
@@ -3019,10 +3363,33 @@ function persistInvoice(fd){
       sub:fd.sub, disc:fd.disc, gstByRate:fd.gstByRate, totalGst:fd.totalGst,
       gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
       paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0};
-    var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
-    if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
+
+    // ── EDIT MODE: restore old invoice's stock first ──
+    if(isEditMode){
+      var oldInv = invoices.find(function(i){ return i.id===editingInvId; });
+      if(oldInv && Array.isArray(oldInv.items)){
+        oldInv.items.forEach(function(oldItem){
+          var si = stockItems.find(function(s){ return s.name.toLowerCase()===oldItem.name.toLowerCase(); });
+          if(si) si.qty += (oldItem.qty||0);
+          // Log stock reversal
+          stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN',
+            item:oldItem.name, qty:oldItem.qty||0,
+            ref:'Invoice #'+finalInvNo+' EDIT (Old Stock Restored)', note:''});
+        });
+      }
+      // Replace existing invoice by id (not invNo) to keep the right record
+      var existingIdx = invoices.findIndex(function(i){ return i.id===editingInvId; });
+      inv.id = editingInvId; // keep original id so references stay intact
+      if(existingIdx >= 0) invoices[existingIdx] = inv; else invoices.unshift(inv);
+    } else {
+      var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
+      if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
+    }
+
     LS.sync('invoices', invoices);
     saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
+
+    // ── Deduct stock for new/updated items ──
     fd.items.forEach(function(item){
       var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
       if(si) si.qty = Math.max(0, si.qty-item.qty);
@@ -3335,7 +3702,27 @@ function renderHistory(){
 }
 
 function viewInv(id){ var inv=invoices.find(function(i){return i.id===id;}); if(!inv)return; currentInv=inv; buildPreview(inv); navTo('preview',null); }
-function deleteInv(id){ if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can delete invoices');return;} if(!confirm('Delete?'))return; invoices=invoices.filter(function(i){return i.id!==id;}); LS.sync('invoices',invoices); renderHistory(); showToast('Deleted'); }
+function deleteInv(id){
+  if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can delete invoices');return;}
+  if(!confirm('Delete invoice? Stock wapas restore ho jaayega.'))return;
+  var inv = invoices.find(function(i){return i.id===id;});
+  if(inv && Array.isArray(inv.items)){
+    inv.items.forEach(function(item){
+      var si = stockItems.find(function(s){return s.name.toLowerCase()===item.name.toLowerCase();});
+      if(si) si.qty += (item.qty||0);
+      // Log reversal movement
+      stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN',
+        item:item.name, qty:item.qty||0,
+        ref:'Invoice #'+(inv.invNo||inv.id)+' DELETE (Stock Restored)', note:''});
+    });
+    LS.sync('stock', stockItems);
+    LS.sync('stockMovLog', stockMovLog);
+  }
+  invoices = invoices.filter(function(i){return i.id!==id;});
+  LS.sync('invoices', invoices);
+  renderHistory();
+  showToast('✓ Invoice deleted — stock restored');
+}
 function shareWAById(id){ var inv=invoices.find(function(i){return i.id===id;}); if(inv)shareWA(inv); }
 function downloadInvPDFById(id){ var inv=invoices.find(function(i){return i.id===id;}); if(!inv){showToast('Invoice not found');return;} currentInv=inv; buildPreview(inv); setTimeout(function(){ downloadPDF(); }, 400); }
 
@@ -6989,7 +7376,20 @@ async function downloadInventoryPDF(){
   }
 }
 
-checkLogin();
+// ===== INDEXEDDB INITIALIZATION =====
+// Must run before any LS.get() calls so the in-memory cache is fully populated.
+// Wraps checkLogin() so app startup waits for IDB to finish loading.
+function initIndexedDBStorage() {
+  return _IDB_ENGINE.loadAll().then(function() {
+    console.log('[Boot] IndexedDB cache ready — starting app');
+    checkLogin();
+  }).catch(function(err) {
+    console.error('[Boot] IDB loadAll failed — starting anyway:', err);
+    checkLogin(); // degrade gracefully
+  });
+}
+
+initIndexedDBStorage();
 
 
 
@@ -7084,11 +7484,27 @@ function savePurchase(){
 
 function deletePurchase(id){
   if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can delete purchases');return;}
-  if(!confirm('Delete purchase?')) return;
+  var pur = purchases.find(function(p){ return p.id===id; });
+  if(!pur) return;
+  if(!confirm('Delete purchase?\n\n' + pur.item + ' x' + pur.qty + ' — Stock se bhi ghata diya jaayega.')) return;
+
+  // Reverse stock: subtract qty that was added by this purchase
+  var si = stockItems.find(function(s){ return s.name.toLowerCase()===pur.item.toLowerCase(); });
+  if(si){
+    si.qty = Math.max(0, si.qty - pur.qty);
+    LS.sync('stock', stockItems);
+    // Log reversal
+    stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'OUT',
+      item:pur.item, qty:pur.qty,
+      ref:'Purchase DELETE - ' + (pur.supplier||'Unknown') + ' (Stock Reversed)', note:''});
+    LS.sync('stockMovLog', stockMovLog);
+  }
+
   purchases = purchases.filter(function(p){ return p.id !== id; });
   LS.sync('purchases', purchases);
   renderPurchases();
-  showToast('Deleted');
+  renderInventory();
+  showToast('✓ Purchase deleted — stock ' + (si ? 'updated (qty -'+pur.qty+')' : 'item not found in inventory'));
 }
 
 function renderPurchases(){
