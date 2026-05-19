@@ -1754,11 +1754,14 @@ var PUSH_MIN_GAP = 3000; // minimum 3s between Firebase writes
 
 function schedulePush(){
   // ── IDB READY GUARD ──
-  // Startup pe LS.sync() calls aa sakti hain IDB load se pehle.
-  // Agar IDB ready nahi hai, push silently skip karo —
-  // startup pull baad mein data sync kar dega.
   if(!_IDB_ENGINE.isReady()){
     console.warn('[schedulePush] IDB not ready — push skipped');
+    return;
+  }
+  // ── STAFF PUSH BLOCK ──
+  // Staff sirf pull kar sakta hai, push nahi — data overwrite se bachao
+  if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+    console.log('[schedulePush] Staff role — push blocked, pull only');
     return;
   }
   if(_pushDebounceTimer) clearTimeout(_pushDebounceTimer);
@@ -1967,13 +1970,14 @@ async function pullCloud(){
 }
 
 function forcSync(){
-  if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Only Admin can sync'); return; }
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl){
     showToast('Settings mein Firebase URL aur Sync Key set karein!');
     navTo('settings', null);
     return;
   }
+  // Admin aur Staff dono PULL kar sakte hain
+  // Push sirf admin ke save actions se hoti hai (staff ka push blocked hai)
   pullCloud();
 }
 
