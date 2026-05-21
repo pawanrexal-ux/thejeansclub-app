@@ -1,1 +1,1 @@
-# alphamen-app
+# The Jeans Club 
