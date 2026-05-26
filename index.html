@@ -1788,10 +1788,9 @@ function schedulePush(){
     console.warn('[schedulePush] IDB not ready — push skipped');
     return;
   }
-  // ── STAFF PUSH BLOCK ──
-  // Staff sirf pull kar sakta hai, push nahi — data overwrite se bachao
+  // ── STAFF: sirf apni invoices push kare (alag path pe) ──
   if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-    console.log('[schedulePush] Staff role — push blocked, pull only');
+    scheduleStaffInvoicePush();
     return;
   }
   if(_pushDebounceTimer) clearTimeout(_pushDebounceTimer);
@@ -1808,6 +1807,115 @@ function schedulePush(){
     _lastPushTime = now;
     pushCloud();
   }, 1200); // 1.2s debounce window
+}
+
+// ===== STAFF INVOICE SYNC =====
+// Staff apni invoices alag Firebase path pe push karta hai
+// Admin pull karne par in invoices ko merge karta hai
+
+var _staffPushTimer = null;
+
+function scheduleStaffInvoicePush(){
+  if(_staffPushTimer) clearTimeout(_staffPushTimer);
+  _staffPushTimer = setTimeout(function(){
+    _staffPushTimer = null;
+    pushStaffInvoices();
+  }, 1500);
+}
+
+async function pushStaffInvoices(){
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl) return;
+  if(!navigator.onLine){ console.log('[StaffSync] Offline — will retry'); return; }
+  try{
+    var path = fbUrl + '/tjc_staff_data/' + SYNC_KEY + '.json';
+    var payload = {
+      invoices: invoices,
+      pendingPayments: pendingPayments,
+      expenses: expenses,
+      ts: Date.now(),
+      pushedBy: 'staff'
+    };
+    var res = await fetch(path, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(res.ok){
+      setSyncDot('online');
+      console.log('[StaffSync] Staff invoices pushed — ' + invoices.length + ' invoices');
+    } else {
+      setSyncDot('offline');
+      console.log('[StaffSync] Push failed:', res.status);
+    }
+  }catch(e){
+    setSyncDot('offline');
+    console.log('[StaffSync] Push error:', e);
+  }
+}
+
+async function pullAndMergeStaffData(){
+  // Admin pull karne ke baad staff ka pending data merge kare
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl) return;
+  try{
+    var path = fbUrl + '/tjc_staff_data/' + SYNC_KEY + '.json';
+    var res = await fetch(path + '?t=' + Date.now());
+    if(!res.ok) return;
+    var sd = await res.json();
+    if(!sd || !sd.invoices) return;
+
+    var merged = false;
+
+    // Invoices merge: staff ki nai invoices jo admin ke paas nahi hain
+    if(Array.isArray(sd.invoices)){
+      var adminIds = new Set(invoices.map(function(i){ return i.id; }));
+      var newFromStaff = sd.invoices.filter(function(i){ return !adminIds.has(i.id); });
+      if(newFromStaff.length > 0){
+        invoices = invoices.concat(newFromStaff);
+        // Sort by date descending
+        invoices.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+        LS.setL('invoices', invoices);
+        merged = true;
+        console.log('[StaffSync] Merged ' + newFromStaff.length + ' staff invoices');
+      }
+    }
+
+    // PendingPayments merge
+    if(Array.isArray(sd.pendingPayments)){
+      var ppIds = new Set(pendingPayments.map(function(r){ return r.id; }));
+      var newPP = sd.pendingPayments.filter(function(r){ return !ppIds.has(r.id); });
+      if(newPP.length > 0){
+        pendingPayments = pendingPayments.concat(newPP);
+        pendingPayments.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+        LS.setL('pendingPayments', pendingPayments);
+        merged = true;
+      }
+    }
+
+    // Expenses merge
+    if(Array.isArray(sd.expenses)){
+      var expIds = new Set(expenses.map(function(e){ return e.id; }));
+      var newExp = sd.expenses.filter(function(e){ return !expIds.has(e.id); });
+      if(newExp.length > 0){
+        expenses = expenses.concat(newExp);
+        expenses.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+        LS.setL('expenses', expenses);
+        merged = true;
+      }
+    }
+
+    if(merged){
+      // Admin ke paas merged data hai — ab Firebase pe push karo (master copy update)
+      // Aur staff ka pending data clear karo
+      await pushCloud();
+      // Staff data node clear karo (already merged)
+      await fetch(path, { method:'DELETE' }).catch(function(){});
+      console.log('[StaffSync] Staff data merged + cleared from pending node');
+    }
+  }catch(e){
+    console.log('[StaffSync] Merge error:', e);
+  }
 }
 
 // ===== GLOBALS =====
@@ -1954,14 +2062,45 @@ async function pullCloud(){
       var d = await res.json();
       if(d && d.syncKey === SYNC_KEY){
         // Restore ALL data fields
-        if(Array.isArray(d.invoices)){ invoices = d.invoices; LS.setL('invoices', invoices); }
+        if(Array.isArray(d.invoices)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            // Staff: Firebase ke data ko local ke saath MERGE karo (local erase nahi hoga)
+            var firebaseIds = new Set(d.invoices.map(function(i){ return i.id; }));
+            var localOnly = invoices.filter(function(i){ return !firebaseIds.has(i.id); });
+            invoices = d.invoices.concat(localOnly);
+            invoices.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+          } else {
+            invoices = d.invoices;
+          }
+          LS.setL('invoices', invoices);
+        }
         if(Array.isArray(d.stock)){ stockItems = d.stock; LS.setL('stock', stockItems); }
         if(Array.isArray(d.stockMovLog)){ stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog); }
         if(d.settings){ SETTINGS = d.settings; LS.setL('settings', SETTINGS); }
         if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
         if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
-        if(Array.isArray(d.pendingPayments)){ pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); }
-        if(Array.isArray(d.expenses)){ expenses = d.expenses; LS.setL('expenses', expenses); }
+        if(Array.isArray(d.pendingPayments)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            var fbPPIds = new Set(d.pendingPayments.map(function(r){ return r.id; }));
+            var localOnlyPP = pendingPayments.filter(function(r){ return !fbPPIds.has(r.id); });
+            pendingPayments = d.pendingPayments.concat(localOnlyPP);
+            pendingPayments.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+          } else {
+            pendingPayments = d.pendingPayments;
+          }
+          LS.setL('pendingPayments', pendingPayments);
+        }
+        if(Array.isArray(d.expenses)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            var fbExpIds = new Set(d.expenses.map(function(e){ return e.id; }));
+            var localOnlyExp = expenses.filter(function(e){ return !fbExpIds.has(e.id); });
+            expenses = d.expenses.concat(localOnlyExp);
+            expenses.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+          } else {
+            expenses = d.expenses;
+          }
+          LS.setL('expenses', expenses);
+        }
         if(Array.isArray(d.khataEntries)){ khataEntries = d.khataEntries; LS.setL('khataEntries', khataEntries); } // ← restored!
         if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
         if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
@@ -1970,6 +2109,10 @@ async function pullCloud(){
         lastSync = Date.now();
         updSS();
         flushOfflineQueue();
+        // Admin ke liye: staff ka pending data bhi merge karo
+        if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
+          pullAndMergeStaffData();
+        }
         showToast('✓ Synced! ' + invoices.length + ' invoices loaded');
 
         // Refresh invoice number on form
@@ -2006,9 +2149,16 @@ function forcSync(){
     navTo('settings', null);
     return;
   }
-  // Admin aur Staff dono PULL kar sakte hain
-  // Push sirf admin ke save actions se hoti hai (staff ka push blocked hai)
-  pullCloud();
+  if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+    // Staff: pehle apni invoices push karo, phir admin data pull karo
+    // Is tarah staff ka data erase nahi hoga
+    pushStaffInvoices().then(function(){
+      setTimeout(function(){ pullCloud(); }, 800);
+    });
+  } else {
+    // Admin: staff pending data merge karo + normal pull
+    pullCloud();
+  }
 }
 
 function setSyncDot(s){
@@ -5921,6 +6071,10 @@ async function silentPull(){
     setSyncDot('online');
     lastSync = Date.now();
     updSS();
+    // Admin ke liye: silently staff data bhi merge karo
+    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
+      pullAndMergeStaffData();
+    }
     if(changed){
       if(currentPage==='dashboard') renderDashboard();
       else if(currentPage==='history') renderHistory();
