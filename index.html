@@ -1872,17 +1872,43 @@ async function pullAndMergeStaffData(){
 
     var merged = false;
 
-    // Invoices merge: staff ki nai invoices jo admin ke paas nahi hain
+    // Invoices merge: 
+    // (a) Staff ki nai invoices jo admin ke paas nahi hain → add karo
+    // (b) Staff ne jo edit ki hain (same ID) → savedAt compare karo → newer wala use karo
+    var newFromStaff = [];
     if(Array.isArray(sd.invoices)){
-      var adminIds = new Set(invoices.map(function(i){ return i.id; }));
-      var newFromStaff = sd.invoices.filter(function(i){ return !adminIds.has(i.id); });
+      var adminIdMap = {};
+      invoices.forEach(function(i){ adminIdMap[i.id] = i; });
+
+      sd.invoices.forEach(function(staffInv){
+        var adminInv = adminIdMap[staffInv.id];
+        if(!adminInv){
+          // Nai invoice — add karo
+          newFromStaff.push(staffInv);
+        } else {
+          // Same ID — compare savedAt timestamp
+          var staffTs = staffInv.savedAt || '';
+          var adminTs = adminInv.savedAt || '';
+          if(staffTs > adminTs){
+            // Staff ka version newer hai → update karo
+            var idx = invoices.findIndex(function(i){ return i.id === staffInv.id; });
+            if(idx >= 0){
+              invoices[idx] = staffInv;
+              merged = true;
+              console.log('[StaffSync] Updated edited invoice: ' + staffInv.invNo);
+            }
+          }
+        }
+      });
+
       if(newFromStaff.length > 0){
         invoices = invoices.concat(newFromStaff);
-        // Sort by date descending
-        invoices.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+        invoices.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? -1 : 1; });
         LS.setL('invoices', invoices);
         merged = true;
-        console.log('[StaffSync] Merged ' + newFromStaff.length + ' staff invoices');
+        console.log('[StaffSync] Added ' + newFromStaff.length + ' new staff invoices');
+      } else if(merged){
+        LS.setL('invoices', invoices);
       }
     }
 
@@ -1923,21 +1949,51 @@ async function pullAndMergeStaffData(){
       }
     }
 
-    // Stock qty merge: staff ke naye invoices ke items admin ke stock se deduct karo
-    // Double-deduct protection: sirf wahi invoices process karo jo admin ke paas nahi thi
-    if(Array.isArray(sd.invoices) && newFromStaff.length > 0){
-      newFromStaff.forEach(function(inv){
-        if(!Array.isArray(inv.items)) return;
-        inv.items.forEach(function(item){
-          var si = stockItems.find(function(s){
-            return s.name.toLowerCase() === (item.name||'').toLowerCase();
+    // Stock qty update:
+    // (a) New staff invoices ke items → deduct karo
+    // (b) Edited staff invoices → old qty restore karo, new qty deduct karo (net diff)
+    if(Array.isArray(sd.invoices)){
+      var stockChanged = false;
+
+      // (a) New invoices
+      if(newFromStaff.length > 0){
+        newFromStaff.forEach(function(inv){
+          if(!Array.isArray(inv.items)) return;
+          inv.items.forEach(function(item){
+            var si = stockItems.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
+            if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
           });
-          if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
         });
+        stockChanged = true;
+        console.log('[StaffSync] Stock deducted for ' + newFromStaff.length + ' new staff invoices');
+      }
+
+      // (b) Edited invoices — net stock diff
+      sd.invoices.forEach(function(staffInv){
+        var adminInv = (function(){ for(var i=0;i<invoices.length;i++){ if(invoices[i].id===staffInv.id && newFromStaff.indexOf(staffInv)===-1) return invoices[i]; } return null; })();
+        if(!adminInv) return; // new invoice, already handled above
+        var staffTs = staffInv.savedAt || '';
+        var adminTs = adminInv.savedAt || '';
+        if(staffTs <= adminTs) return; // admin version is newer or same — skip
+
+        // Restore old items qty
+        (adminInv.items||[]).forEach(function(oldItem){
+          var si = stockItems.find(function(s){ return s.name.toLowerCase()===(oldItem.name||'').toLowerCase(); });
+          if(si) si.qty += (oldItem.qty||0);
+        });
+        // Deduct new items qty
+        (staffInv.items||[]).forEach(function(newItem){
+          var si = stockItems.find(function(s){ return s.name.toLowerCase()===(newItem.name||'').toLowerCase(); });
+          if(si) si.qty = Math.max(0, si.qty - (newItem.qty||0));
+        });
+        stockChanged = true;
+        console.log('[StaffSync] Stock adjusted for edited invoice: ' + staffInv.invNo);
       });
-      LS.setL('stock', stockItems);
-      merged = true;
-      console.log('[StaffSync] Stock qty deducted for ' + newFromStaff.length + ' new staff invoices');
+
+      if(stockChanged){
+        LS.setL('stock', stockItems);
+        merged = true;
+      }
     }
 
     // Customers merge
@@ -2146,11 +2202,27 @@ async function pullCloud(){
         // Restore ALL data fields
         if(Array.isArray(d.invoices)){
           if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-            // Staff: Firebase ke data ko local ke saath MERGE karo (local erase nahi hoga)
-            var firebaseIds = new Set(d.invoices.map(function(i){ return i.id; }));
-            var localOnly = invoices.filter(function(i){ return !firebaseIds.has(i.id); });
-            invoices = d.invoices.concat(localOnly);
-            invoices.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+            // Staff: cloud + local merge — new records add, edited records ka newer version use karo
+            var fbInvIdMap = {};
+            d.invoices.forEach(function(i){ fbInvIdMap[i.id] = i; });
+            var lcInvIdMap = {};
+            invoices.forEach(function(i){ lcInvIdMap[i.id] = i; });
+            var mergedPullArr = [];
+            d.invoices.forEach(function(fbInv){
+              var lcInv = lcInvIdMap[fbInv.id];
+              if(!lcInv){
+                mergedPullArr.push(fbInv);
+              } else {
+                var fbTs = fbInv.savedAt || '';
+                var lcTs = lcInv.savedAt || '';
+                mergedPullArr.push(lcTs >= fbTs ? lcInv : fbInv);
+              }
+            });
+            invoices.forEach(function(lcInv){
+              if(!fbInvIdMap[lcInv.id]) mergedPullArr.push(lcInv);
+            });
+            mergedPullArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? -1 : 1; });
+            invoices = mergedPullArr;
           } else {
             invoices = d.invoices;
           }
@@ -6129,13 +6201,32 @@ async function silentPull(){
 
     if(Array.isArray(d.invoices)){
       if(isStaffRole){
-        // Staff: cloud se aye invoices mein local-only records merge karo
-        var cloudInvIds = new Set(d.invoices.map(function(i){ return i.id; }));
-        var localOnlyInvs = invoices.filter(function(i){ return !cloudInvIds.has(i.id); });
-        var merged_invs = d.invoices.concat(localOnlyInvs);
-        merged_invs.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? 1 : -1; });
-        if(JSON.stringify(merged_invs) !== JSON.stringify(invoices)){
-          invoices = merged_invs; LS.setL('invoices', invoices); changed = true;
+        // Staff: cloud + local merge — new records add, edited records ka newer version use karo
+        var cloudInvIdMap = {};
+        d.invoices.forEach(function(i){ cloudInvIdMap[i.id] = i; });
+        var localInvIdMap = {};
+        invoices.forEach(function(i){ localInvIdMap[i.id] = i; });
+
+        var mergedInvArr = [];
+        // Cloud invoices: compare with local, use newer version
+        d.invoices.forEach(function(cloudInv){
+          var localInv = localInvIdMap[cloudInv.id];
+          if(!localInv){
+            mergedInvArr.push(cloudInv); // only on cloud
+          } else {
+            // Both have it — use newer savedAt
+            var cloudTs = cloudInv.savedAt || '';
+            var localTs = localInv.savedAt || '';
+            mergedInvArr.push(localTs >= cloudTs ? localInv : cloudInv);
+          }
+        });
+        // Local-only invoices (not on cloud yet)
+        invoices.forEach(function(localInv){
+          if(!cloudInvIdMap[localInv.id]) mergedInvArr.push(localInv);
+        });
+        mergedInvArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? -1 : 1; });
+        if(JSON.stringify(mergedInvArr) !== JSON.stringify(invoices)){
+          invoices = mergedInvArr; LS.setL('invoices', invoices); changed = true;
         }
       } else {
         if(JSON.stringify(d.invoices) !== JSON.stringify(invoices)){
