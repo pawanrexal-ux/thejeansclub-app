@@ -4024,7 +4024,7 @@ function renderHistory(){
     var dhtml='';
     // Sort dates descending (latest date first) inside each month folder
     Object.keys(dg).sort(function(a,b){return b.localeCompare(a);}).forEach(function(date){
-      var invs=dg[date], dt=invs.reduce(function(s,i){return s+i.total;},0);
+      var invs=dg[date].slice().sort(function(a,b){ return (b.savedAt||b.id||0) > (a.savedAt||a.id||0) ? 1 : -1; }), dt=invs.reduce(function(s,i){return s+i.total;},0);
       var did='df'+date.replace(/[^a-zA-Z0-9]/g,'');
       var ihtml='';
       invs.forEach(function(inv){
@@ -4398,8 +4398,8 @@ function renderPayments(){
 
       var rows = '';
 
-      // Invoice rows
-      (day.sales||[]).forEach(function(i){
+      // Invoice rows — newest first (savedAt desc)
+      (day.sales||[]).slice().sort(function(a,b){ return (b.savedAt||b.id||0) > (a.savedAt||a.id||0) ? 1 : -1; }).forEach(function(i){
         var isPend = i.payStatus==='Pending'||i.payStatus==='Partial';
         var modeStr = i.payMode==='Split'?'Cash+UPI':i.payMode;
         var recTotalForInv = (allReceiptByInv[i.invNo]||{total:0}).total;
