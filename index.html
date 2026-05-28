@@ -511,8 +511,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .modal-overlay.show{display:flex;}
 
 /* Back button */
-.back-btn{display:none;align-items:center;justify-content:center;width:34px;height:34px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;color:var(--g);font-size:16px;flex-shrink:0;transition:background .15s;}
-.back-btn:hover{background:#ddeee5;}
+.back-btn{display:none;align-items:center;justify-content:center;width:36px;height:36px;background:linear-gradient(135deg,#b8942e 0%,#e2c05a 50%,#b8942e 100%);border:none;cursor:pointer;color:#1a3a2a;font-size:17px;flex-shrink:0;transition:all .25s;border-radius:50%;box-shadow:0 2px 10px rgba(184,148,46,.45),inset 0 1px 0 rgba(255,255,255,.35);}
+.back-btn:hover{background:linear-gradient(135deg,#c9a84c 0%,#f0d06a 50%,#c9a84c 100%);box-shadow:0 4px 18px rgba(184,148,46,.65),inset 0 1px 0 rgba(255,255,255,.45);transform:scale(1.07);}
+.back-btn:active{transform:scale(0.96);box-shadow:0 1px 6px rgba(184,148,46,.4);}
 /* Pay split badge */
 .pay-split-badge{display:inline-flex;align-items:center;padding:1px 6px;font-size:9px;font-weight:600;background:#f3f8f5;border:1px solid #b2d4be;color:#1a5c32;margin:1px;}
 /* Split pay section */
@@ -565,8 +566,9 @@ input[type=tel], textarea, select {
 /* Bold for key data */
 .inv-meta .imv strong { font-family: Arial, sans-serif; font-weight: 700; }
 /* ===== BACK BUTTON ===== */
-.back-btn { display: none; align-items: center; justify-content: center; width: 32px; height: 32px; background: var(--ow); border: 1px solid var(--bdr); cursor: pointer; color: var(--g); font-size: 16px; flex-shrink: 0; font-weight: 700; }
-.back-btn:hover { background: #ddeee5; }
+.back-btn { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; background: linear-gradient(135deg,#b8942e 0%,#e2c05a 50%,#b8942e 100%); border: none; cursor: pointer; color: #1a3a2a; font-size: 17px; flex-shrink: 0; font-weight: 700; border-radius: 50%; box-shadow: 0 2px 10px rgba(184,148,46,.45),inset 0 1px 0 rgba(255,255,255,.35); transition: all .25s; }
+.back-btn:hover { background: linear-gradient(135deg,#c9a84c 0%,#f0d06a 50%,#c9a84c 100%); box-shadow: 0 4px 18px rgba(184,148,46,.65),inset 0 1px 0 rgba(255,255,255,.45); transform: scale(1.07); }
+.back-btn:active { transform: scale(0.96); box-shadow: 0 1px 6px rgba(184,148,46,.4); }
 /* ===== SPLIT PAY ===== */
 .pay-split-badge { display: inline-flex; align-items: center; padding: 1px 6px; font-size: 9px; font-weight: 600; background: #f3f8f5; border: 1px solid #b2d4be; color: #1a5c32; margin: 1px; }
 #splitPaySection { background: var(--ow); border: 1px solid var(--bdrg); padding: 10px 12px; margin-top: 8px; display: none; }
@@ -692,7 +694,7 @@ input[type=tel], textarea, select {
       <button class="hamburger" onclick="toggleSidebar()" id="hamburger" style="display:none;">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
-      <button class="back-btn" id="backBtn" onclick="goBack()" style="display:none;">&#8592;</button>
+      <button class="back-btn" id="backBtn" onclick="goBack()" style="display:none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
       <div class="header-title" id="headerTitle" style="font-family:Cormorant Garamond,serif;">Dashboard</div>
       <div class="header-month" id="headerMonth" style="font-family:Arial,sans-serif;"></div>
       <div style="display:flex;align-items:center;gap:8px;">
@@ -5787,6 +5789,7 @@ function searchPPCust(val){
   var box = document.getElementById('pp-custSugg');
   if(!box) return;
   if(!val || val.length < 1){ box.style.display='none'; return; }
+  invoices = LS.get('invoices')||invoices||[];
   var q = val.toLowerCase(), seen={}, found=[];
   // Only show customers with pending invoices
   invoices.forEach(function(i){
@@ -5825,6 +5828,7 @@ function fillPPCust(name, phone){
 }
 
 function loadPPInvoices(custName){
+  invoices = LS.get('invoices')||invoices||[];
   var pendInvs = invoices.filter(function(i){
     return i.custName===custName && (i.payStatus==='Pending'||i.payStatus==='Partial');
   });
@@ -6036,6 +6040,7 @@ function buildPendingPreview(r){
 }
 
 function renderPendingDashboard(){
+  invoices = LS.get('invoices')||invoices||[];
   pendingPayments = LS.get('pendingPayments')||[];
 
   // Staff notice show/hide
