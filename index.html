@@ -642,6 +642,9 @@ input[type=tel], textarea, select {
     <div class="lig"><label>Password</label><div class="pwrap"><input type="password" id="loginPass" placeholder="Enter password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"/><button class="pwtog" onclick="togglePw('loginPass',this)" type="button">&#128065;</button></div></div>
     <button class="lbtn" onclick="doLogin()">Login</button>
     <div class="lerr" id="loginError">Wrong username or password</div>
+    <div id="defaultPwWarn" style="display:none;margin-top:10px;background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:9px 12px;font-size:11px;font-family:Arial,sans-serif;text-align:left;">
+      ⚠️ <strong>Default password use ho raha hai!</strong><br>Settings → Change Password se abhi badlein.
+    </div>
   </div>
 
 </div>
@@ -2672,6 +2675,16 @@ var STAFF_RESTRICTED_NAV_LABELS = []; // computed dynamically
 function checkLogin(){
   SYNC_KEY = localStorage.getItem('ac_synckey') || '';
   AUTH = LS.get('auth') || {user:'thejeans', pass:'alpha@123'};
+  // FIX #2: Login screen pe default password warning dikhao
+  var _warnEl = document.getElementById('defaultPwWarn');
+  if(_warnEl){
+    var _savedAuth2 = LS.get('auth');
+    var _savedStf2  = LS.get('staffAuth');
+    var _defAp = 'alpha@123', _defSp = 'staff@123';
+    var _isDefA = !_savedAuth2 || (_savedAuth2.pass === _defAp);
+    var _isDefS = !_savedStf2  || (_savedStf2.pass  === _defSp);
+    _warnEl.style.display = (_isDefA || _isDefS) ? 'block' : 'none';
+  }
   SETTINGS = LS.get('settings') || {biz:'The Jeans Club', ph:'', addr:'', gst:''};
   invoices = LS.get('invoices') || [];
   stockItems = LS.get('stock') || [];
@@ -2758,6 +2771,18 @@ function doLogin(){
     showApp();
     var roleLabel = CURRENT_ROLE === 'admin' ? 'Admin' : 'Staff';
     showToast('Welcome, ' + u + '! (' + roleLabel + ')');
+    // FIX #2: Default password check — agar change nahi kiya toh warning
+    var _defAdm = {user:'thejeans', pass:'alpha@123'};
+    var _defStf = {user:'staff', pass:'staff@123'};
+    var _savedAuth = LS.get('auth');
+    var _savedStaff = LS.get('staffAuth');
+    var _usingDefAdmin = !_savedAuth || (_savedAuth.pass === _defAdm.pass);
+    var _usingDefStaff = !_savedStaff || (_savedStaff.pass === _defStf.pass);
+    if(_usingDefAdmin || _usingDefStaff){
+      setTimeout(function(){
+        showToast('⚠️ Default password chal raha hai! Settings se badlein.', 'warn');
+      }, 1500);
+    }
     if(SYNC_KEY) setTimeout(pullCloud, 1000); // Both admin and staff sync Firebase
   } else {
     err.style.display = 'block';
@@ -3150,25 +3175,76 @@ async function claimInvNo(){
   var mKey = mon + yr;
   var prefix = 'TJC/' + mKey + '/';
   if(!SYNC_KEY || !getFirebaseUrl()) return genInvNo();
-  for(var t = 0; t < 3; t++){
+
+  // FIX #3: Race condition fix
+  // Strategy: Random jitter delay (0-400ms) taaki dono devices exact
+  // same millisecond pe GET→PUT na kare. Phir PUT ke baad turant
+  // re-read karke verify karo ki hamara hi number cloud pe hai.
+  // Agar kisi aur ne hamare saath overwrite kiya toh next round mein
+  // un ka number skip karke aage ka lenge.
+  var jitter = Math.floor(Math.random() * 400);
+  await new Promise(function(res){ setTimeout(res, jitter); });
+
+  for(var t = 0; t < 5; t++){
     try{
-      var r = await fetch(getCounterPath());
+      var r = await fetch(getCounterPath() + '?t=' + Date.now());
       var counter = r.ok ? (await r.json() || {}) : {};
+      var cloudVal = parseInt(counter[mKey]||0);
+
+      // Local invoices mein sabse bada number
       var localMax = 0;
       invoices.forEach(function(i){
         if(i.invNo && i.invNo.indexOf(prefix)===0){
           var n=parseInt(i.invNo.replace(prefix,''))||0; if(n>localMax) localMax=n;
         }
       });
-      var next = Math.max(parseInt(counter[mKey]||0), localMax) + 1;
-      if(invoices.some(function(i){return i.invNo===prefix+String(next).padStart(3,'0');})) next++;
+
+      // Cloud aur local dono ka max leke +1
+      var next = Math.max(cloudVal, localMax) + 1;
+
+      // Extra safety: agar yeh number kisi existing invoice se match kare toh skip
+      while(invoices.some(function(i){ return i.invNo === prefix+String(next).padStart(3,'0'); })){
+        next++;
+      }
+
       var candidate = prefix + String(next).padStart(3,'0');
       counter[mKey] = next;
-      var put = await fetch(getCounterPath(),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(counter)});
-      if(put.ok) return candidate;
-    } catch(e){ console.log('claimInvNo err',e); }
-    await new Promise(function(r){setTimeout(r,250*(t+1));});
+
+      // PUT karo
+      var put = await fetch(getCounterPath(), {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(counter)
+      });
+      if(!put.ok){ await new Promise(function(res){setTimeout(res,300*(t+1));}); continue; }
+
+      // FIX #3 VERIFY: PUT ke 150ms baad re-read karke confirm karo
+      // ki cloud pe hamara hi value hai (kisi ne race nahi ki)
+      await new Promise(function(res){ setTimeout(res, 150); });
+      var verify = await fetch(getCounterPath() + '?t=' + Date.now());
+      if(verify.ok){
+        var vData = await verify.json();
+        var vVal = parseInt((vData||{})[mKey]||0);
+        if(vVal === next){
+          // Cloud pe hamara number confirm ho gaya
+          console.log('[InvNo] Claimed: ' + candidate + ' (verified)');
+          return candidate;
+        } else if(vVal > next){
+          // Kisi aur ne hamare baad overwrite kiya — unka number skip karke
+          // agle round mein vVal+1 try karenge
+          console.log('[InvNo] Race detected — retrying. Cloud=' + vVal + ' ours=' + next);
+          // Small delay phir retry
+          await new Promise(function(res){ setTimeout(res, 200 + Math.floor(Math.random()*300)); });
+          continue;
+        }
+      }
+      // Verify fetch fail — candidate use karo (best effort)
+      return candidate;
+
+    } catch(e){ console.log('[InvNo] err t='+t, e); }
+    await new Promise(function(res){ setTimeout(res, 300*(t+1) + Math.floor(Math.random()*200)); });
   }
+  // Fallback: local derivation (already includes existing invoices check)
   return genInvNo();
 }
 
@@ -4573,14 +4649,53 @@ function saveEditStock(){
   item.name=document.getElementById('edit-name').value.trim()||item.name;
   var ec=document.getElementById('edit-cat'); if(ec)item.category=ec.value;
   var es=document.getElementById('edit-size'); if(es)item.size=es.value;
-  item.qty=parseInt(document.getElementById('edit-qty').value)||0;
-  item.cost=parseFloat(document.getElementById('edit-cost').value)||0;
-  item.mrp=parseFloat(document.getElementById('edit-mrp').value)||0;
-  LS.sync('stock',stockItems); closeEditModal(); renderInventory(); showToast('Updated!');
+  // FIX #4: Qty change ka log — old qty save karo pehle
+  var oldQty = item.qty;
+  var newQty = parseInt(document.getElementById('edit-qty').value)||0;
+  item.qty  = newQty;
+  item.cost = parseFloat(document.getElementById('edit-cost').value)||0;
+  item.mrp  = parseFloat(document.getElementById('edit-mrp').value)||0;
+  LS.sync('stock', stockItems);
+  // FIX #4: Qty badli toh stockMovLog mein ADJUST entry dalo
+  var diff = newQty - oldQty;
+  if(diff !== 0){
+    stockMovLog.push({
+      id:   Date.now() + Math.random(),
+      date: nowDate(),
+      type: diff > 0 ? 'IN' : 'OUT',
+      item: item.name,
+      qty:  Math.abs(diff),
+      ref:  'Manual Adjust (Edit Stock)',
+      note: 'Old qty: ' + oldQty + ' → New qty: ' + newQty + ' (by ' + (CURRENT_ROLE||'admin') + ')'
+    });
+    LS.sync('stockMovLog', stockMovLog);
+  }
+  closeEditModal(); renderInventory(); showToast('Updated!');
 }
 
 function closeEditModal(){ editingStockId=null; document.getElementById('editStockModal').classList.remove('show'); }
-function updateQty(id,delta){var item=stockItems.find(function(i){return i.id===id;});if(!item)return;item.qty=Math.max(0,item.qty+delta);LS.sync('stock',stockItems);renderInventory();}
+function updateQty(id,delta){
+  var item=stockItems.find(function(i){return i.id===id;});
+  if(!item)return;
+  var oldQ=item.qty;
+  item.qty=Math.max(0,item.qty+delta);
+  LS.sync('stock',stockItems);
+  // FIX #7: +/- button ke liye bhi log entry
+  var actualDiff = item.qty - oldQ; // could differ if Math.max(0,...) kicked in
+  if(actualDiff !== 0){
+    stockMovLog.push({
+      id:   Date.now()+Math.random(),
+      date: nowDate(),
+      type: actualDiff>0 ? 'IN' : 'OUT',
+      item: item.name,
+      qty:  Math.abs(actualDiff),
+      ref:  'Manual Adjust (Quick +/-)',
+      note: 'Old qty: '+oldQ+' → New qty: '+item.qty
+    });
+    LS.sync('stockMovLog', stockMovLog);
+  }
+  renderInventory();
+}
 function delStock(id){if(CURRENT_ROLE!=='admin'){showToast('⛔ Only Admin can delete stock');return;}if(!confirm('Delete?'))return;stockItems=stockItems.filter(function(i){return i.id!==id;});LS.sync('stock',stockItems);renderInventory();showToast('Deleted');}
 function buildCatOptions(sel){return CATEGORIES.map(function(c){return '<option value="'+c+'" '+(c===sel?'selected':'')+'>'+c+'</option>';}).join('');}
 function buildSizeOptions(sel){return SIZES.map(function(s){return '<option value="'+s+'" '+(s===sel?'selected':'')+'>'+s+'</option>';}).join('');}
