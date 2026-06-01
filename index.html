@@ -2430,6 +2430,9 @@ async function pullCloud(){
           AUTH = d.auth;
           LS.setL('auth', AUTH);
         }
+        if(d.staffAuth && d.staffAuth.pass){
+          LS.setL('staffAuth', d.staffAuth);
+        }
         if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
         if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
         if(Array.isArray(d.pendingPayments)){
@@ -2857,8 +2860,8 @@ function staffCanAccess(page){
   if(CURRENT_ROLE === 'admin') return true;
   // Settings always blocked for staff
   if(page === 'settings') return false;
-  // pnl always blocked for staff
-  if(page === 'pnl') return false;
+  // pnl and editlog always blocked for staff
+  if(page === 'pnl' || page === 'editlog') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
 
@@ -3191,9 +3194,17 @@ function changeStaffPassword(){
   if(staffPw.length < 4){ msg.style.display='block'; msg.style.color='#e74c3c'; msg.textContent='Password bahut chota hai!'; return; }
 
   LS.setL('staffAuth', {user: staffUser, pass: staffPw});
-  msg.style.display='block'; msg.style.color='#2d7a4f'; msg.textContent='Staff password save ho gaya!';
+  msg.style.display='block'; msg.style.color='#2d7a4f'; msg.textContent='Staff password save ho gaya! Syncing...';
   ['set-staffPw','set-staffConfPw','set-staffAdminPw'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
-  setTimeout(function(){ msg.style.display='none'; }, 3000);
+  pushCloud().then(function(ok){
+    if(ok){
+      msg.textContent='Staff password changed & synced! \u2713';
+    } else {
+      msg.style.color='#e67e22';
+      msg.textContent='Staff password locally saved. Firebase sync failed — check connection.';
+    }
+    setTimeout(function(){ msg.style.display='none'; }, 3000);
+  });
 }
 
 function changePassword(){
@@ -3271,7 +3282,7 @@ function navTo(page, el, mi){
   if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} renderPnL(); }
   if(page==='khata'){ renderKhata(); }
   if(page==='khataentry'){ initKhataEntry(); }
-  if(page==='editlog'){ renderEditLog(); }
+  if(page==='editlog'){ if(!staffCanAccess('editlog')){showToast('⛔ Access Denied — Edit Log sirf Admin ke liye hai');navTo('invoice',null);return;} renderEditLog(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
 }
@@ -9714,9 +9725,9 @@ function renderStaffPermsUI(){
     grp.keys.forEach(function(key){
       var def = STAFF_PERMISSION_DEFS.find(function(d){ return d.key===key; });
       if(!def) return;
-      var isOn = STAFF_PERMISSIONS[key] !== false && key !== 'settings' && key !== 'pnl';
-      // settings & pnl always off
-      var alwaysOff = (key === 'settings' || key === 'pnl');
+      var isOn = STAFF_PERMISSIONS[key] !== false && key !== 'settings' && key !== 'pnl' && key !== 'editlog';
+      // settings, pnl & editlog always off
+      var alwaysOff = (key === 'settings' || key === 'pnl' || key === 'editlog');
       var checkedAttr = (isOn && !alwaysOff) ? 'checked' : '';
       var disabledAttr = alwaysOff ? 'disabled' : '';
       var lockIcon = alwaysOff ? ' 🔒' : '';
