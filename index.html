@@ -6280,8 +6280,8 @@ function savePendingPayment(){
   // Create payment receipt
   var receipt = {
     id: Date.now(),
-    receiptNo: genReceiptNo(),
     date: document.getElementById('pp-date').value || nowDate(),
+    receiptNo: genReceiptNo(document.getElementById('pp-date').value || nowDate()),
     custName: custName,
     custPhone: document.getElementById('pp-custPhone').value,
     invNo: invNo,
@@ -6317,8 +6317,10 @@ function savePendingPayment(){
 
 var currentPendingReceipt = null;
 
-function genReceiptNo(){
-  var d=new Date();
+function genReceiptNo(receiptDate){
+  // receiptDate: receipt ki actual date use karo (current date nahi)
+  var d = receiptDate ? new Date(receiptDate) : new Date();
+  if(isNaN(d.getTime())) d = new Date(); // fallback
   var mon=d.toLocaleString('en-IN',{month:'short'}).toUpperCase().slice(0,3);
   var yr=String(d.getFullYear()).slice(-2);
   var prefix='PR/'+mon+yr+'/';
