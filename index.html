@@ -2241,12 +2241,21 @@ function renderEditLog(){
       +'<span style="background:'+typeBg+';color:'+typeColor+';font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:2px;">'+escH(e.type)+'</span>'
       +'<span style="font-weight:700;font-size:13px;color:var(--dk);">'+escH(e.ref)+'</span>'
       +'<span style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;margin-left:auto;">'+dateStr+' · '+timeStr+'</span>'
+      +'<button onclick="deleteEditLogEntry('+e.id+')" style="background:#c62828;color:#fff;border:none;padding:3px 9px;font-size:10px;font-family:Arial,sans-serif;cursor:pointer;border-radius:2px;font-weight:700;margin-left:6px;">🗑 Delete</button>'
       +'</div>'
       +'<div style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;margin-bottom:4px;">Edited by: <strong>'+escH(e.user)+'</strong>'+(e.note ? ' · '+escH(e.note) : '')+'</div>'
       +changesHtml
       +'</div>';
   });
   container.innerHTML = html;
+}
+
+function deleteEditLogEntry(id){
+  if(!confirm('Is entry ko delete karna chahte ho?')) return;
+  editLog = editLog.filter(function(e){ return e.id !== id; });
+  saveEditLog();
+  renderEditLog();
+  showToast('✅ Entry delete ho gayi');
 }
 
 function clearEditLog(){
