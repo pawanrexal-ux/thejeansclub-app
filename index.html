@@ -2190,7 +2190,11 @@ function logEdit(type, ref, changes, extraNote){
   if(editLog.length > 500) editLog = editLog.slice(0, 500); // keep last 500
   saveEditLog();
   // Push to Firebase so other devices get the log too
-  if(typeof schedulePush === 'function') schedulePush();
+  // Fix: staff ke liye schedulePush() sirf staffInvoices push karta tha (editLog skip hota tha)
+  // Ab directly pushCloud() call karo taaki editLog bhi Firebase pe jaye
+  if(typeof pushCloud === 'function'){
+    setTimeout(function(){ pushCloud(); }, 1500); // slight delay — baaki data save hone de pehle
+  }
 }
 
 // Render the Edit Log page
@@ -2256,6 +2260,8 @@ function deleteEditLogEntry(id){
   saveEditLog();
   renderEditLog();
   showToast('✅ Entry delete ho gayi');
+  // Sync delete to Firebase so other devices reflect it too
+  if(typeof pushCloud === 'function') setTimeout(function(){ pushCloud(); }, 800);
 }
 
 function clearEditLog(){
@@ -2470,7 +2476,8 @@ async function pullCloud(){
         if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
         if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
         // Merge editLog: cloud + local mein jo entries nahi hain unhe add karo (id se deduplicate)
-        if(Array.isArray(d.editLog) && d.editLog.length){
+        // Fix: Array.isArray check hi kaafi hai — empty array pe bhi local entries preserve karo
+        if(Array.isArray(d.editLog)){
           var cloudLogIds = new Set(d.editLog.map(function(e){ return String(e.id); }));
           var localOnlyLog = editLog.filter(function(e){ return !cloudLogIds.has(String(e.id)); });
           editLog = d.editLog.concat(localOnlyLog);
@@ -6961,7 +6968,8 @@ async function silentPull(){
       }
     }
     // editLog: cloud + local merge — id se deduplicate, newest first
-    if(Array.isArray(d.editLog) && d.editLog.length){
+    // Fix: empty array bhi handle karo — local entries preserve karo
+    if(Array.isArray(d.editLog)){
       var cloudElIds = new Set(d.editLog.map(function(e){ return String(e.id); }));
       var localOnlyEl = editLog.filter(function(e){ return !cloudElIds.has(String(e.id)); });
       var mergedEl = d.editLog.concat(localOnlyEl);
