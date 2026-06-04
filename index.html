@@ -6510,7 +6510,8 @@ function renderPendingReceipts(){
   pendingPayments = LS.get('pendingPayments')||[];
   var isStaff = (CURRENT_ROLE === 'staff');
   var todayDate = nowDate();
-  var cm = monthKey(todayDate);
+  var cm = monthKey(todayDate); // display format e.g. "Jun 2026"
+  var cmYM = todayDate.slice(0,7); // YYYY-MM format e.g. "2026-06" — filter ke liye
 
   // Staff notices
   var rNotice = document.getElementById('staff-receipts-notice');
@@ -6521,15 +6522,15 @@ function renderPendingReceipts(){
   // Stat summary at top of receipts page
   // Staff ke liye sirf current month ka data stats mein bhi dikhao
   var statsBase = isStaff
-    ? pendingPayments.filter(function(r){ return (r.date||'').slice(0,7) === cm; })
+    ? pendingPayments.filter(function(r){ return (r.date||'').slice(0,7) === cmYM; })
     : pendingPayments;
   var rStats = document.getElementById('pend-receipts-stats');
   if(rStats){
     var todayTotal = statsBase.filter(function(r){return r.date===todayDate;}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
-    var monthTotal = statsBase.filter(function(r){return (r.date||'').slice(0,7)===cm;}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
+    var monthTotal = statsBase.filter(function(r){return (r.date||'').slice(0,7)===cmYM;}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
     var allTotal   = pendingPayments.reduce(function(s,r){return s+(r.paidAmt||0);},0);
     var todayCount = statsBase.filter(function(r){return r.date===todayDate;}).length;
-    var monthCount = statsBase.filter(function(r){return (r.date||'').slice(0,7)===cm;}).length;
+    var monthCount = statsBase.filter(function(r){return (r.date||'').slice(0,7)===cmYM;}).length;
     // Staff ko All Time card nahi dikhana
     var allTimeCard = isStaff ? '' :
       '<div class="stat-card" style="cursor:default;"><div class="stat-card-icon">💰</div><div class="stat-label">All Time</div><div class="stat-value">'+fmt(allTotal)+'</div><div class="stat-sub">'+pendingPayments.length+' total</div></div>';
@@ -6544,7 +6545,7 @@ function renderPendingReceipts(){
   var basePayments = pendingPayments;
   if(isStaff){
     basePayments = pendingPayments.filter(function(r){
-      return (r.date||'').slice(0,7) === cm;
+      return (r.date||'').slice(0,7) === cmYM;
     });
   }
 
