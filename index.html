@@ -2475,14 +2475,9 @@ async function pullCloud(){
         if(Array.isArray(d.khataEntries)){ khataEntries = d.khataEntries; LS.setL('khataEntries', khataEntries); } // ← restored!
         if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
         if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
-        // Merge editLog: cloud + local mein jo entries nahi hain unhe add karo (id se deduplicate)
-        // Fix: Array.isArray check hi kaafi hai — empty array pe bhi local entries preserve karo
+        // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
         if(Array.isArray(d.editLog)){
-          var cloudLogIds = new Set(d.editLog.map(function(e){ return String(e.id); }));
-          var localOnlyLog = editLog.filter(function(e){ return !cloudLogIds.has(String(e.id)); });
-          editLog = d.editLog.concat(localOnlyLog);
-          editLog.sort(function(a,b){ return (b.ts||'') > (a.ts||'') ? 1 : -1; });
-          if(editLog.length > 500) editLog = editLog.slice(0, 500);
+          editLog = d.editLog.slice(0, 500);
           saveEditLog();
           if(currentPage === 'editlog') renderEditLog();
         }
@@ -6967,16 +6962,11 @@ async function silentPull(){
         }
       }
     }
-    // editLog: cloud + local merge — id se deduplicate, newest first
-    // Fix: empty array bhi handle karo — local entries preserve karo
+    // editLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
     if(Array.isArray(d.editLog)){
-      var cloudElIds = new Set(d.editLog.map(function(e){ return String(e.id); }));
-      var localOnlyEl = editLog.filter(function(e){ return !cloudElIds.has(String(e.id)); });
-      var mergedEl = d.editLog.concat(localOnlyEl);
-      mergedEl.sort(function(a,b){ return (b.ts||'') > (a.ts||'') ? 1 : -1; });
-      if(mergedEl.length > 500) mergedEl = mergedEl.slice(0, 500);
-      if(JSON.stringify(mergedEl) !== JSON.stringify(editLog)){
-        editLog = mergedEl;
+      var newLog = d.editLog.slice(0, 500);
+      if(JSON.stringify(newLog) !== JSON.stringify(editLog)){
+        editLog = newLog;
         saveEditLog();
         if(currentPage === 'editlog') renderEditLog();
         changed = true;
