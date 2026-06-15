@@ -5443,7 +5443,7 @@ async function downloadPDF(){
       scrollX:0,
       scrollY:0,
       imageTimeout:0,
-      allowTaint:false
+      allowTaint:true
     });
     el.style.cssText=orig;
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -5484,15 +5484,19 @@ function addWatermark(pdf, pw, ph){
   try{
     pdf.saveGraphicsState();
     pdf.setGState(new pdf.GState({opacity:0.07}));
-    // Centre logo watermark
+    // Centre logo watermark — only if logo is a valid non-empty data URL
     var logoSrc = LOGO_URL || '';
-    if(logoSrc){
-      var imgSize = 80;
-      var x = (pw - imgSize) / 2;
-      var y = (ph - imgSize) / 2;
-      pdf.addImage(logoSrc, 'PNG', x, y, imgSize, imgSize);
+    if(logoSrc && logoSrc.indexOf('data:image') === 0 && logoSrc.length > 100){
+      try{
+        var imgSize = 80;
+        var x = (pw - imgSize) / 2;
+        var y = (ph - imgSize) / 2;
+        // Detect format from data URL
+        var fmt = logoSrc.indexOf('data:image/png') === 0 ? 'PNG' : 'JPEG';
+        pdf.addImage(logoSrc, fmt, x, y, imgSize, imgSize);
+      }catch(imgErr){ console.log('WM logo skip:', imgErr.message); }
     }
-    // Also add diagonal text at +45 degrees
+    // Diagonal text watermark
     pdf.setTextColor(26,58,42);
     pdf.setFontSize(14);
     var text = 'The Jeans Club';
@@ -5521,7 +5525,7 @@ async function shareWA(inv){
       var canvas=await html2canvas(el,{
         scale:2.5,useCORS:true,backgroundColor:'#ffffff',letterRendering:true,imageTimeout:0,
         logging:false,width:800,windowWidth:800,
-        scrollX:0,scrollY:0,imageTimeout:0,allowTaint:false
+        scrollX:0,scrollY:0,imageTimeout:0,allowTaint:true
       });
       el.style.cssText=orig;
 
@@ -6984,7 +6988,7 @@ async function downloadReceiptPDF(){
     var orig=el.style.cssText;
     el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
     await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
+    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
     el.style.cssText=orig;
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
@@ -7821,7 +7825,7 @@ async function downloadSingleExpensePDF(eid){
     wrapper.innerHTML = html;
     document.body.appendChild(wrapper);
     await new Promise(function(r){ setTimeout(r, 200); });
-    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, allowTaint:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -7875,7 +7879,7 @@ async function downloadExpenseDatePDF(date){
     wrapper.innerHTML = html;
     document.body.appendChild(wrapper);
     await new Promise(function(r){ setTimeout(r, 200); });
-    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, allowTaint:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -8208,7 +8212,7 @@ async function generateDailyPDF(reportDate){
   try{
     var el = container.querySelector('#dailyReportPrint');
     await new Promise(function(r){setTimeout(r,200);});
-    var canvas = await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:794,windowWidth:794,scrollX:0,scrollY:0,x:0,y:0});
+    var canvas = await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:794,windowWidth:794,scrollX:0,scrollY:0,x:0,y:0});
     document.body.removeChild(container);
 
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -8690,7 +8694,7 @@ async function _renderAndSavePDF(html, selector, filename, toast){
   try{
     var el=container.querySelector(selector);
     await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:794,windowWidth:794,scrollX:0,scrollY:0,x:0,y:0});
+    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:794,windowWidth:794,scrollX:0,scrollY:0,x:0,y:0});
     document.body.removeChild(container);
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw=pdf.internal.pageSize.getWidth();
@@ -8901,7 +8905,7 @@ async function downloadInventoryPDF(){
     var el = container.querySelector('#invReportPrint');
     await new Promise(function(r){setTimeout(r,200);});
     var canvas = await html2canvas(el,{
-      scale:2, useCORS:true, backgroundColor:'#fff',
+      scale:2, useCORS:true, allowTaint:true, backgroundColor:'#fff',
       logging:false, width:1050, windowWidth:1050, scrollX:0, scrollY:0
     });
     document.body.removeChild(container);
@@ -9716,7 +9720,7 @@ async function downloadSPReceiptPDF(){
     var orig=el.style.cssText;
     el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
     await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
+    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
     el.style.cssText=orig;
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
