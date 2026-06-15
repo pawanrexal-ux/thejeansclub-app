@@ -5601,6 +5601,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}});
       el.style.cssText=orig;
 
@@ -6136,6 +6139,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}}).then(function(canvas){
     document.body.removeChild(container);
     var pdf = new window.jspdf.jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
@@ -7949,6 +7955,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -8011,6 +8020,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -9047,6 +9059,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}});
     document.body.removeChild(container);
 
@@ -9868,6 +9883,9 @@ clonedDoc.querySelectorAll('img').forEach(function(img){
     img.style.display='none';
     img.removeAttribute('src');
   }
+
+// Remove zero-size canvas elements (causes createPattern error on desktop browsers)
+clonedDoc.querySelectorAll('canvas').forEach(function(c){if(!c.width||!c.height){c.style.display='none';}});
 });}});
     el.style.cssText=orig;
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
