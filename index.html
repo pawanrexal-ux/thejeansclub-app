@@ -3046,7 +3046,9 @@ function checkLogin(){
 
   loadStaffPerms();
   var lImg = document.getElementById('appLogoData');
-  if(lImg) LOGO_URL = lImg.src;
+  if(lImg && lImg.src && lImg.src.indexOf('data:image') === 0 && lImg.src.length > 100){
+    LOGO_URL = lImg.src;
+  }
 
   // Online listener — flush queue when connection returns
   window.addEventListener('online', function() {
@@ -4405,7 +4407,7 @@ function buildPreview(inv){
     +'<div class="inv-prev-stripe" style="background:linear-gradient(90deg,'+statusColor+' 0%,'+statusColor+'cc 50%,'+statusColor+'88 100%);height:5px;"></div>'
     +'<div class="inv-hdr">'
     +'<div class="inv-brand-row">'
-    +'<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>'
+    +(LOGO_URL && LOGO_URL.length > 100 ? '<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>' : '<div class="inv-brand-logo" style="display:flex;align-items:center;justify-content:center;font-size:18px;background:#e8f0eb;">👕</div>')
     +'<div>'
     +'<div class="inv-brand-name">'+escH(biz)+'</div>'
     +'<div class="inv-brand-tag">Trendy Articles Ka Adda</div>'
@@ -5559,7 +5561,15 @@ async function shareWA(inv){
       var orig=el.style.cssText;
       el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
       await new Promise(function(r){setTimeout(r,300);});
-      var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800,scrollX:0,scrollY:0,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}});
+      var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800,scrollX:0,scrollY:0,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}});
       el.style.cssText=orig;
 
       // Build A4 PDF
@@ -6086,7 +6096,15 @@ function exportInvReportPDF() {
   container.innerHTML = html;
   document.body.appendChild(container);
 
-  html2canvas(container, {scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false,width:900,windowWidth:900,scrollX:0,scrollY:0,imageTimeout:0,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}}).then(function(canvas){
+  html2canvas(container, {scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false,width:900,windowWidth:900,scrollX:0,scrollY:0,imageTimeout:0,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}}).then(function(canvas){
     document.body.removeChild(container);
     var pdf = new window.jspdf.jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
     var pw = pdf.internal.pageSize.getWidth();
@@ -6683,7 +6701,7 @@ function buildPendingPreview(r){
     +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+' 0%,'+rcptColor+'cc 50%,'+rcptColor+'88 100%);"></div>'
     +'<div class="inv-hdr">'
     +'<div class="inv-brand-row">'
-    +'<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>'
+    +(LOGO_URL && LOGO_URL.length > 100 ? '<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>' : '<div class="inv-brand-logo" style="display:flex;align-items:center;justify-content:center;font-size:18px;background:#e8f0eb;">👕</div>')
     +'<div><div class="inv-brand-name" style="color:#1c2b33;">'+escH(biz)+'</div>'
     +'<div class="inv-brand-tag" style="color:#546e7a;">Trendy Articles Ka Adda</div>'
     +(SETTINGS.ph?'<div class="inv-brand-gst">&#128222; '+escH(SETTINGS.ph)+'</div>':'')
@@ -7883,7 +7901,15 @@ async function downloadSingleExpensePDF(eid){
     wrapper.innerHTML = html;
     document.body.appendChild(wrapper);
     await new Promise(function(r){ setTimeout(r, 200); });
-    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}});
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -7937,7 +7963,15 @@ async function downloadExpenseDatePDF(date){
     wrapper.innerHTML = html;
     document.body.appendChild(wrapper);
     await new Promise(function(r){ setTimeout(r, 200); });
-    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}});
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}});
     document.body.removeChild(wrapper);
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
@@ -8965,7 +8999,15 @@ async function downloadInventoryPDF(){
     var canvas = await html2canvas(el,{
       scale:2, useCORS:true, allowTaint:true, backgroundColor:'#fff',
       logging:false, width:1050, windowWidth:1050, scrollX:0, scrollY:0
-    ,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}});
+    ,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}});
     document.body.removeChild(container);
 
     // A4 Landscape for wide table
@@ -9728,7 +9770,7 @@ function buildSPPreview(r){
     +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+' 0%,'+rcptColor+'cc 50%,'+rcptColor+'88 100%);"></div>'
     +'<div class="inv-hdr">'
     +'<div class="inv-brand-row">'
-    +'<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>'
+    +(LOGO_URL && LOGO_URL.length > 100 ? '<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>' : '<div class="inv-brand-logo" style="display:flex;align-items:center;justify-content:center;font-size:18px;background:#e8f0eb;">👕</div>')
     +'<div><div class="inv-brand-name" style="color:#1c2b33;">'+escH(biz)+'</div>'
     +'<div class="inv-brand-tag" style="color:#546e7a;">Trendy Articles Ka Adda</div>'
     +(SETTINGS.ph?'<div class="inv-brand-gst">&#128222; '+escH(SETTINGS.ph)+'</div>':'')
@@ -9778,7 +9820,15 @@ async function downloadSPReceiptPDF(){
     var orig=el.style.cssText;
     el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
     await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}}});
+    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,allowTaint:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800,onclone:function(clonedDoc){var m={'--g':'#14342A','--gd':'#0a1f14','--gm':'#1a4236','--gl':'#24614d','--gb':'#2e7d5e','--gold':'#b8942e','--gl2':'#d4af5a','--gd2':'#7a5c1e','--w':'#ffffff','--w2':'#f5f5f0','--ow':'#faf8f3','--bdr':'#e0ddd8'};function rv(s){return s.replace(/var\(([^)]+)\)/g,function(x,n){return m[n.trim()]||x;});}clonedDoc.querySelectorAll('*').forEach(function(e){var s=e.getAttribute('style');if(s&&s.indexOf('var(')!==-1)e.setAttribute('style',rv(s));});try{var sh=clonedDoc.styleSheets;for(var i=0;i<sh.length;i++){try{var ru=sh[i].cssRules;for(var j=0;j<ru.length;j++){if(ru[j].style){var cs=ru[j].style.cssText;if(cs&&cs.indexOf('var(')!==-1)ru[j].style.cssText=rv(cs);}}}catch(e2){}}}catch(e3){}
+// Remove any img with empty/invalid src (causes createPattern error in html2canvas)
+clonedDoc.querySelectorAll('img').forEach(function(img){
+  var s=img.getAttribute('src')||'';
+  if(!s||s===''||s==='undefined'||(s.indexOf('data:image')===0&&s.length<50)){
+    img.style.display='none';
+    img.removeAttribute('src');
+  }
+});}});
     el.style.cssText=orig;
     var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
