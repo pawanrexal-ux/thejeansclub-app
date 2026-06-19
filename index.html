@@ -5424,55 +5424,72 @@ function renderDashboard(){
   if(dl)dl.innerHTML=low.length?low.map(function(i){return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bdr);"><span style="font-family:Arial,sans-serif;font-weight:700;">'+escH(i.name)+'</span><span style="color:#e74c3c;font-weight:700;">'+i.qty+' left</span></div>';}).join(''):emptyState('✅','Sab theek hai!','Koi bhi item low stock mein nahi hai');
 }
 
+// ===== SHARED PDF CAPTURE HELPER =====
+// Clones the element into an off-screen fixed-width container so html2canvas
+// always captures a full-width render regardless of current screen size or
+// whether the source page is active.
+async function _captureElToPDF(el){
+  var PDF_W = 800;
+  var wrapper = document.createElement('div');
+  wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;width:'+PDF_W+'px;background:#fff;z-index:-1;';
+  var clone = el.cloneNode(true);
+  clone.style.cssText = 'width:'+PDF_W+'px !important;max-width:'+PDF_W+'px !important;font-size:12px;box-sizing:border-box;';
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+  await new Promise(function(r){setTimeout(r,250);});
+  var canvas;
+  try{
+    canvas = await html2canvas(clone,{
+      scale:2.5,
+      useCORS:true,
+      backgroundColor:'#ffffff',
+      logging:false,
+      width:PDF_W,
+      windowWidth:PDF_W,
+      scrollX:0,
+      scrollY:0,
+      imageTimeout:0,
+      allowTaint:false
+    });
+  } finally {
+    document.body.removeChild(wrapper);
+  }
+  var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var pw = pdf.internal.pageSize.getWidth();
+  var ph = pdf.internal.pageSize.getHeight();
+  var margin = 6;
+  var imgW = pw - margin*2;
+  var imgH = (canvas.height * imgW) / canvas.width;
+  var pageH = ph - margin*2;
+  var imgData = canvas.toDataURL('image/jpeg', 0.88);
+  if(imgH <= pageH){
+    pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
+  } else {
+    var pxPerMm = canvas.width / imgW;
+    var pageHPx = pageH * pxPerMm;
+    var offsetPx = 0, pageNum = 0;
+    while(offsetPx < canvas.height){
+      if(pageNum > 0) pdf.addPage();
+      var slicePx = Math.min(pageHPx, canvas.height - offsetPx);
+      var sliceMm = slicePx / pxPerMm;
+      var tc = document.createElement('canvas');
+      tc.width = canvas.width; tc.height = Math.ceil(slicePx);
+      tc.getContext('2d').drawImage(canvas,0,offsetPx,canvas.width,slicePx,0,0,canvas.width,slicePx);
+      pdf.addImage(tc.toDataURL('image/jpeg',0.88),'JPEG',margin,margin,imgW,sliceMm);
+      offsetPx += slicePx; pageNum++;
+    }
+  }
+  return pdf;
+}
+
 // ===== PDF (High Quality) =====
 async function downloadPDF(){
   var el=document.getElementById('invPrint');
   if(!el){showToast('No invoice to download');return;}
   showToast('Generating PDF...');
   try{
-    var orig=el.style.cssText;
-    el.style.cssText=orig+';width:800px !important;max-width:800px !important;font-size:12px !important;';
-    await new Promise(function(r){setTimeout(r,300);});
-    var canvas=await html2canvas(el,{
-      scale:2.5,
-      useCORS:true,
-      backgroundColor:'#ffffff',
-      logging:false,
-      width:800,
-      windowWidth:800,
-      scrollX:0,
-      scrollY:0,
-      imageTimeout:0,
-      allowTaint:false
-    });
-    el.style.cssText=orig;
-    var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var pw=pdf.internal.pageSize.getWidth();
-    var ph=pdf.internal.pageSize.getHeight();
-    var margin=6;
-    var imgW=pw-margin*2;
-    var imgH=(canvas.height*imgW)/canvas.width;
-    var pageH=ph-margin*2;
-    var imgData=canvas.toDataURL('image/jpeg', 0.82); // PNG for crisp text
-    if(imgH<=pageH){
-      pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
-    } else {
-      var pxPerMm=canvas.width/imgW;
-      var pageHPx=pageH*pxPerMm;
-      var offsetPx=0, pageNum=0;
-      while(offsetPx<canvas.height){
-        if(pageNum>0) pdf.addPage();
-        var slicePx=Math.min(pageHPx,canvas.height-offsetPx);
-        var sliceMm=slicePx/pxPerMm;
-        var tc=document.createElement('canvas');
-        tc.width=canvas.width; tc.height=Math.ceil(slicePx);
-        var ctx=tc.getContext('2d');
-        ctx.drawImage(canvas,0,offsetPx,canvas.width,slicePx,0,0,canvas.width,slicePx);
-        pdf.addImage(tc.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,sliceMm);
-        offsetPx+=slicePx; pageNum++;
-      }
-    }
-    // Add watermark "The Jeans Club PAID ✅"
+    var pdf = await _captureElToPDF(el);
+    var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
     addWatermark(pdf, pw, ph);
     var nm=(currentInv?currentInv.invNo:'invoice').replace(/\//g,'_');
     pdf.save('TheJeans_'+nm+'.pdf');
@@ -6981,28 +6998,7 @@ async function downloadReceiptPDF(){
   if(!el){showToast('No receipt');return;}
   showToast('Generating PDF...');
   try{
-    var orig=el.style.cssText;
-    el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
-    await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
-    el.style.cssText=orig;
-    var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
-    var margin=6, imgW=pw-margin*2, imgH=(canvas.height*imgW)/canvas.width;
-    var imgData=canvas.toDataURL('image/jpeg', 0.82);
-    if(imgH<=ph-margin*2){ pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH); }
-    else {
-      var pxpm=canvas.width/imgW, pageHpx=(ph-margin*2)*pxpm, off=0, pn=0;
-      while(off<canvas.height){
-        if(pn>0) pdf.addPage();
-        var sl=Math.min(pageHpx,canvas.height-off), slmm=sl/pxpm;
-        var tc=document.createElement('canvas'); tc.width=canvas.width; tc.height=Math.ceil(sl);
-        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,slmm);
-        off+=sl; pn++;
-      }
-    }
-    // Add watermark to receipt
+    var pdf = await _captureElToPDF(el);
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     var nm=(currentPendingReceipt?currentPendingReceipt.receiptNo:'receipt').replace(/\//g,'_');
     pdf.save('The Jeans Club_Receipt_'+nm+'.pdf');
@@ -9713,27 +9709,7 @@ async function downloadSPReceiptPDF(){
   if(!el){showToast('No receipt to download');return;}
   showToast('Generating PDF...');
   try{
-    var orig=el.style.cssText;
-    el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
-    await new Promise(function(r){setTimeout(r,200);});
-    var canvas=await html2canvas(el,{scale:2.5,useCORS:true,backgroundColor:'#fff',letterRendering:true,imageTimeout:0,logging:false,width:800,windowWidth:800});
-    el.style.cssText=orig;
-    var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-    var pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
-    var margin=6, imgW=pw-margin*2, imgH=(canvas.height*imgW)/canvas.width;
-    var imgData=canvas.toDataURL('image/jpeg',0.82);
-    if(imgH<=ph-margin*2){ pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH); }
-    else{
-      var pxpm=canvas.width/imgW, pageHpx=(ph-margin*2)*pxpm, off=0, pn=0;
-      while(off<canvas.height){
-        if(pn>0) pdf.addPage();
-        var sl=Math.min(pageHpx,canvas.height-off), slmm=sl/pxpm;
-        var tc=document.createElement('canvas'); tc.width=canvas.width; tc.height=Math.ceil(sl);
-        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/jpeg',0.82),'JPEG',margin,margin,imgW,slmm);
-        off+=sl; pn++;
-      }
-    }
+    var pdf = await _captureElToPDF(el);
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     var nm=(currentSPReceipt?currentSPReceipt.spNo:'sp_receipt').replace(/\//g,'_');
     pdf.save('The Jeans Club_SPReceipt_'+nm+'.pdf');
