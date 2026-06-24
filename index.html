@@ -10844,6 +10844,7 @@ function renderPnL(){
   // totalPaid = sum of all paidAmounts (includes Paid, Partial direct payments, and receipt-updated invoices)
   var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
+  var totalGst = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
 
   // KPI Cards
   var kpiGrid = document.getElementById('pl-kpi-grid');
@@ -10857,6 +10858,7 @@ function renderPnL(){
       {label:'Net Margin', val:fmtPct(netMargin), color:netMargin>=0?'#1b5e20':'#b71c1c', bg:netMargin>=0?'#f1f8e9':'#ffeaea', icon:'🎯', nav:null, tip:''},
       {label:'Invoices', val:filtInv.length, color:'#4a148c', bg:'#f3e5f5', icon:'🧾', nav:'history', tip:'Tap → Invoice History'},
       {label:'Pending Dues', val:fmtNum(totalPending), color:'#bf360c', bg:'#fff8e1', icon:'⏳', nav:'pending', tip:'Tap → Pending Payments'},
+      {label:'GST Collected', val:fmtNum(totalGst), color:'#006064', bg:'#e0f7fa', icon:'🏛️', nav:null, tip:''},
     ];
     kpiGrid.innerHTML = cards.map(function(c){
       var dblAttr = c.nav ? ' onclick="navTo(\''+c.nav+'\',null)" title="'+c.tip+'"' : '';
@@ -11018,6 +11020,8 @@ function renderPnL(){
     rows.push({label:'Net Profit Margin', val:fmtPct(netMargin), bold:false, color:'#546e7a', bg:''});
     rows.push({label:'Invoices Collected', val:fmtNum(totalPaid), bold:false, color:'#2e7d32', bg:''});
     rows.push({label:'Pending Receivables', val:fmtNum(totalPending), bold:false, color:'#e65100', bg:''});
+    rows.push({label:'TAX', val:'', bold:true, color:'', bg:'#f0f4f8'});
+    rows.push({label:'GST Collected', val:fmtNum(totalGst), bold:false, color:'#006064', bg:''});
 
     stmt.innerHTML = rows.map(function(r){
           var isNetRow = r.label === 'NET PROFIT / LOSS';
@@ -11071,6 +11075,7 @@ function exportPnLExcel(){
   var totalExpenses = filtExp.reduce(function(s,e){ return s+(e.amount||0); }, 0);
   var grossProfit = totalSales - totalPurchases;
   var netProfit = grossProfit - totalExpenses;
+  var totalGstExp = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
   var wb = XLSX.utils.book_new();
   var summData = [
     ['P&L SUMMARY'],
@@ -11083,6 +11088,9 @@ function exportPnLExcel(){
     ['Total Expenses', totalExpenses],
     ['NET PROFIT', netProfit],
     ['Net Margin %', totalSales>0?(netProfit/totalSales*100).toFixed(2):0],
+    [],
+    ['TAX'],
+    ['GST Collected', totalGstExp],
   ];
   var ws1 = XLSX.utils.aoa_to_sheet(summData);
   XLSX.utils.book_append_sheet(wb, ws1, 'P&L Summary');
@@ -11120,6 +11128,7 @@ function exportPnLPDF(){
   var netMargin = totalSales > 0 ? (netProfit/totalSales*100).toFixed(1) : '0.0';
   var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
+  var totalGstPdf = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
 
   // Category breakdown
   var expCatMap = {};
@@ -11174,6 +11183,7 @@ function exportPnLPDF(){
     +'<div class="kpi" style="border-left-color:#1565c0;"><div class="kpi-label">Gross Profit</div><div class="kpi-val" style="color:'+gpColor+';">'+fmtNum(grossProfit)+'</div></div>'
     +'<div class="kpi" style="border-left-color:'+netColor+';"><div class="kpi-label">Net Profit</div><div class="kpi-val" style="color:'+netColor+';">'+fmtNum(netProfit)+'</div></div>'
     +'<div class="kpi" style="border-left-color:#546e7a;"><div class="kpi-label">Net Margin</div><div class="kpi-val" style="color:#546e7a;">'+netMargin+'%</div></div>'
+    +'<div class="kpi" style="border-left-color:#006064;"><div class="kpi-label">GST Collected</div><div class="kpi-val" style="color:#006064;">'+fmtNum(totalGstPdf)+'</div></div>'
     +'</div>'
 
     // P&L Statement
@@ -11191,6 +11201,8 @@ function exportPnLPDF(){
     +'<tr><td style="padding-left:20px;color:#888;">Net Profit Margin</td><td style="text-align:right;color:#888;">'+netMargin+'%</td></tr>'
     +'<tr><td style="padding-left:20px;color:#2e7d32;">Invoices Collected</td><td style="text-align:right;color:#2e7d32;">'+fmtNum(totalPaid)+'</td></tr>'
     +'<tr><td style="padding-left:20px;color:#e65100;">Pending Receivables</td><td style="text-align:right;color:#e65100;">'+fmtNum(totalPending)+'</td></tr>'
+    +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">TAX</td><td></td></tr>'
+    +'<tr><td style="padding-left:20px;color:#006064;">GST Collected</td><td style="text-align:right;color:#006064;font-weight:600;">'+fmtNum(totalGstPdf)+'</td></tr>'
     +'</tbody></table>'
 
     // Expense Category Breakdown
