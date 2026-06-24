@@ -3245,8 +3245,8 @@ function staffCanAccess(page){
   if(CURRENT_ROLE === 'admin') return true;
   // Settings always blocked for staff
   if(page === 'settings') return false;
-  // pnl, editlog, supplierpay, suppaypreview always blocked for staff
-  if(page === 'pnl' || page === 'editlog') return false;
+  // pnl, profitreport, editlog, supplierpay, suppaypreview always blocked for staff
+  if(page === 'pnl' || page === 'profitreport' || page === 'editlog') return false;
   if(page === 'supplierpay' || page === 'suppaypreview') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
@@ -3656,7 +3656,7 @@ function navTo(page, el, mi){
   if(page==='lowlist'){ if(!staffCanAccess('lowlist')){showToast('⛔ Access Denied');navTo('invoice',null);return;} renderLowList(); }
   if(page==='costing') calcCost();
   if(page==='salesreport') renderSalesReport();
-  if(page==='profitreport') renderProfitReport();
+  if(page==='profitreport'){ if(!staffCanAccess('profitreport')){showToast('⛔ Access Denied — Item Profit sirf Admin ke liye hai');navTo('invoice',null);return;} renderProfitReport(); }
   if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); }, 100); }
 
   if(page==='purchases') renderPurchaseDashboard();
