@@ -1578,7 +1578,11 @@ input[type=tel], textarea, select {
           </div>
           <div class="card">
             <div class="card-head"><div class="card-icon">&#127775;</div><div class="card-title">Category Profit Share</div></div>
-            <div class="card-body" style="padding-bottom:12px;"><canvas id="pr-donut-chart" style="max-height:220px;"></canvas></div>
+            <div class="card-body" style="padding-bottom:12px;">
+              <div style="position:relative;width:100%;height:220px;">
+                <canvas id="pr-donut-chart"></canvas>
+              </div>
+            </div>
           </div>
         </div>
         <div class="card" id="pr-table-card">
@@ -1855,8 +1859,10 @@ input[type=tel], textarea, select {
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;" id="pl-bottom-row">
     <div class="card">
       <div class="card-head"><div class="card-icon">&#129518;</div><div class="card-title">Expense Breakdown</div></div>
-      <div class="card-body" style="padding-bottom:10px;display:flex;justify-content:center;">
-        <canvas id="pl-donut-chart" height="200" width="200"></canvas>
+      <div class="card-body" style="padding-bottom:10px;">
+        <div style="position:relative;width:100%;height:220px;">
+          <canvas id="pl-donut-chart"></canvas>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -10560,7 +10566,7 @@ function renderProfitReport(){
             borderWidth:2, borderColor:'#fff' }]
         },
         options:{
-          responsive:true, maintainAspectRatio:true,
+          responsive:true, maintainAspectRatio:false,
           plugins:{
             legend:{ position:'bottom', labels:{ font:{size:9}, padding:8 } },
             tooltip:{ callbacks:{ label:function(ctx){ return ctx.label+': ₹'+ctx.parsed.toLocaleString('en-IN'); } } }
@@ -10845,7 +10851,6 @@ function renderPnL(){
   var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
   var totalGst = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
-  var totalDiscount = filtInv.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); }, 0);
 
   // KPI Cards
   var kpiGrid = document.getElementById('pl-kpi-grid');
@@ -10860,7 +10865,6 @@ function renderPnL(){
       {label:'Invoices', val:filtInv.length, color:'#4a148c', bg:'#f3e5f5', icon:'🧾', nav:'history', tip:'Tap → Invoice History'},
       {label:'Pending Dues', val:fmtNum(totalPending), color:'#bf360c', bg:'#fff8e1', icon:'⏳', nav:'pending', tip:'Tap → Pending Payments'},
       {label:'GST Collected', val:fmtNum(totalGst), color:'#006064', bg:'#e0f7fa', icon:'🏛️', nav:null, tip:''},
-      {label:'Total Discount', val:fmtNum(totalDiscount), color:'#6a1b9a', bg:'#f3e5f5', icon:'🏷️', nav:null, tip:''},
     ];
     kpiGrid.innerHTML = cards.map(function(c){
       var dblAttr = c.nav ? ' onclick="navTo(\''+c.nav+'\',null)" title="'+c.tip+'"' : '';
@@ -10974,7 +10978,7 @@ function renderPnL(){
           datasets: [{data: catKeys.map(function(k){ return expCatMap[k]; }), backgroundColor: catKeys.map(function(k,i){ return catColors[i%catColors.length]; }), borderWidth:2, borderColor:'#fff'}]
         },
         options:{
-          responsive:true, maintainAspectRatio:true,
+          responsive:true, maintainAspectRatio:false,
           plugins:{legend:{position:'bottom', labels:{font:{size:9}, padding:8}},
           tooltip:{callbacks:{label:function(ctx){ return ctx.label+': ₹'+ctx.parsed.toLocaleString('en-IN'); }}}}
         }
@@ -11024,8 +11028,6 @@ function renderPnL(){
     rows.push({label:'Pending Receivables', val:fmtNum(totalPending), bold:false, color:'#e65100', bg:''});
     rows.push({label:'TAX', val:'', bold:true, color:'', bg:'#f0f4f8'});
     rows.push({label:'GST Collected', val:fmtNum(totalGst), bold:false, color:'#006064', bg:''});
-    rows.push({label:'DISCOUNTS', val:'', bold:true, color:'', bg:'#f0f4f8'});
-    rows.push({label:'Total Discount Given', val:'('+fmtNum(totalDiscount)+')', bold:false, color:'#6a1b9a', bg:''});
 
     stmt.innerHTML = rows.map(function(r){
           var isNetRow = r.label === 'NET PROFIT / LOSS';
