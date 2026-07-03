@@ -5887,7 +5887,14 @@ async function shareWA(inv){
     }catch(e){ console.log('PDF build error:',e); }
   }
 
-  // 2) Open WhatsApp text message (with clickable Instagram/Website links).
+  // 2) Show the one-tap "Send PDF" button FIRST — before opening WhatsApp —
+  // since on desktop, opening wa.me can navigate the SAME tab/window instead
+  // of a new one, which would kill this script before it reaches later lines.
+  if(pdfFile){
+    showSendPdfButton(pdfFile, fname, 'Invoice - '+i.custName, 'Invoice '+i.invNo+' | '+i.custName+' | '+fmt(i.total));
+  }
+
+  // 3) Open WhatsApp text message (with clickable Instagram/Website links).
   var lines='';
   i.items.filter(function(x){return x.name;}).forEach(function(x){
     lines+='  '+x.name+' x'+x.qty+' = Rs.'+Math.round(x.qty*(x.origPrice||x.price)).toLocaleString('en-IN')+'\n';
@@ -5895,12 +5902,7 @@ async function shareWA(inv){
   var slT2=socialLinksText();
   var msg='*INVOICE - The Jeans Club*\n\nInvoice: *'+i.invNo+'*\nDate: '+i.invDate+'\n\n*Customer:* '+i.custName+(phone?'\nPhone: +91'+phone:'')+'\n\n*Items:*\n'+lines+'\n*Total: Rs.'+Math.round(i.total).toLocaleString('en-IN')+'*\nPayment: '+i.payMode+' ('+i.payStatus+')'+(i.payMode==='Split'?'\n  Cash: Rs.'+Math.round(i.cashAmt||0).toLocaleString('en-IN')+' | UPI: Rs.'+Math.round(i.upiAmt||0).toLocaleString('en-IN'):'')+'\n\n_Trendy Articles Ka Adda - Dress Like an Alpha_'+(slT2?'\n'+slT2:'');
   var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
-  window.open(url,'_blank');
-
-  // 3) Show the one-tap "Send PDF" button (PDF is already built, so it's instant).
-  if(pdfFile){
-    showSendPdfButton(pdfFile, fname, 'Invoice - '+i.custName, 'Invoice '+i.invNo+' | '+i.custName+' | '+fmt(i.total));
-  }
+  window.open(url,'_blank','noopener,noreferrer');
 }
 
 // ===== EXCEL =====
@@ -7331,7 +7333,14 @@ async function shareReceiptWA(id){
     }catch(e){ console.log('Receipt PDF build error:',e); }
   }
 
-  // 2) Open WhatsApp text message (with clickable Instagram/Website links).
+  // 2) Show the one-tap "Send PDF" button FIRST — before opening WhatsApp —
+  // since on desktop, opening wa.me can navigate the SAME tab/window instead
+  // of a new one, which would kill this script before it reaches later lines.
+  if(pdfFile){
+    showSendPdfButton(pdfFile, fname, 'Payment Receipt - '+r.custName, 'Receipt '+r.receiptNo+' | '+r.custName+' | Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN'));
+  }
+
+  // 3) Open WhatsApp text message (with clickable Instagram/Website links).
   var phone=(r.custPhone||'').replace(/\D/g,'');
   var isSplit = (r.payMode==='Split');
   var modeStr = isSplit
@@ -7340,12 +7349,7 @@ async function shareReceiptWA(id){
   var slT=socialLinksText();
   var msg='*PAYMENT RECEIPT - The Jeans Club*\n\nReceipt: *'+r.receiptNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Amount Paid: Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN')+'*\nPayment Mode: '+modeStr+(r.remainingAmt>0?'\nBalance Remaining: Rs.'+Math.round(r.remainingAmt).toLocaleString('en-IN'):'\nStatus: PAID IN FULL')+'\n\n_Thank you for your payment! - The Jeans Club_'+(slT?'\n'+slT:'');
   var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
-  window.open(url,'_blank');
-
-  // 3) Show the one-tap "Send PDF" button (PDF is already built, so it's instant).
-  if(pdfFile){
-    showSendPdfButton(pdfFile, fname, 'Payment Receipt - '+r.custName, 'Receipt '+r.receiptNo+' | '+r.custName+' | Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN'));
-  }
+  window.open(url,'_blank','noopener,noreferrer');
 }
 async function downloadReceiptPDF(){
   var el=document.getElementById('ppPrint');
