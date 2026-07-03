@@ -373,12 +373,12 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .inv-brand-tag{font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--mu);margin-top:4px;font-weight:700;}
 .inv-brand-gst{font-size:8px;letter-spacing:1px;color:#555;margin-top:2px;font-family:Arial,sans-serif;font-weight:700;}
 .inv-title-block{text-align:right;}
-.inv-title{font-family:"Cormorant Garamond",serif;font-size:21px;font-weight:700;color:var(--gd);letter-spacing:4px;text-transform:uppercase;}
+.inv-title{font-family:"Marcellus",serif;font-size:21px;font-weight:700;color:var(--gd);letter-spacing:4px;text-transform:uppercase;}
 .inv-num{font-size:10px;color:var(--mu);margin-top:3px;letter-spacing:.5px;font-weight:700;}
 .inv-meta-band{background:linear-gradient(135deg,var(--ow) 0%,var(--w2) 100%);border-top:1px solid var(--bdr);border-bottom:1px solid var(--bdr);padding:14px 24px;}
 .inv-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.inv-meta .iml{font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:var(--mu2);margin-bottom:4px;font-weight:700;}
-.inv-meta .imv{font-size:12px;color:var(--t);font-weight:700;line-height:1.6;}
+.inv-meta .iml{font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:var(--mu2);margin-bottom:4px;font-weight:800;}
+.inv-meta .imv{font-size:12px;color:var(--t);font-weight:800;line-height:1.6;}
 .inv-items-wrap{padding:16px 24px 0;}
 .inv-tbl{width:100%;border-collapse:collapse;margin-bottom:0;}
 .inv-tbl thead tr{background:linear-gradient(90deg,var(--gm),var(--gl));}
@@ -4708,7 +4708,7 @@ function buildPreview(inv){
     +'</tr></thead><tbody>'+rows+'</tbody></table>'
     +'</div>'
     +'<div class="inv-tots-wrap"><div class="inv-tots">'
-    +'<div class="inv-tot-row"><span style="font-family:Arial,sans-serif;color:#666;">Subtotal</span><span style="font-family:Arial,sans-serif;font-weight:600;color:#37474f;">'+fmt(inv.sub)+'</span></div>'
+    +'<div class="inv-tot-row"><span style="font-family:Arial,sans-serif;font-weight:700;color:#666;">Subtotal</span><span style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;">'+fmt(inv.sub)+'</span></div>'
     +(inv.disc>0?'<div class="inv-tot-row" style="color:#d32f2f;"><span style="font-family:Arial,sans-serif;">Discount</span><span style="font-family:Arial,sans-serif;font-weight:700;color:#d32f2f;">− '+fmt(inv.disc)+'</span></div>':'')
     +gstHtml
     +'<div class="inv-tot-row grand"><span style="font-family:Arial,sans-serif;letter-spacing:2px;">TOTAL</span><span style="font-family:Arial,sans-serif;">'+fmt(inv.total)+'</span></div>'
@@ -4868,7 +4868,13 @@ function deleteInv(id){
   renderHistory();
   showToast('✓ Invoice deleted — stock restored');
 }
-function shareWAById(id){ var inv=invoices.find(function(i){return i.id===id;}); if(inv)shareWA(inv); }
+function shareWAById(id){
+  var inv=invoices.find(function(i){return i.id===id;});
+  if(!inv){showToast('Invoice not found');return;}
+  currentInv=inv;
+  buildPreview(inv);
+  setTimeout(function(){ shareWA(inv); }, 400);
+}
 function downloadInvPDFById(id){ var inv=invoices.find(function(i){return i.id===id;}); if(!inv){showToast('Invoice not found');return;} currentInv=inv; buildPreview(inv); setTimeout(function(){ downloadPDF(); }, 400); }
 
 function editInv(id){
@@ -5733,7 +5739,7 @@ async function _captureElToPDF(el){
   var canvas;
   try{
     canvas = await html2canvas(clone,{
-      scale:2.5,
+      scale:3.2,
       useCORS:true,
       backgroundColor:'#ffffff',
       logging:false,
@@ -5754,7 +5760,7 @@ async function _captureElToPDF(el){
   var imgW = pw - margin*2;
   var imgH = (canvas.height * imgW) / canvas.width;
   var pageH = ph - margin*2;
-  var imgData = canvas.toDataURL('image/jpeg', 0.95);
+  var imgData = canvas.toDataURL('image/jpeg', 0.90);
   if(imgH <= pageH){
     pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
   } else {
@@ -5768,7 +5774,7 @@ async function _captureElToPDF(el){
       var tc = document.createElement('canvas');
       tc.width = canvas.width; tc.height = Math.ceil(slicePx);
       tc.getContext('2d').drawImage(canvas,0,offsetPx,canvas.width,slicePx,0,0,canvas.width,slicePx);
-      pdf.addImage(tc.toDataURL('image/jpeg',0.95),'JPEG',margin,margin,imgW,sliceMm);
+      pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',margin,margin,imgW,sliceMm);
       offsetPx += slicePx; pageNum++;
     }
   }
@@ -5792,17 +5798,20 @@ async function downloadPDF(){
 
 function addWatermark(pdf, pw, ph){
   try{
-    pdf.saveGraphicsState();
-    pdf.setGState(new pdf.GState({opacity:0.16}));
-    // Centre logo watermark
+    // Centre logo watermark (slightly stronger opacity so it doesn't fade out)
     var logoSrc = LOGO_URL || '';
     if(logoSrc){
+      pdf.saveGraphicsState();
+      pdf.setGState(new pdf.GState({opacity:0.20}));
       var imgSize = 90;
       var x = (pw - imgSize) / 2;
       var y = (ph - imgSize) / 2;
       pdf.addImage(logoSrc, 'PNG', x, y, imgSize, imgSize);
+      pdf.restoreGraphicsState();
     }
     // Also add diagonal text at +45 degrees
+    pdf.saveGraphicsState();
+    pdf.setGState(new pdf.GState({opacity:0.16}));
     pdf.setTextColor(26,58,42);
     pdf.setFontSize(20);
     var text = 'The Jeans Club';
@@ -5815,91 +5824,83 @@ function addWatermark(pdf, pw, ph){
 }
 
 // ===== WHATSAPP =====
+// Builds a short "follow us" line with Instagram + Website links from SETTINGS,
+// used under the PDF file name / at the end of WhatsApp text messages.
+function socialLinksText(){
+  var parts=[];
+  if(SETTINGS.ig) parts.push('🟣 Instagram: instagram.com/'+SETTINGS.ig.replace(/^@/,'').replace(/^https?:\/\/(www\.)?instagram\.com\//,''));
+  if(SETTINGS.fb) parts.push('🔵 Facebook: '+SETTINGS.fb.replace(/^https?:\/\/(www\.)?facebook\.com\//,''));
+  if(SETTINGS.web) parts.push('🌐 Website: '+SETTINGS.web.replace(/^https?:\/\//,''));
+  parts.push('📧 Email: '+(SETTINGS.email||'thejeansclubb@gmail.com'));
+  return parts.length ? parts.join('\n') : '';
+}
+// Shows a floating "Tap to Send PDF" button with an already-built PDF file.
+// Once the WhatsApp text message opens, the browser tab goes to the background
+// and mobile browsers throttle/pause JS there — so a *second* automatic share
+// can silently fail. This button lets the person finish the send with one tap
+// when they return to the app; since the PDF is already built, it's instant.
+function showSendPdfButton(pdfFile, fname, shareTitle, shareText){
+  var old=document.getElementById('sendPdfFab');
+  if(old) old.remove();
+  var btn=document.createElement('button');
+  btn.id='sendPdfFab';
+  btn.innerHTML='📄&nbsp; Tap to Send PDF';
+  btn.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;background:#1a3a2a;color:#fff;border:none;border-radius:30px;padding:15px 28px;font-size:15px;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.4);font-family:Arial,sans-serif;';
+  btn.onclick=async function(){
+    btn.disabled=true; btn.innerHTML='Sending...';
+    try{
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[pdfFile]})){
+        await navigator.share({files:[pdfFile], title:shareTitle, text:shareText});
+        showToast('PDF shared!');
+      } else {
+        var u=URL.createObjectURL(pdfFile);
+        var a=document.createElement('a'); a.href=u; a.download=fname; a.click();
+        URL.revokeObjectURL(u);
+        showToast('PDF downloaded!');
+      }
+    }catch(e){ console.log('send pdf err:',e); }
+    if(btn.parentNode) btn.remove();
+  };
+  document.body.appendChild(btn);
+  setTimeout(function(){ if(btn.parentNode) btn.remove(); }, 90000);
+}
 async function shareWA(inv){
   var i=inv||currentInv; if(!i){showToast('No invoice');return;}
   var phone=(i.custPhone||'').replace(/\D/g,'');
   var el=document.getElementById('invPrint');
 
-  // Build A4 PDF and share as file
+  // 1) Build the PDF FIRST, while the tab is still in the foreground
+  // (html2canvas needs the tab active — it won't work once WhatsApp opens).
+  var pdfFile=null, fname='invoice.pdf';
   if(el){
     try{
       showToast('Preparing PDF invoice...');
-      // Expand to proper width for capture
-      var orig=el.style.cssText;
-      el.style.cssText=orig+';width:800px !important;max-width:800px !important;';
-      await new Promise(function(r){setTimeout(r,300);});
-      var canvas=await html2canvas(el,{
-        scale:2.5,useCORS:true,backgroundColor:'#ffffff',letterRendering:true,imageTimeout:0,
-        logging:false,width:800,windowWidth:800,
-        scrollX:0,scrollY:0,imageTimeout:0,allowTaint:false
-      });
-      el.style.cssText=orig;
-
-      // Build A4 PDF
-      var pdf=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      var pdf = await _captureElToPDF(el);
       var pw=pdf.internal.pageSize.getWidth();
       var ph=pdf.internal.pageSize.getHeight();
-      var margin=8;
-      var imgW=pw-margin*2;
-      var imgH=(canvas.height*imgW)/canvas.width;
-      var pageH=ph-margin*2;
-      var imgData=canvas.toDataURL('image/jpeg', 0.95);
-
-      if(imgH<=pageH){
-        pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
-      } else {
-        var pxpm=canvas.width/imgW,pageHpx=pageH*pxpm,off=0,pn=0;
-        while(off<canvas.height){
-          if(pn>0) pdf.addPage();
-          var sl=Math.min(pageHpx,canvas.height-off),slmm=sl/pxpm;
-          var tc=document.createElement('canvas');
-          tc.width=canvas.width; tc.height=Math.ceil(sl);
-          tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-          pdf.addImage(tc.toDataURL('image/jpeg', 0.95),'JPEG',margin,margin,imgW,slmm);
-          off+=sl; pn++;
-        }
-      }
       addWatermark(pdf,pw,ph);
-
-      // File name: CustomerName - InvoiceNumber.pdf
       var custSafe=(i.custName||'Customer').replace(/[^a-zA-Z0-9 ]/g,'').trim();
       var invSafe=(i.invNo||'INV').replace(/\//g,'-');
-      var fname=custSafe+' - '+invSafe+'.pdf';
-
-      // Get PDF as blob
+      fname=custSafe+' - '+invSafe+'.pdf';
       var pdfBlob=pdf.output('blob');
-      var pdfFile=new File([pdfBlob],fname,{type:'application/pdf'});
-
-      // Try Web Share API with PDF file
-      if(navigator.share && navigator.canShare && navigator.canShare({files:[pdfFile]})){
-        await navigator.share({
-          files:[pdfFile],
-          title:'Invoice - '+i.custName,
-          text:'Invoice '+i.invNo+' | '+i.custName+' | '+fmt(i.total)
-        });
-        showToast('PDF invoice shared!');
-        return;
-      }
-
-      // Web Share not available or can't share PDF:
-      // Auto-download PDF + open WhatsApp with text
-      pdf.save(fname);
-      showToast('PDF saved! Opening WhatsApp...');
-      await new Promise(function(r){setTimeout(r,800);});
-    }catch(e){
-      console.log('PDF share error:',e);
-      showToast('Opening WhatsApp...');
-    }
+      pdfFile=new File([pdfBlob],fname,{type:'application/pdf'});
+    }catch(e){ console.log('PDF build error:',e); }
   }
 
-  // WhatsApp text fallback (also used after PDF download)
+  // 2) Open WhatsApp text message (with clickable Instagram/Website links).
   var lines='';
   i.items.filter(function(x){return x.name;}).forEach(function(x){
     lines+='  '+x.name+' x'+x.qty+' = Rs.'+Math.round(x.qty*(x.origPrice||x.price)).toLocaleString('en-IN')+'\n';
   });
-  var msg='*INVOICE - The Jeans Club*\n\nInvoice: *'+i.invNo+'*\nDate: '+i.invDate+'\n\n*Customer:* '+i.custName+(phone?'\nPhone: +91'+phone:'')+'\n\n*Items:*\n'+lines+'\n*Total: Rs.'+Math.round(i.total).toLocaleString('en-IN')+'*\nPayment: '+i.payMode+' ('+i.payStatus+')'+(i.payMode==='Split'?'\n  Cash: Rs.'+Math.round(i.cashAmt||0).toLocaleString('en-IN')+' | UPI: Rs.'+Math.round(i.upiAmt||0).toLocaleString('en-IN'):'')+'\n\n_Trendy Articles Ka Adda - Dress Like an Alpha_';
+  var slT2=socialLinksText();
+  var msg='*INVOICE - The Jeans Club*\n\nInvoice: *'+i.invNo+'*\nDate: '+i.invDate+'\n\n*Customer:* '+i.custName+(phone?'\nPhone: +91'+phone:'')+'\n\n*Items:*\n'+lines+'\n*Total: Rs.'+Math.round(i.total).toLocaleString('en-IN')+'*\nPayment: '+i.payMode+' ('+i.payStatus+')'+(i.payMode==='Split'?'\n  Cash: Rs.'+Math.round(i.cashAmt||0).toLocaleString('en-IN')+' | UPI: Rs.'+Math.round(i.upiAmt||0).toLocaleString('en-IN'):'')+'\n\n_Trendy Articles Ka Adda - Dress Like an Alpha_'+(slT2?'\n'+slT2:'');
   var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
+
+  // 3) Show the one-tap "Send PDF" button (PDF is already built, so it's instant).
+  if(pdfFile){
+    showSendPdfButton(pdfFile, fname, 'Invoice - '+i.custName, 'Invoice '+i.invNo+' | '+i.custName+' | '+fmt(i.total));
+  }
 }
 
 // ===== EXCEL =====
@@ -6390,7 +6391,7 @@ function exportInvReportPDF() {
       tc.width = canvas.width;
       tc.height = Math.ceil(slicePx);
       tc.getContext('2d').drawImage(canvas, 0, offsetPx, canvas.width, slicePx, 0, 0, canvas.width, slicePx);
-      pdf.addImage(tc.toDataURL('image/jpeg', 0.88), 'JPEG', margin, margin, imgW, sliceMm);
+      pdf.addImage(tc.toDataURL('image/jpeg', 0.90), 'JPEG', margin, margin, imgW, sliceMm);
       offsetPx += slicePx;
       pageNum++;
     }
@@ -7303,17 +7304,48 @@ function deleteReceipt(id){
   renderPendingReceipts();
   showToast('Deleted');
 }
-function shareReceiptWA(id){
+async function shareReceiptWA(id){
   var r=pendingPayments.find(function(p){return p.id===id;});
-  if(!r) return;
+  if(!r){showToast('Receipt not found');return;}
+
+  // Rebuild the receipt preview fresh (so #ppPrint always matches this exact
+  // receipt, whether called right after Save or from the receipts list).
+  currentPendingReceipt=r;
+  buildPendingPreview(r);
+  await new Promise(function(res){setTimeout(res,400);});
+
+  // 1) Build the PDF FIRST, while the tab is still in the foreground
+  // (html2canvas needs the tab active — it won't work once WhatsApp opens).
+  var pdfFile=null, fname='receipt.pdf';
+  var el=document.getElementById('ppPrint');
+  if(el){
+    try{
+      showToast('Preparing PDF receipt...');
+      var pdf = await _captureElToPDF(el);
+      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+      var custSafe=(r.custName||'Customer').replace(/[^a-zA-Z0-9 ]/g,'').trim();
+      var rcptSafe=(r.receiptNo||'Receipt').replace(/\//g,'-');
+      fname=custSafe+' - '+rcptSafe+'.pdf';
+      var pdfBlob=pdf.output('blob');
+      pdfFile=new File([pdfBlob],fname,{type:'application/pdf'});
+    }catch(e){ console.log('Receipt PDF build error:',e); }
+  }
+
+  // 2) Open WhatsApp text message (with clickable Instagram/Website links).
   var phone=(r.custPhone||'').replace(/\D/g,'');
   var isSplit = (r.payMode==='Split');
   var modeStr = isSplit
     ? 'Split (Cash: Rs.'+Math.round(r.cashAmt||0).toLocaleString('en-IN')+' + UPI: Rs.'+Math.round(r.upiAmt||0).toLocaleString('en-IN')+')'
     : r.payMode;
-  var msg='*PAYMENT RECEIPT - The Jeans Club*\n\nReceipt: *'+r.receiptNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Amount Paid: Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN')+'*\nPayment Mode: '+modeStr+(r.remainingAmt>0?'\nBalance Remaining: Rs.'+Math.round(r.remainingAmt).toLocaleString('en-IN'):'\nStatus: PAID IN FULL')+'\n\n_Thank you for your payment! - The Jeans Club_';
+  var slT=socialLinksText();
+  var msg='*PAYMENT RECEIPT - The Jeans Club*\n\nReceipt: *'+r.receiptNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Amount Paid: Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN')+'*\nPayment Mode: '+modeStr+(r.remainingAmt>0?'\nBalance Remaining: Rs.'+Math.round(r.remainingAmt).toLocaleString('en-IN'):'\nStatus: PAID IN FULL')+'\n\n_Thank you for your payment! - The Jeans Club_'+(slT?'\n'+slT:'');
   var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
   window.open(url,'_blank');
+
+  // 3) Show the one-tap "Send PDF" button (PDF is already built, so it's instant).
+  if(pdfFile){
+    showSendPdfButton(pdfFile, fname, 'Payment Receipt - '+r.custName, 'Receipt '+r.receiptNo+' | '+r.custName+' | Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN'));
+  }
 }
 async function downloadReceiptPDF(){
   var el=document.getElementById('ppPrint');
@@ -8033,9 +8065,9 @@ function exportExpensesPDF(){
   filtered.forEach(function(e){ catMap[e.category||'Other'] = (catMap[e.category||'Other']||0)+e.amount; });
   var catRows = Object.keys(catMap).sort(function(a,b){return catMap[b]-catMap[a];}).map(function(k){
     var pct = totalAmt>0?(catMap[k]/totalAmt*100).toFixed(1):'0.0';
-    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:12px;">'+escH(k)+'</td>'
-      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#c0392b;font-size:12px;">'+fmtNum(catMap[k])+'</td>'
-      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;color:#555;font-size:12px;">'+pct+'%</td></tr>';
+    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #999;font-size:12px;">'+escH(k)+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;font-weight:700;color:#c0392b;font-size:12px;">'+fmtNum(catMap[k])+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;color:#555;font-size:12px;">'+pct+'%</td></tr>';
   }).join('');
 
   // Group by date
@@ -8069,7 +8101,7 @@ function exportExpensesPDF(){
     +'table{width:100%;border-collapse:collapse;}'
     +'th{background:#1a2a2a;color:#fff;padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.5px;}'
     +'th:last-child,td:last-child{text-align:right;}'
-    +'.sec-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:#555;font-weight:700;margin:20px 0 10px;border-bottom:1px solid #eee;padding-bottom:5px;}'
+    +'.sec-title{font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:#555;font-weight:700;margin:20px 0 10px;border-bottom:1px solid #999;padding-bottom:5px;}'
     +'.total-row td{background:#fff0f0;font-weight:700;font-size:13px;border-top:2px solid #c0392b;padding:9px 10px;}'
     +'@media print{body{padding:14px;}}</style></head><body>'
 
@@ -8098,7 +8130,7 @@ function exportExpensesPDF(){
     +'<tbody>'+detailRows
     +'<tr class="total-row"><td colspan="3">TOTAL</td><td style="text-align:right;color:#c0392b;">'+fmtNum(totalAmt)+'</td><td></td></tr>'
     +'</tbody></table>'
-    +'<div style="margin-top:28px;text-align:center;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:10px;">The Jeans Club Business Suite — Confidential</div>'
+    +'<div style="margin-top:28px;text-align:center;font-size:10px;color:#555;border-top:1px solid #999;padding-top:10px;">The Jeans Club Business Suite — Confidential</div>'
     +'\n</body></html>';
 
   var win = window.open('','_blank');
@@ -8144,7 +8176,7 @@ async function downloadSingleExpensePDF(eid){
     var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
     var margin = 10, imgW = pw-margin*2, imgH = (canvas.height*imgW)/canvas.width;
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,Math.min(imgH,ph-margin*2));
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,Math.min(imgH,ph-margin*2));
     addWatermark(pdf, pw, ph);
     var fname = 'The Jeans Club_Expense_'+exp.category.replace(/\s+/g,'_')+'_'+exp.date+'.pdf';
     pdf.save(fname);
@@ -8199,7 +8231,7 @@ async function downloadExpenseDatePDF(date){
     var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
     var margin = 8, imgW = pw-margin*2, imgH = (canvas.height*imgW)/canvas.width;
     if(imgH <= ph-margin*2){
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,imgH);
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,imgH);
     } else {
       var pxpm = canvas.width/imgW, pageHpx = (ph-margin*2)*pxpm, off = 0, pn = 0;
       while(off < canvas.height){
@@ -8207,7 +8239,7 @@ async function downloadExpenseDatePDF(date){
         var sl = Math.min(pageHpx, canvas.height-off), slmm = sl/pxpm;
         var tc = document.createElement('canvas'); tc.width=canvas.width; tc.height=Math.ceil(sl);
         tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,slmm);
+        pdf.addImage(tc.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,slmm);
         off+=sl; pn++;
       }
     }
@@ -8536,7 +8568,7 @@ async function generateDailyPDF(reportDate){
     var imgW = pw - margin*2;  // ~200mm - full width
     var imgH = (canvas.height * imgW) / canvas.width;
     var pageH = ph - margin*2;
-    var imgData = canvas.toDataURL('image/jpeg', 0.82);
+    var imgData = canvas.toDataURL('image/jpeg', 0.90);
 
     if(imgH <= pageH){
       pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
@@ -8549,7 +8581,7 @@ async function generateDailyPDF(reportDate){
         var tc = document.createElement('canvas');
         tc.width = canvas.width; tc.height = Math.ceil(sl);
         tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/jpeg', 0.82),'JPEG',margin,margin,imgW,slmm);
+        pdf.addImage(tc.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,slmm);
         off+=sl; pn++;
       }
     }
@@ -9017,7 +9049,7 @@ async function _renderAndSavePDF(html, selector, filename, toast){
     var imgW=pw-margin*2;
     var imgH=(canvas.height*imgW)/canvas.width;
     var pageH=ph-margin*2;
-    var imgData=canvas.toDataURL('image/jpeg',0.82);
+    var imgData=canvas.toDataURL('image/jpeg',0.90);
     if(imgH<=pageH){
       pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH);
     } else {
@@ -9029,7 +9061,7 @@ async function _renderAndSavePDF(html, selector, filename, toast){
         var tc=document.createElement('canvas');
         tc.width=canvas.width; tc.height=Math.ceil(sl);
         tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/jpeg',0.82),'JPEG',margin,margin,imgW,slmm);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',margin,margin,imgW,slmm);
         off+=sl; pn++;
       }
     }
@@ -9232,10 +9264,10 @@ async function downloadInventoryPDF(){
     var imgW = pw - margin*2;
     var imgH = (canvas.height * imgW) / canvas.width;
     var pageH = ph - margin*2;
-    var imgData = canvas.toDataURL('image/png');
+    var imgData = canvas.toDataURL('image/jpeg', 0.90);
 
     if(imgH <= pageH){
-      pdf.addImage(imgData,'PNG',margin,margin,imgW,imgH,'','FAST');
+      pdf.addImage(imgData,'JPEG',margin,margin,imgW,imgH,'','FAST');
     } else {
       var pxpm=canvas.width/imgW, pageHpx=pageH*pxpm, off=0, pn=0;
       while(off < canvas.height){
@@ -9244,7 +9276,7 @@ async function downloadInventoryPDF(){
         var tc=document.createElement('canvas');
         tc.width=canvas.width; tc.height=Math.ceil(sl);
         tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
-        pdf.addImage(tc.toDataURL('image/png'),'PNG',margin,margin,imgW,slmm,'','FAST');
+        pdf.addImage(tc.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,slmm,'','FAST');
         off+=sl; pn++;
       }
     }
@@ -10247,13 +10279,13 @@ function exportPurchasePDF(){
     var dayTotal = dg[date].reduce(function(s,p){return s+p.totalCost;},0);
     var itemRows = dg[date].map(function(p,i){
       return '<tr style="background:'+(i%2===0?'#fff':'#f9f9f9')+';">'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;">'+escH(p.item)+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;color:#546e7a;">'+escH(p.supplier||'-')+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:700;">'+p.qty+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;">'+fmtNum(p.rate)+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;color:#e65100;">'+fmtNum(p.freight)+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:#1565c0;">'+fmtNum(p.totalCost)+'</td>'+
-        '<td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:10px;color:#555;">'+escH(p.notes||'-')+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;">'+escH(p.item)+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;color:#546e7a;">'+escH(p.supplier||'-')+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:center;font-weight:700;">'+p.qty+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;">'+fmtNum(p.rate)+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;color:#e65100;">'+fmtNum(p.freight)+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;font-weight:700;color:#1565c0;">'+fmtNum(p.totalCost)+'</td>'+
+        '<td style="padding:7px 10px;border-bottom:1px solid #999;font-size:10px;color:#555;">'+escH(p.notes||'-')+'</td>'+
         '</tr>';
     }).join('');
     return '<tr style="background:#e3f2fd;"><td colspan="7" style="padding:8px 10px;font-weight:700;font-size:12px;letter-spacing:0.5px;">'+
@@ -10310,7 +10342,7 @@ function exportPurchasePDF(){
     '<td style="padding:9px 10px;"></td>'+
     '</tr>'+
     '</tbody></table>'+
-    '<div style="margin-top:24px;text-align:center;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:10px;">The Jeans Club Business Suite — Confidential</div>'+
+    '<div style="margin-top:24px;text-align:center;font-size:10px;color:#555;border-top:1px solid #999;padding-top:10px;">The Jeans Club Business Suite — Confidential</div>'+
     '\\n</body></html>';
 
   var win = window.open('','_blank');
@@ -10741,13 +10773,13 @@ function exportProfitPDF(){
     var marginColor = it.margin >= 30 ? '#1b5e20' : it.margin >= 15 ? '#e65100' : '#b71c1c';
     var profitColor = it.profit >= 0 ? '#1565c0' : '#b71c1c';
     return '<tr style="background:'+bg+';">'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;font-weight:600;">'+escH(it.name)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;color:#546e7a;">'+escH(it.category)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;">'+Math.round(it.qty)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;">'+fmtNum(it.revenue)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;color:#e65100;">'+fmtNum(it.cost)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;font-weight:700;color:'+profitColor+';">'+fmtNum(it.profit)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;font-weight:700;color:'+marginColor+';">'+it.margin.toFixed(1)+'%</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;font-weight:600;">'+escH(it.name)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;color:#546e7a;">'+escH(it.category)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;">'+Math.round(it.qty)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;">'+fmtNum(it.revenue)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;color:#e65100;">'+fmtNum(it.cost)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;font-weight:700;color:'+profitColor+';">'+fmtNum(it.profit)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;font-weight:700;color:'+marginColor+';">'+it.margin.toFixed(1)+'%</td>'+
       '</tr>';
   }).join('');
 
@@ -10766,12 +10798,12 @@ function exportProfitPDF(){
     var bg = idx % 2 === 0 ? '#ffffff' : '#f7f9f7';
     var mc = margin >= 30 ? '#1b5e20' : margin >= 15 ? '#e65100' : '#b71c1c';
     return '<tr style="background:'+bg+';">'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;font-weight:700;">'+escH(cat)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;">'+Math.round(c.qty)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;">'+fmtNum(c.revenue)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;color:#e65100;">'+fmtNum(c.cost)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;font-weight:700;color:#1565c0;">'+fmtNum(c.profit)+'</td>'+
-      '<td style="padding:7px 10px;border-bottom:1px solid #e8ede8;text-align:right;font-weight:700;color:'+mc+';">'+margin.toFixed(1)+'%</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;font-weight:700;">'+escH(cat)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;">'+Math.round(c.qty)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;">'+fmtNum(c.revenue)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;color:#e65100;">'+fmtNum(c.cost)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;font-weight:700;color:#1565c0;">'+fmtNum(c.profit)+'</td>'+
+      '<td style="padding:7px 10px;border-bottom:1px solid #8fae9c;text-align:right;font-weight:700;color:'+mc+';">'+margin.toFixed(1)+'%</td>'+
       '</tr>';
   }).join('');
 
@@ -10795,7 +10827,7 @@ function exportProfitPDF(){
     'th{background:#1a3a2a;color:#fff;padding:8px 10px;text-align:left;font-size:10px;letter-spacing:0.8px;text-transform:uppercase;}'+
     'th.r{text-align:right;}'+
     '.total-row td{background:#e8f5e9;font-weight:700;font-size:12px;border-top:2px solid #2e7d32;padding:9px 10px;}'+
-    '.footer{margin-top:28px;text-align:center;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:10px;}'+
+    '.footer{margin-top:28px;text-align:center;font-size:10px;color:#555;border-top:1px solid #999;padding-top:10px;}'+
     '@media print{body{padding:14px;} h2{page-break-before:auto;}}'+
     '</style></head><body>'+
 
@@ -11238,9 +11270,9 @@ function exportPnLPDF(){
 
   var catRows = catKeys.map(function(k){
     var pct = totalExpenses > 0 ? (expCatMap[k]/totalExpenses*100).toFixed(1) : '0.0';
-    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #eee;font-size:12px;color:#444;">'+escH(k)+'</td>'
-      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-size:12px;color:#c0392b;font-weight:600;">'+fmtNum(expCatMap[k])+'</td>'
-      +'<td style="padding:7px 10px;border-bottom:1px solid #eee;text-align:right;font-size:12px;color:#555;">'+pct+'%</td></tr>';
+    return '<tr><td style="padding:7px 10px;border-bottom:1px solid #999;font-size:12px;color:#444;">'+escH(k)+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;font-size:12px;color:#c0392b;font-weight:600;">'+fmtNum(expCatMap[k])+'</td>'
+      +'<td style="padding:7px 10px;border-bottom:1px solid #999;text-align:right;font-size:12px;color:#555;">'+pct+'%</td></tr>';
   }).join('');
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
@@ -11250,15 +11282,15 @@ function exportPnLPDF(){
     +'body{font-family:Arial,sans-serif;background:#fff;color:#1a2a2a;padding:32px;}'
     +'h1{font-family:Georgia,serif;font-size:26px;font-weight:700;color:#0d2818;letter-spacing:1px;}'
     +'.sub{font-size:12px;color:#666;margin-top:4px;letter-spacing:0.5px;}'
-    +'.section-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#555;font-weight:700;margin:22px 0 10px;border-bottom:1px solid #ddd;padding-bottom:5px;}'
+    +'.section-title{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#555;font-weight:700;margin:22px 0 10px;border-bottom:1px solid #999;padding-bottom:5px;}'
     +'.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:4px;}'
-    +'.kpi{background:#f8f9fa;border-radius:4px;padding:14px;border-left:3px solid #ccc;}'
+    +'.kpi{background:#f8f9fa;border-radius:4px;padding:14px;border-left:3px solid #999;}'
     +'.kpi-label{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#555;margin-bottom:5px;}'
     +'.kpi-val{font-family:Georgia,serif;font-size:20px;font-weight:700;}'
     +'table{width:100%;border-collapse:collapse;}'
     +'th{background:#0d2818;color:#fff;padding:9px 12px;text-align:left;font-size:11px;letter-spacing:0.5px;}'
     +'th.r{text-align:right;}'
-    +'td{padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;}'
+    +'td{padding:8px 12px;border-bottom:1px solid #999;font-size:12px;}'
     +'.total-row td{background:#f0f4f0;font-weight:700;font-size:13px;}'
     +'.net-row td{background:#e8f5e9;font-weight:700;font-size:15px;font-family:Georgia,serif;}'
     +'@media print{body{padding:16px;}}'
@@ -11310,7 +11342,7 @@ function exportPnLPDF(){
       +'</tbody></table>'
     : '')
 
-    +'<div style="margin-top:30px;text-align:center;font-size:10px;color:#555;border-top:1px solid #eee;padding-top:12px;">The Jeans Club Business Suite — Confidential</div>'
+    +'<div style="margin-top:30px;text-align:center;font-size:10px;color:#555;border-top:1px solid #999;padding-top:12px;">The Jeans Club Business Suite — Confidential</div>'
     +'\n</body></html>';
 
   var win = window.open('', '_blank');
@@ -11617,7 +11649,7 @@ function khataExportPDF(){
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
     +'<title>'+title+'</title>'
-    +'<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:20px;}h2{font-size:16px;color:#14342A;}table{width:100%;border-collapse:collapse;margin-top:14px;}th{background:#14342A;color:#fff;padding:6px 8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:left;}td{padding:6px 8px;border-bottom:1px solid #eee;}.footer{margin-top:20px;text-align:center;font-size:9px;color:#555;border-top:1px solid #eee;padding-top:10px;}</style>'
+    +'<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:20px;}h2{font-size:16px;color:#14342A;}table{width:100%;border-collapse:collapse;margin-top:14px;}th{background:#14342A;color:#fff;padding:6px 8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:left;}td{padding:6px 8px;border-bottom:1px solid #999;}.footer{margin-top:20px;text-align:center;font-size:9px;color:#555;border-top:1px solid #999;padding-top:10px;}</style>'
     +'</head><body>'
     +'<h2>'+title+'</h2>'
     +'<div style="font-size:10px;color:#666;">Generated: '+new Date().toLocaleString('en-IN')+(from||to?' | Period: '+(from||'start')+' to '+(to||'now'):'')+'</div>'
