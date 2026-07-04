@@ -11812,5 +11812,56 @@ function saveStaffPerms(){
 // ServiceWorker disabled: blob: URL not supported in local file/WebView context
 // Offline storage is handled by IndexedDB instead
 </script>
+
+<script>
+// --- Basic copy/source-view deterrent ---
+// Note: This only blocks casual copying (right-click, Ctrl+S, view-source shortcuts).
+// It cannot stop someone determined via browser DevTools Network tab or wget/curl.
+(function(){
+  function showBlockToast(msg){
+    var t = document.createElement('div');
+    t.textContent = msg || 'Action disabled';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);' +
+      'background:#1a3a2a;color:#fff;padding:10px 18px;border-radius:8px;' +
+      'font-family:sans-serif;font-size:14px;z-index:999999;opacity:0.95;box-shadow:0 2px 10px rgba(0,0,0,0.3);';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 1800);
+  }
+
+  document.addEventListener('contextmenu', function(e){
+    e.preventDefault();
+  });
+
+  document.addEventListener('keydown', function(e){
+    var k = e.key ? e.key.toLowerCase() : '';
+    var ctrlOrCmd = e.ctrlKey || e.metaKey;
+
+    // Ctrl+S / Cmd+S (Save page)
+    if (ctrlOrCmd && k === 's') {
+      e.preventDefault();
+      showBlockToast('Saving this page is disabled');
+      return;
+    }
+    // Ctrl+U (View Source)
+    if (ctrlOrCmd && k === 'u') {
+      e.preventDefault();
+      showBlockToast('View source is disabled');
+      return;
+    }
+    // Ctrl+Shift+I / J / C (DevTools panels)
+    if (ctrlOrCmd && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')) {
+      e.preventDefault();
+      showBlockToast('Developer tools are disabled');
+      return;
+    }
+    // F12 (DevTools)
+    if (k === 'f12') {
+      e.preventDefault();
+      showBlockToast('Developer tools are disabled');
+      return;
+    }
+  });
+})();
+</script>
 </body>
 </html>
