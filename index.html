@@ -329,9 +329,9 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .tbl td:last-child,.tbl th:last-child{text-align:right;}
 
 /* ── INVOICE ITEMS ─────────────────────────────────────────── */
-.item-hdr{display:grid;grid-template-columns:2.5fr .8fr 1fr 28px;gap:6px;margin-bottom:5px;}
+.item-hdr{display:grid;grid-template-columns:24px 22px 2.2fr 1fr 1.2fr 36px 26px;gap:6px;margin-bottom:5px;max-width:900px;}
 .item-hdr span{font-size:8.5px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;}
-.item-row{display:grid;grid-template-columns:24px 22px 2.2fr 1fr 1.2fr 36px 26px;gap:6px;align-items:center;margin-bottom:6px;position:relative;}
+.item-row{display:grid;grid-template-columns:24px 22px 2.2fr 1fr 1.2fr 36px 26px;gap:6px;align-items:center;margin-bottom:6px;position:relative;max-width:900px;}
 .item-row input{padding:8px 7px;font-size:13px;}
 .del-btn{width:28px;height:28px;background:#fff4f4;border:1px solid #f5c6c6;color:var(--red);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0;transition:all .15s;}
 .del-btn:hover{background:#ffe8e8;}
@@ -859,7 +859,7 @@ input[type=tel], textarea, select {
         </div>
         <div class="card"><div class="card-head"><div class="card-icon">&#128085;</div><div class="card-title">Items</div></div>
           <div class="card-body">
-            <div class="item-hdr" style="grid-template-columns:1fr 60px 85px 36px 24px;"><span>Item Name</span><span>Qty</span><span>Price</span><span style="font-size:10px;">GST%</span><span></span></div>
+            <div class="item-hdr"><span></span><span></span><span>Item Name</span><span>Qty</span><span>Price</span><span style="font-size:10px;">GST%</span><span></span></div>
             <div id="itemsList"></div>
             <button class="add-item-btn" onclick="addItem()">+ Add Item</button>
           </div>
