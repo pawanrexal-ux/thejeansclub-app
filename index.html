@@ -331,7 +331,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 /* ── INVOICE ITEMS ─────────────────────────────────────────── */
 .item-hdr{display:grid;grid-template-columns:2.5fr .8fr 1fr 28px;gap:6px;margin-bottom:5px;}
 .item-hdr span{font-size:8.5px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;}
-.item-row{display:grid;grid-template-columns:22px 2.5fr .7fr .9fr 46px 26px;gap:6px;align-items:center;margin-bottom:6px;position:relative;}
+.item-row{display:grid;grid-template-columns:24px 22px 2.2fr 1fr 1.2fr 36px 26px;gap:6px;align-items:center;margin-bottom:6px;position:relative;}
 .item-row input{padding:8px 7px;font-size:13px;}
 .del-btn{width:28px;height:28px;background:#fff4f4;border:1px solid #f5c6c6;color:var(--red);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0;transition:all .15s;}
 .del-btn:hover{background:#ffe8e8;}
@@ -360,6 +360,11 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .tot-row.grand{padding-top:9px;}
 .tot-row.grand .tl{font-weight:700;font-size:14px;color:var(--gd);}
 .tot-row.grand .tv{font-size:22px;color:var(--gd2);}
+
+/* ── ITEM MATCH TICK (invoice banate waqt hi maal match karo, save pe carry ho jaata hai) ── */
+.tick-box{width:20px;height:20px;border:2.5px solid #546e7a;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;color:#fff;cursor:pointer;background:#eceff1;box-sizing:border-box;flex-shrink:0;}
+.tick-box.ticked{background:#2e7d32;border-color:#1b5e20;}
+
 
 /* ── INVOICE PREVIEW ─────────────────────────────────────────── */
 .inv-prev{background:#fff;padding:0;font-size:12px;box-shadow:var(--sh3);position:relative;overflow:visible;box-sizing:border-box;}
@@ -854,7 +859,7 @@ input[type=tel], textarea, select {
         </div>
         <div class="card"><div class="card-head"><div class="card-icon">&#128085;</div><div class="card-title">Items</div></div>
           <div class="card-body">
-            <div class="item-hdr" style="grid-template-columns:1fr 50px 70px 48px 24px;"><span>Item Name</span><span>Qty</span><span>Price</span><span style="font-size:10px;">GST%</span><span></span></div>
+            <div class="item-hdr" style="grid-template-columns:1fr 60px 85px 36px 24px;"><span>Item Name</span><span>Qty</span><span>Price</span><span style="font-size:10px;">GST%</span><span></span></div>
             <div id="itemsList"></div>
             <button class="add-item-btn" onclick="addItem()">+ Add Item</button>
           </div>
@@ -4115,6 +4120,14 @@ function removeItem(id){
   renderItems(); calcTotals();
 }
 
+// Item-entry form mein hi mal match karo — tick invoice ke saath hi save ho jaata hai jab invoice save hoga.
+function toggleItemMatch(id){
+  var item = items.find(function(i){ return i.id === id; });
+  if(!item) return;
+  item.matched = !item.matched;
+  renderItems();
+}
+
 function updateItem(id, field, val){
   var item = items.find(function(i){ return i.id === id; });
   if(!item) return;
@@ -4158,7 +4171,9 @@ function renderItems(){
     var basePrice = item.price; // GST excluded base
     var gstAmt = item.gstPct > 0 ? Math.round((displayPrice - basePrice) * item.qty * 100) / 100 : 0;
     var srNo = items.indexOf(item) + 1;
+    var matched = !!item.matched;
     html += '<div class="item-row">';
+    html += '<div style="display:flex;align-items:center;justify-content:center;height:36px;flex-shrink:0;" onclick="toggleItemMatch('+iid+')"><div class="tick-box'+(matched?' ticked':'')+'">'+(matched?'&#10003;':'')+'</div></div>';
     html += '<div style="display:flex;align-items:center;justify-content:center;min-width:22px;height:36px;font-size:11px;font-weight:700;color:var(--mu);font-family:Arial,sans-serif;flex-shrink:0;">'+srNo+'</div>';
     html += '<div class="ac-wrap">';
     html += '<input type="text" placeholder="Item name" value="'+escH(item.name)+'" ';
@@ -4170,7 +4185,7 @@ function renderItems(){
     html += '<input type="number" placeholder="1" value="'+(item.qty||1)+'" inputmode="numeric" oninput="updateItem('+iid+',\'qty\',this.value)" style="padding:8px 7px;font-size:14px;font-family:Arial,sans-serif;" />';
     // Show original (GST-inclusive) price in the input
     html += '<input type="number" placeholder="0" value="'+(displayPrice>0?displayPrice:'')+'" inputmode="decimal" oninput="updateItem('+iid+',\'price\',this.value)" style="padding:8px 7px;font-size:14px;font-family:Arial,sans-serif;" />';
-    html += '<select onchange="updateItem('+iid+',\'gst\',this.value)" style="padding:7px 3px;font-size:11px;font-family:Arial,sans-serif;border:1px solid var(--bdr);background:var(--ow);width:100%;" title="GST %">';
+    html += '<select onchange="updateItem('+iid+',\'gst\',this.value)" style="padding:7px 1px;font-size:9.5px;font-family:Arial,sans-serif;border:1px solid var(--bdr);background:var(--ow);width:100%;" title="GST %">';
     html += '<option value="0" '+(item.gstPct===0?'selected':'')+'>No GST</option>';
     html += '<option value="5" '+(item.gstPct===5?'selected':'')+'>5%</option>';
     html += '<option value="12" '+(item.gstPct===12?'selected':'')+'>12%</option>';
@@ -4756,6 +4771,7 @@ function buildPreview(inv){
     +'</div>'
     +'<div class="inv-prev-bottom-stripe" style="background:linear-gradient(90deg,'+statusColor+'88,'+statusColor+'cc,'+statusColor+');height:5px;"></div>'
     +'</div>';
+
 }
 
 // ===== HISTORY =====
@@ -4928,7 +4944,7 @@ function editInv(id){
     // Load items
     items = []; itemIdCounter = 1;
     (inv.items||[]).forEach(function(it){
-      items.push({id:itemIdCounter++, name:it.name||'', qty:it.qty||1, origPrice:it.origPrice||it.price||0, price:it.price||0, gstPct:it.gstPct||0});
+      items.push({id:itemIdCounter++, name:it.name||'', qty:it.qty||1, origPrice:it.origPrice||it.price||0, price:it.price||0, gstPct:it.gstPct||0, matched:!!it.matched});
     });
     if(!items.length){ addItem(); addItem(); } else { renderItems(); calcTotals(); }
     editingInvId = inv.id; // mark edit mode so persistInvoice keeps same invoice number
