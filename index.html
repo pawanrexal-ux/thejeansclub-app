@@ -1729,9 +1729,30 @@ input[type=tel], textarea, select {
                 <button onclick="checkStorageHealth();updateBackupLabel()" style="float:right;background:none;border:none;cursor:pointer;font-size:10px;color:var(--g);font-weight:700;">&#8635; Refresh</button>
               </div>
             </div>
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Backup mein sab kuch save hota hai: invoices, stock, customers, expenses, khata, purchases. GitHub update se pehle zaroor download karein!</p>
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Backup mein sab kuch save hota hai: invoices, stock, customers, expenses, purchases. GitHub update se pehle zaroor download karein!</p>
             <button class="btn btn-gold btn-full" onclick="exportDataBackup()" style="margin-bottom:8px;">&#8595; Download Full Backup (.json)</button>
             <button class="btn btn-outline btn-full" onclick="importDataBackup()">&#8593; Import Backup (.json)</button>
+          </div>
+        </div>
+        <div class="set-section"><div class="set-head">&#9993; Telegram Auto Backup</div>
+          <div class="set-body">
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Har din ka PDF + Excel report (Invoices, Receipts, Purchase, Expenses, P&amp;L, Due Payments, Inventory) ek ZIP file mein — date wale folder (jaise 13.07.2026) ke andar — apke Telegram par automatically bhej diya jayega. ZIP mein us din ke sabhi Invoices (invoice no. wise, alag-alag PDF), sabhi Payment Receipts, aur sabhi Purchase (Supplier) Payment Receipts bhi alag folders mein shamil hote hain. JSON file nahi bhejta.</p>
+            <div class="ig"><label>Bot Token</label><input type="text" id="set-tg-token" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family:Arial,sans-serif;"/></div>
+            <div class="ig"><label>Chat ID</label><input type="text" id="set-tg-chatid" placeholder="e.g. 123456789 or -1001234567890" style="font-family:Arial,sans-serif;"/></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu2);font-family:Arial,sans-serif;margin:8px 0;">
+              <input type="checkbox" id="set-tg-auto" style="width:auto;"/> Daily auto-backup enable karein
+            </label>
+            <button class="btn btn-green btn-full" onclick="saveTelegramConfig()" style="margin-bottom:8px;">&#128190; Save Telegram Settings</button>
+            <button class="btn btn-gold btn-full" onclick="sendTelegramBackupNow()" style="margin-bottom:8px;">&#9993; Send Backup to Telegram Now</button>
+            <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">
+              Last Telegram backup: <span id="lastTgBackupLabel" style="color:var(--g);font-weight:600;">—</span>
+            </div>
+            <div id="tg-msg" style="margin-top:6px;font-size:11px;text-align:center;color:var(--mu);font-family:Arial,sans-serif;"></div>
+            <p style="font-size:10px;color:var(--mu2);margin-top:10px;font-family:Arial,sans-serif;line-height:1.5;">
+              <b>Setup:</b> 1) Telegram par @BotFather ko message karke /newbot se bot banayein aur token copy karein.
+              2) Apne bot ko message bhejein (ya use group mein add karein), phir @userinfobot / @getidsbot se apna Chat ID nikaal lein.
+              3) Token &amp; Chat ID yahan daal kar Save karein.
+            </p>
           </div>
         </div>
         <div class="set-section" id="admin-change-pw-section"><div class="set-head">&#128274; Change Admin Password</div>
@@ -1981,6 +2002,7 @@ input[type=tel], textarea, select {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 
@@ -2515,7 +2537,6 @@ var SETTINGS={biz:'The Jeans Club',ph:'',addr:'',gst:'',ig:'thejeansclubb',fb:'T
 var itemIdCounter=1;
 var dailyReports={}, monthlyReports={};
 var lastCheckedDate='', lastCheckedMonth='';
-var khataEntries=[]; // Khata ledger entries
 
 // ===== EDIT AUDIT LOG =====
 // Records all invoice & receipt edits with field-level diff
@@ -2734,7 +2755,6 @@ async function pushCloud(){
     supplierPayments: supplierPayments,  // supplier payments sync
     pendingPayments: pendingPayments,
     expenses: expenses,
-    khataEntries: khataEntries,       // ← was missing before!
     dailyReports: dailyReports,       // ← was missing before!
     monthlyReports: monthlyReports,   // ← was missing before!
     editLog: editLog,                 // audit log of invoice/receipt edits
@@ -2877,7 +2897,6 @@ async function pullCloud(){
           }
           LS.setL('expenses', expenses);
         }
-        if(Array.isArray(d.khataEntries)){ khataEntries = d.khataEntries; LS.setL('khataEntries', khataEntries); } // ← restored!
         if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
         if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
         // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
@@ -3024,7 +3043,6 @@ function exportDataBackup(){
     pendingPayments: pendingPayments,
     purchases: purchases,
     expenses: expenses,
-    khataEntries: khataEntries,
     supplierPayments: supplierPayments,
     exportedAt: new Date().toISOString(),
     version: '4.1',
@@ -3080,7 +3098,6 @@ function importDataBackup(){
         if(data.supplierPayments){ supplierPayments = data.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
         if(data.purchases)      { purchases = data.purchases;           LS.setL('purchases', purchases); }
         if(data.expenses)       { expenses = data.expenses;             LS.setL('expenses', expenses); }
-        if(data.khataEntries)   { khataEntries = data.khataEntries;     LS.setL('khataEntries', khataEntries); }
 
         showToast('✓ Import successful! ' + invoices.length + ' invoices restored');
         renderDashboard();
@@ -3099,6 +3116,566 @@ function importDataBackup(){
   input.click();
 }
 
+// ═══════════════ DEDICATED DAILY PDF GENERATORS (for Telegram backup) ═══════════════
+
+// P&L Report for a single day
+async function generateDailyPnLPDF(dateStr, asBlob){
+  if(!dateStr) dateStr = nowDate();
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var displayDate = new Date(dateStr).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  
+  var dayInvs = (invoices||[]).filter(function(i){ return i.invDate === dateStr; });
+  var dayPurs = (purchases||[]).filter(function(p){ return p.date === dateStr; });
+  var dayExps = (expenses||[]).filter(function(e){ return e.date === dateStr; });
+  
+  var sales = dayInvs.reduce(function(s,i){ return s+i.total; },0);
+  var purCost = dayPurs.reduce(function(s,p){
+    if(p.directPaidAmount!=null) return s+p.directPaidAmount;
+    if(p.payStatus==='Paid') return s+p.totalCost;
+    if(p.payStatus==='Partial') return s+(p.paidAmount||0);
+    return s;
+  },0);
+  var expCost = dayExps.reduce(function(s,e){ return s+e.amount; },0);
+  var gross = sales - purCost;
+  var net = gross - expCost;
+  
+  // Category-wise expenses
+  var expCats = {};
+  dayExps.forEach(function(e){
+    expCats[e.category||'Other'] = (expCats[e.category||'Other']||0)+e.amount;
+  });
+  var expRows = Object.keys(expCats).map(function(cat){
+    return '<tr style="border-bottom:1px solid #eee;">'
+      +'<td style="padding:8px;font-size:11px;">'+escH(cat)+'</td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700;color:#c0392b;font-size:12px;">'+fmt(expCats[cat])+'</td>'
+      +'</tr>';
+  }).join('');
+  
+  var html = '<div style="background:#fff;padding:20px;font-family:Arial,sans-serif;width:794px;">'
+    +'<div style="border-bottom:2px solid #1565c0;padding-bottom:12px;margin-bottom:16px;">'
+    +(LOGO_URL?'<img src="'+LOGO_URL+'" style="width:40px;height:40px;object-fit:contain;vertical-align:middle;margin-right:10px;"/>':'')
+    +'<div style="display:inline-block;vertical-align:middle;">'
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:24px;font-weight:700;color:#1a3a2a;">'+escH(biz)+'</div>'
+    +'<div style="font-size:10px;color:#666;margin-top:2px;">P&L Report — '+displayDate+'</div>'
+    +'</div></div>'
+    
+    +'<table style="width:100%;border-collapse:collapse;">'
+    +'<tr style="background:#e8f5e9;"><td style="padding:10px;font-weight:700;color:#1b5e20;font-size:13px;">💰 SALES</td><td style="padding:10px;text-align:right;font-weight:700;color:#1b5e20;font-size:14px;">'+fmt(sales)+'</td></tr>'
+    +'<tr style="background:#f9f9f9;"><td style="padding:8px;font-size:11px;color:#666;">Invoices issued</td><td style="padding:8px;text-align:right;font-size:11px;">'+dayInvs.length+' invoices</td></tr>'
+    
+    +'<tr style="background:#fff3e0;"><td style="padding:10px;font-weight:700;color:#c45e00;font-size:13px;">🛒 PURCHASE COST</td><td style="padding:10px;text-align:right;font-weight:700;color:#c45e00;font-size:14px;">−'+fmt(purCost)+'</td></tr>'
+    +'<tr style="background:#f9f9f9;"><td style="padding:8px;font-size:11px;color:#666;">Items purchased</td><td style="padding:8px;text-align:right;font-size:11px;">'+dayPurs.length+' purchases</td></tr>'
+    
+    +'<tr style="background:#ffeaea;"><td style="padding:10px;font-weight:700;color:#c0392b;font-size:13px;">💸 EXPENSES</td><td style="padding:10px;text-align:right;font-weight:700;color:#c0392b;font-size:14px;">−'+fmt(expCost)+'</td></tr>'
+    +(expRows?'<tr><td colspan="2" style="padding:0;"><table style="width:100%;border-collapse:collapse;">'+expRows+'</table></td></tr>':'')
+    
+    +'<tr style="background:#1565c0;color:#fff;"><td style="padding:12px;font-weight:700;font-size:14px;">═══ GROSS PROFIT (Sales − Purchase)</td><td style="padding:12px;text-align:right;font-weight:700;font-size:15px;">'+fmt(gross)+'</td></tr>'
+    +'<tr style="background:'+(net>=0?'#c8e6c9':'#ffcdd2')+';"><td style="padding:12px;font-weight:700;font-size:15px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">★ NET PROFIT (Gross − Expenses)</td><td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">'+fmt(net)+'</td></tr>'
+    +'</table>'
+    
+    +'<div style="text-align:center;margin-top:16px;font-size:9px;color:#666;border-top:1px solid #ddd;padding-top:10px;">Generated: '+new Date().toLocaleString('en-IN')+' | '+escH(biz)+'</div>'
+    +'</div>';
+  
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;width:794px;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  
+  try{
+    await new Promise(function(r){setTimeout(r,100);});
+    var canvas = await html2canvas(container.querySelector('div'), {scale:2,useCORS:true,backgroundColor:'#fff',logging:false,width:794,windowWidth:794});
+    document.body.removeChild(container);
+    
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth();
+    var ph = pdf.internal.pageSize.getHeight();
+    var imgW = pw - 16;
+    var imgH = (canvas.height * imgW) / canvas.width;
+    var imgData = canvas.toDataURL('image/jpeg', 0.90);
+    
+    if(imgH <= ph-16){
+      pdf.addImage(imgData,'JPEG',8,8,imgW,imgH);
+    } else {
+      var pxpm = canvas.width/imgW, off=0, pn=0;
+      while(off < canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl = Math.min(ph*pxpm-128, canvas.height-off);
+        var tc = document.createElement('canvas');
+        tc.width = canvas.width; tc.height = Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,sl/pxpm);
+        off+=sl; pn++;
+      }
+    }
+    if(asBlob) return pdf.output('blob');
+    pdf.save('The Jeans Club_PnL_'+dateStr+'.pdf');
+  } catch(e){
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
+    if(asBlob) throw e;
+  }
+}
+
+// Expenses Report for a single day
+async function generateDailyExpensesPDF(dateStr, asBlob){
+  if(!dateStr) dateStr = nowDate();
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var displayDate = new Date(dateStr).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  
+  var dayExps = (expenses||[]).filter(function(e){ return e.date === dateStr; });
+  var totalExp = dayExps.reduce(function(s,e){ return s+e.amount; },0);
+  
+  var catMap = {};
+  dayExps.forEach(function(e){
+    catMap[e.category||'Other'] = (catMap[e.category||'Other']||0)+e.amount;
+  });
+  
+  var rows = dayExps.map(function(e){
+    return '<tr style="border-bottom:1px solid #f0f0f0;">'
+      +'<td style="padding:6px;font-size:10px;">'+escH(e.date)+'</td>'
+      +'<td style="padding:6px;font-size:11px;font-weight:700;">'+escH(e.category||'-')+'</td>'
+      +'<td style="padding:6px;font-size:10px;">'+escH(e.desc||'-')+'</td>'
+      +'<td style="padding:6px;font-size:10px;">'+escH(e.payMode||'-')+'</td>'
+      +'<td style="padding:6px;text-align:right;font-weight:700;color:#c0392b;font-size:11px;">'+fmt(e.amount)+'</td>'
+      +'</tr>';
+  }).join('');
+  
+  var html = '<div style="background:#fff;padding:20px;font-family:Arial,sans-serif;width:900px;">'
+    +'<div style="border-bottom:2px solid #c0392b;padding-bottom:12px;margin-bottom:14px;">'
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:24px;font-weight:700;color:#c0392b;">'+escH(biz)+' — Expenses</div>'
+    +'<div style="font-size:11px;color:#666;">'+displayDate+' | Total: '+fmt(totalExp)+'</div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">';
+  
+  Object.keys(catMap).forEach(function(cat){
+    var pct = totalExp>0?(catMap[cat]/totalExp*100).toFixed(1):'0';
+    html+='<tr style="background:#ffeaea;"><td style="padding:8px;font-weight:700;color:#c0392b;">'+escH(cat)+'</td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700;color:#c0392b;font-size:12px;">'+fmt(catMap[cat])+'</td>'
+      +'<td style="padding:8px;text-align:right;color:#666;font-size:10px;">'+pct+'%</td></tr>';
+  });
+  
+  html+='</table>'
+    +'<div style="border-top:2px solid #c0392b;padding-top:8px;text-align:right;font-weight:700;font-size:14px;color:#c0392b;">Total Expenses: '+fmt(totalExp)+'</div>'
+    +'<table style="width:100%;border-collapse:collapse;margin-top:14px;">'
+    +'<thead><tr style="background:#ffeaea;"><th style="padding:6px;text-align:left;font-size:10px;font-weight:700;">Date</th><th style="padding:6px;text-align:left;font-size:10px;font-weight:700;">Category</th><th style="padding:6px;text-align:left;font-size:10px;font-weight:700;">Description</th><th style="padding:6px;text-align:left;font-size:10px;font-weight:700;">Mode</th><th style="padding:6px;text-align:right;font-size:10px;font-weight:700;">Amount</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
+    +'<div style="text-align:center;margin-top:12px;font-size:8px;color:#999;">'+new Date().toLocaleString('en-IN')+'</div>'
+    +'</div>';
+  
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;width:900px;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  
+  try{
+    await new Promise(function(r){setTimeout(r,100);});
+    var canvas = await html2canvas(container.querySelector('div'), {scale:2,useCORS:true,backgroundColor:'#fff',logging:false,width:900,windowWidth:900});
+    document.body.removeChild(container);
+    
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth();
+    var imgW = pw - 16;
+    var imgH = (canvas.height * imgW) / canvas.width;
+    var imgData = canvas.toDataURL('image/jpeg',0.90);
+    
+    pdf.addImage(imgData,'JPEG',8,8,imgW,imgH);
+    if(asBlob) return pdf.output('blob');
+    pdf.save('The Jeans Club_Expenses_'+dateStr+'.pdf');
+  } catch(e){
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
+    if(asBlob) throw e;
+  }
+}
+
+// ═══════════════ DAY-WISE PDF + EXCEL REPORT BUNDLE (for Telegram) ═══════════════
+// Converts 'YYYY-MM-DD' -> 'DD.MM.YYYY' (used as the folder/file name inside the zip)
+function ddmmyyyy(d){
+  if(!d) return nowDate();
+  var p = d.split('-');
+  if(p.length!==3) return d;
+  return p[2]+'.'+p[1]+'.'+p[0];
+}
+
+// Builds one Excel workbook (multi-sheet) with everything for a single date:
+// Invoices, Payment Receipts, Purchases, Supplier Payments, Expenses,
+// Due Payments (customer + supplier), Inventory snapshot, P&L summary.
+function buildDailyExcelWorkbook(dateStr){
+  var wb = XLSX.utils.book_new();
+
+  var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
+  var dayRecs = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  var dayPurs = (purchases||[]).filter(function(p){ return p.date===dateStr; });
+  var daySupPay = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  var dayExps = (expenses||[]).filter(function(e){ return e.date===dateStr; });
+
+  // 1. Invoices
+  var invRows = [['Invoice No','Date','Customer','Phone','Items','Amount','Payment Mode','Status','Cash','UPI']];
+  dayInvs.forEach(function(i){
+    invRows.push([i.invNo,i.invDate,i.custName,i.custPhone||'',i.items?i.items.length:0,i.total,i.payMode,i.payStatus,i.cashAmt||0,i.upiAmt||0]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invRows), 'Invoices');
+
+  // 2. Payment Receipts
+  var recRows = [['Receipt No','Date','Customer','Invoice','Pending','Paid','Remaining','Mode']];
+  dayRecs.forEach(function(r){
+    recRows.push([r.receiptNo,r.date,r.custName,r.invNo,r.pendingAmt,r.paidAmt,r.remainingAmt,r.payMode]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(recRows), 'Payment Receipts');
+
+  // 3. Purchases
+  var purRows = [['Date','Supplier','Item','Category','Qty','Rate','Freight','Total Cost','Pay Mode','Pay Status','Paid Amount']];
+  dayPurs.forEach(function(p){
+    purRows.push([p.date,p.supplier,p.item,p.category,p.qty,p.rate,p.freight||0,p.totalCost,p.payMode,p.payStatus,p.paidAmount||0]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(purRows), 'Purchases');
+
+  // 4. Supplier Payments
+  var spRows = [['Date','Ref/SP No','Supplier','Mode','Amount','Notes']];
+  daySupPay.forEach(function(r){
+    spRows.push([r.date,r.spNo||r.ref||'',r.supplier,r.payMode,r.amount||0,r.notes||'']);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(spRows), 'Supplier Payments');
+
+  // 5. Expenses
+  var expRows = [['Date','Category','Description','Amount','Mode']];
+  dayExps.forEach(function(e){
+    expRows.push([e.date,e.category,e.desc||'',e.amount,e.payMode]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(expRows), 'Expenses');
+
+  // 6. Due Payments (as of this date) — outstanding customer & supplier dues
+  var dueRows = [['Type','Ref','Party','Total','Paid','Due']];
+  (invoices||[]).filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).forEach(function(i){
+    dueRows.push(['Customer Due', i.invNo, i.custName, i.total, i.paidAmount||0, i.total-(i.paidAmount||0)]);
+  });
+  (purchases||[]).filter(function(p){ return p.payStatus==='Pending'||p.payStatus==='Partial'; }).forEach(function(p){
+    dueRows.push(['Supplier Due', p.item+' ('+(p.supplier||'-')+')', p.supplier, p.totalCost, p.paidAmount||0, p.totalCost-(p.paidAmount||0)]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dueRows), 'Due Payments');
+
+  // 7. Inventory snapshot (current stock, as of this date)
+  var invtRows = [['Item','Category','Size','Qty','Cost','MRP','Profit','Value']];
+  (stockItems||[]).forEach(function(i){
+    invtRows.push([i.name,i.category,i.size,i.qty,i.cost,i.mrp,i.mrp-i.cost,i.qty*i.cost]);
+  });
+  invtRows.push(['','','','','','','Total', (stockItems||[]).reduce(function(s,i){return s+(i.qty*i.cost);},0)]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invtRows), 'Inventory Snapshot');
+
+  // 8. P&L Summary for the day
+  var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
+  var purPaidTotal = dayPurs.reduce(function(s,p){
+    if(p.directPaidAmount!=null) return s+p.directPaidAmount;
+    if(p.payStatus==='Paid') return s+p.totalCost;
+    if(p.payStatus==='Partial') return s+(p.paidAmount||0);
+    return s;
+  },0);
+  var supPayTotal = daySupPay.reduce(function(s,r){return s+(r.amount||0);},0);
+  var expTotal = dayExps.reduce(function(s,e){return s+e.amount;},0);
+  var recTotal = dayRecs.reduce(function(s,r){return s+(r.paidAmt||0);},0);
+  var totalIn = saleTotal + recTotal - dayInvs.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
+  var totalOut = purPaidTotal + supPayTotal + expTotal;
+  var pnlRows = [
+    ['P&L SUMMARY', dateStr],
+    [''],
+    ['Sales (Invoiced)', saleTotal],
+    ['Payment Receipts Collected', recTotal],
+    ['Total IN (approx)', totalIn],
+    [''],
+    ['Purchases (Paid)', purPaidTotal],
+    ['Supplier Payments', supPayTotal],
+    ['Expenses', expTotal],
+    ['Total OUT', totalOut],
+    [''],
+    ['NET (IN - OUT)', totalIn-totalOut]
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pnlRows), 'PnL Summary');
+
+  return wb;
+}
+
+// Small filename-safe helper (mirrors the pattern already used elsewhere: replace / with _)
+function _safeFn(s){ return String(s||'').replace(/[\/\\:*?"<>|]/g,'_').trim(); }
+
+// ── Individual Invoice PDF (invoice-no wise) — used for the Telegram ZIP ──
+// Builds the exact same invoice document used everywhere else (buildPreview → #invPrint),
+// captures it to a PDF blob, then restores whatever was showing before so the
+// user's current screen isn't disturbed.
+async function generateInvoicePDFBlobFor(inv){
+  var savedInv = currentInv;
+  currentInv = inv;
+  buildPreview(inv);
+  await new Promise(function(r){ setTimeout(r, 60); });
+  var el = document.getElementById('invPrint');
+  var blob = null;
+  if(el){
+    var pdf = await _captureElToPDF(el);
+    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    blob = pdf.output('blob');
+  }
+  currentInv = savedInv;
+  if(savedInv) buildPreview(savedInv);
+  return blob;
+}
+
+// ── Individual Customer Payment Receipt PDF — used for the Telegram ZIP ──
+async function generateReceiptPDFBlobFor(r){
+  var saved = currentPendingReceipt;
+  currentPendingReceipt = r;
+  buildPendingPreview(r);
+  await new Promise(function(res){ setTimeout(res, 60); });
+  var el = document.getElementById('ppPrint');
+  var blob = null;
+  if(el){
+    var pdf = await _captureElToPDF(el);
+    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    blob = pdf.output('blob');
+  }
+  currentPendingReceipt = saved;
+  if(saved) buildPendingPreview(saved);
+  return blob;
+}
+
+// ── Individual Supplier / Purchase Payment Receipt PDF — used for the Telegram ZIP ──
+async function generateSPReceiptPDFBlobFor(r){
+  var saved = currentSPReceipt;
+  currentSPReceipt = r;
+  buildSPPreview(r);
+  await new Promise(function(res){ setTimeout(res, 60); });
+  var el = document.getElementById('spPrint');
+  var blob = null;
+  if(el){
+    var pdf = await _captureElToPDF(el);
+    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    blob = pdf.output('blob');
+  }
+  currentSPReceipt = saved;
+  if(saved) buildSPPreview(saved);
+  return blob;
+}
+
+// Builds the zip: {DD.MM.YYYY}/ with all daily reports (PDF + Excel)
+// PLUS invoice-no wise individual invoice PDFs, individual customer payment
+// receipt PDFs, and individual purchase (supplier) payment receipt PDFs for that day.
+async function buildDailyReportZip(dateStr){
+  if(!dateStr) dateStr = nowDate();
+  var folder = ddmmyyyy(dateStr);
+
+  // Generate all summary PDFs
+  var pdfBlob = await generateDailyPDF(dateStr, true);
+  var invPdfBlob = await downloadInventoryPDF(true);
+  var pnlPdfBlob = await generateDailyPnLPDF(dateStr, true);
+  var expPdfBlob = await generateDailyExpensesPDF(dateStr, true);
+  
+  // Generate Excel
+  var wb = buildDailyExcelWorkbook(dateStr);
+  var xlsxArr = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  var xlsxBlob = new Blob([xlsxArr], {type:'application/octet-stream'});
+
+  // Create zip with date folder
+  var zip = new JSZip();
+  var dayFolder = zip.folder(folder);
+  dayFolder.file('1_Daily_Report.pdf', pdfBlob);           // Main report (invoices, receipts, purchases, expenses)
+  dayFolder.file('2_Inventory_Report.pdf', invPdfBlob);    // Inventory snapshot
+  dayFolder.file('3_PnL_Report.pdf', pnlPdfBlob);          // Profit & Loss
+  dayFolder.file('4_Expenses_Report.pdf', expPdfBlob);     // Expenses breakdown
+  dayFolder.file('Daily_Data.xlsx', xlsxBlob);             // All data as Excel sheets
+
+  // ── Today's individual Invoices (invoice-no wise) ──
+  var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
+  if(dayInvs.length){
+    var invFolder = dayFolder.folder('Invoices');
+    for(var ii=0; ii<dayInvs.length; ii++){
+      try{
+        var invBlob = await generateInvoicePDFBlobFor(dayInvs[ii]);
+        if(invBlob) invFolder.file('Invoice_'+_safeFn(dayInvs[ii].invNo||('#'+(ii+1)))+'.pdf', invBlob);
+      }catch(e){ console.error('[Zip] Invoice PDF failed for', dayInvs[ii].invNo, e); }
+    }
+  }
+
+  // ── Today's individual Customer Payment Receipts ──
+  var dayRecs = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  if(dayRecs.length){
+    var recFolder = dayFolder.folder('Payment_Receipts');
+    for(var ri=0; ri<dayRecs.length; ri++){
+      try{
+        var recBlob = await generateReceiptPDFBlobFor(dayRecs[ri]);
+        if(recBlob) recFolder.file('Receipt_'+_safeFn(dayRecs[ri].receiptNo||('#'+(ri+1)))+'.pdf', recBlob);
+      }catch(e){ console.error('[Zip] Receipt PDF failed for', dayRecs[ri].receiptNo, e); }
+    }
+  }
+
+  // ── Today's individual Purchase (Supplier) Payment Receipts ──
+  var daySupPay = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  if(daySupPay.length){
+    var spFolder = dayFolder.folder('Purchase_Payment_Receipts');
+    for(var si=0; si<daySupPay.length; si++){
+      try{
+        var spBlob = await generateSPReceiptPDFBlobFor(daySupPay[si]);
+        if(spBlob) spFolder.file('SPReceipt_'+_safeFn(daySupPay[si].spNo||daySupPay[si].ref||('#'+(si+1)))+'.pdf', spBlob);
+      }catch(e){ console.error('[Zip] SP Receipt PDF failed for', daySupPay[si].spNo, e); }
+    }
+  }
+
+  var zipBlob = await zip.generateAsync({type:'blob'});
+  return { blob: zipBlob, filename: 'TJC_Backup_' + folder + '.zip', folder: folder };
+}
+
+// ═══════════════ TELEGRAM AUTO BACKUP ═══════════════
+// Sends the full data backup (same content as exportDataBackup) as a .json
+// document to a Telegram chat via the Bot API, straight from the browser.
+// No server needed — just a Bot Token + Chat ID.
+function getTelegramConfig(){
+  try { return JSON.parse(localStorage.getItem('ac_tg_cfg') || '{}'); }
+  catch(e){ return {}; }
+}
+function setTelegramConfig(cfg){
+  try { localStorage.setItem('ac_tg_cfg', JSON.stringify(cfg)); } catch(e){}
+}
+
+function saveTelegramConfig(){
+  var tokenEl = document.getElementById('set-tg-token');
+  var chatEl = document.getElementById('set-tg-chatid');
+  var autoEl = document.getElementById('set-tg-auto');
+  var msgEl = document.getElementById('tg-msg');
+  var token = tokenEl ? tokenEl.value.trim() : '';
+  var chatId = chatEl ? chatEl.value.trim() : '';
+  var auto = autoEl ? !!autoEl.checked : false;
+  if(!token || !chatId){
+    if(msgEl) msgEl.textContent = 'Bot Token aur Chat ID dono zaroori hain!';
+    showToast('Telegram Bot Token aur Chat ID daalein!', 'warn');
+    return;
+  }
+  var cfg = getTelegramConfig();
+  cfg.token = token; cfg.chatId = chatId; cfg.auto = auto;
+  setTelegramConfig(cfg);
+  if(msgEl) msgEl.textContent = '✓ Telegram settings saved';
+  showToast('✓ Telegram settings saved!');
+}
+
+// Builds the same full-data JSON payload used by exportDataBackup()
+function buildBackupBlob(){
+  var data = {
+    invoices: invoices,
+    stock: stockItems,
+    stockMovLog: stockMovLog,
+    customers: savedCustomers,
+    settings: SETTINGS,
+    dailyReports: dailyReports,
+    monthlyReports: monthlyReports,
+    pendingPayments: pendingPayments,
+    purchases: purchases,
+    expenses: expenses,
+    supplierPayments: supplierPayments,
+    exportedAt: new Date().toISOString(),
+    version: '4.1',
+    stats: {
+      invoiceCount: invoices.length,
+      stockCount: stockItems.length,
+      customerCount: savedCustomers.length
+    }
+  };
+  var json = JSON.stringify(data, null, 2);
+  return { blob: new Blob([json], {type:'application/json'}), data: data };
+}
+
+function updateTgBackupLabel(){
+  var el = document.getElementById('lastTgBackupLabel');
+  if(!el) return;
+  var last = localStorage.getItem('ac_tg_lastBackupAt');
+  if(!last){ el.textContent = 'Kabhi nahi'; el.style.color = '#c0392b'; return; }
+  var d = new Date(last);
+  var days = Math.floor((Date.now() - d.getTime()) / (24*60*60*1000));
+  var txt = days === 0 ? 'Aaj' : days === 1 ? 'Kal' : days + ' din pehle';
+  el.textContent = txt + ' (' + d.toISOString().slice(0,16).replace('T',' ') + ')';
+  el.style.color = days > 2 ? '#c0392b' : '#1e6e3a';
+}
+
+// Core sender. silent=true suppresses toasts (used for the automatic daily run).
+// Sends a day-wise ZIP (folder named DD.MM.YYYY) containing:
+//   Daily_Report.pdf   (invoices, receipts, purchases, supplier payments, expenses, P&L)
+//   Daily_Data.xlsx    (invoices, receipts, purchases, supplier payments, expenses, dues, inventory, P&L — as sheets)
+//   Inventory_Report.pdf (current stock snapshot)
+//   Invoices/, Payment_Receipts/, Purchase_Payment_Receipts/ (invoice-no wise & receipt-wise individual PDFs)
+// This replaces the old raw-JSON Telegram backup.
+function sendTelegramBackup(silent, dateStr){
+  dateStr = dateStr || nowDate();
+  return new Promise(function(resolve, reject){
+    var cfg = getTelegramConfig();
+    var msgEl = document.getElementById('tg-msg');
+    if(!cfg.token || !cfg.chatId){
+      if(!silent){
+        if(msgEl) msgEl.textContent = 'Pehle Telegram Bot Token aur Chat ID save karein!';
+        showToast('Telegram settings pehle save karein!', 'warn');
+      }
+      reject(new Error('no-config'));
+      return;
+    }
+
+    if(!silent && msgEl) msgEl.textContent = 'Generating PDF + Excel report...';
+    if(!silent) showToast('Report bana rahe hain, thoda ruko...');
+
+    buildDailyReportZip(dateStr).then(function(built){
+      var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
+      var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
+      var dayRecsC = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
+      var daySupPayC = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
+      var caption = '📦 The Jeans Club — Daily Backup\n'
+        + '🗓 ' + ddmmyyyy(dateStr) + '\n'
+        + '🧾 Invoices: ' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
+        + '🧾 Payment Receipts: ' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + daySupPayC.length + '\n'
+        + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, PDF + Excel)';
+
+      var fd = new FormData();
+      fd.append('chat_id', cfg.chatId);
+      fd.append('caption', caption);
+      fd.append('document', built.blob, built.filename);
+
+      if(!silent && msgEl) msgEl.textContent = 'Sending to Telegram...';
+
+      return fetch('https://api.telegram.org/bot' + cfg.token + '/sendDocument', {
+        method: 'POST',
+        body: fd
+      }).then(function(res){ return res.json(); })
+        .then(function(res){
+          if(res && res.ok){
+            localStorage.setItem('ac_tg_lastBackupAt', new Date().toISOString());
+            updateTgBackupLabel();
+            if(!silent){
+              if(msgEl) msgEl.textContent = '✓ Daily report Telegram par bhej diya gaya!';
+              showToast('✓ Daily PDF+Excel report Telegram par bhej diya gaya!');
+            }
+            resolve(res);
+          } else {
+            var errDesc = (res && res.description) ? res.description : 'Unknown error';
+            if(msgEl) msgEl.textContent = '❌ Telegram error: ' + errDesc;
+            if(!silent) showToast('❌ Telegram backup failed: ' + errDesc, 'error');
+            reject(new Error(errDesc));
+          }
+        });
+    }).catch(function(err){
+      console.error('[Telegram Backup] Error:', err);
+      if(msgEl) msgEl.textContent = '❌ Report banane/bhejne mein error — check console';
+      if(!silent) showToast('❌ Telegram backup failed — check internet/token', 'error');
+      reject(err);
+    });
+  });
+}
+
+function sendTelegramBackupNow(){
+  sendTelegramBackup(false);
+}
+
+// Called once on app boot — auto-sends a backup once every 24h if enabled.
+function checkAutoTelegramBackup(){
+  var cfg = getTelegramConfig();
+  if(!cfg.token || !cfg.chatId || !cfg.auto) return;
+  var last = localStorage.getItem('ac_tg_lastBackupAt');
+  var dueMs = 24 * 60 * 60 * 1000; // once a day
+  if(last && (Date.now() - new Date(last).getTime()) < dueMs) return;
+  sendTelegramBackup(true).catch(function(){ /* silent fail, will retry next load */ });
+}
+
 // ===== AUTO SAVE DAILY/MONTHLY =====
 function checkDateChange(){
   var today = nowDate();
@@ -3106,7 +3683,17 @@ function checkDateChange(){
   if(!lastCheckedDate) lastCheckedDate = today;
   if(!lastCheckedMonth) lastCheckedMonth = curMonth;
   if(lastCheckedDate && lastCheckedDate !== today){
+    // Date changed — midnight occurred
     saveDailyReport(lastCheckedDate);
+    
+    // Auto-send yesterday's backup to Telegram (if enabled)
+    var cfg = getTelegramConfig();
+    if(cfg.token && cfg.chatId && cfg.auto){
+      sendTelegramBackup(true, lastCheckedDate).catch(function(err){
+        console.error('[Midnight Telegram Backup] Error:', err);
+      });
+    }
+    
     lastCheckedDate = today;
     LS.setL('lastDate', today);
   }
@@ -3311,7 +3898,6 @@ function checkLogin(){
   savedCustomers = LS.get('customers') || [];
   dailyReports = LS.get('dailyReports') || {};
   monthlyReports = LS.get('monthlyReports') || {};
-  khataEntries = LS.get('khataEntries') || [];
   purchases = LS.get('purchases') || [];
   pendingPayments = LS.get('pendingPayments') || [];
   expenses = LS.get('expenses') || [];
@@ -3717,7 +4303,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', khata:'Khata Ledger', khataentry:'Add Khata Entry', editlog:'Edit Audit Log'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
@@ -3743,8 +4329,6 @@ function navTo(page, el, mi){
   if(page==='pendingnew'){ initPendingForm(); }
   if(page==='pendingpreview'){}
   if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} renderPnL(); }
-  if(page==='khata'){ renderKhata(); }
-  if(page==='khataentry'){ initKhataEntry(); }
   if(page==='editlog'){ if(!staffCanAccess('editlog')){showToast('⛔ Access Denied — Edit Log sirf Admin ke liye hai');navTo('invoice',null);return;} renderEditLog(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
@@ -6485,6 +7069,11 @@ function loadSettings(){
     var mel = document.getElementById('set-mkt'+mi);
     if(mel) mel.value = mktPts[mi-1] || '';
   }
+  var tgCfg = getTelegramConfig();
+  var tgTok=document.getElementById('set-tg-token'); if(tgTok) tgTok.value = tgCfg.token || '';
+  var tgChat=document.getElementById('set-tg-chatid'); if(tgChat) tgChat.value = tgCfg.chatId || '';
+  var tgAuto=document.getElementById('set-tg-auto'); if(tgAuto) tgAuto.checked = !!tgCfg.auto;
+  updateTgBackupLabel();
   var sk=document.getElementById('set-syncKey');if(sk)sk.value=SYNC_KEY||'';
   var bid=localStorage.getItem('ac_bin_'+SYNC_KEY)||'';
   var disp=document.getElementById('sync-bin-id');
@@ -6580,8 +7169,11 @@ function initApp(){
     pullCloud();
   }, 2500);
   else if(SYNC_KEY) setSyncDot('offline');
+  // Auto Telegram backup — now runs at midnight (12:00 AM) when date changes
+  // See checkDateChange() function for implementation
+  // (previously was hourly check, now daily at midnight for better performance)
   setInterval(updSS,30000);
-  setInterval(checkDateChange,60000);
+  setInterval(checkDateChange,60000);  // Checks every 60s, triggers midnight backup when date changes
   // ── SMART SYNC: pull every 5 minutes (not 20s) to save Firebase quota ──
   // 5 min × 2 devices × 8 hrs = ~192 reads/day vs old 5,760 reads/day
   setInterval(function(){
@@ -8310,9 +8902,9 @@ async function downloadExpenseDatePDF(date){
 
 
 // ===== DAILY REPORT PDF GENERATOR =====
-async function generateDailyPDF(reportDate){
+async function generateDailyPDF(reportDate, asBlob){
   if(!reportDate) reportDate = nowDate();
-  showToast('Generating PDF...');
+  if(!asBlob) showToast('Generating PDF...');
 
   var biz = SETTINGS.biz || 'The Jeans Club';
   var dateStr = new Date(reportDate).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
@@ -8645,12 +9237,14 @@ async function generateDailyPDF(reportDate){
       }
     }
     var fname = 'The Jeans Club_Daily_'+reportDate+'.pdf';
+    if(asBlob){ return pdf.output('blob'); }
     pdf.save(fname);
     showToast('Daily PDF downloaded!');
   } catch(e){
-    document.body.removeChild(container);
-    showToast('PDF error: '+e.message);
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
     console.error(e);
+    if(asBlob) throw e;
   }
 }
 
@@ -9231,8 +9825,8 @@ function exportPayExcelPeriod(period){
 }
 
 
-async function downloadInventoryPDF(){
-  showToast('Generating Inventory PDF...');
+async function downloadInventoryPDF(asBlob){
+  if(!asBlob) showToast('Generating Inventory PDF...');
   var biz = SETTINGS.biz || 'The Jeans Club';
   var today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 
@@ -9339,12 +9933,14 @@ async function downloadInventoryPDF(){
         off+=sl; pn++;
       }
     }
+    if(asBlob){ return pdf.output('blob'); }
     pdf.save('The Jeans Club_Inventory_'+nowDate()+'.pdf');
     showToast('Inventory PDF downloaded!');
   } catch(e){
     if(container.parentNode) document.body.removeChild(container);
-    showToast('PDF error: '+e.message);
+    if(!asBlob) showToast('PDF error: '+e.message);
     console.error(e);
+    if(asBlob) throw e;
   }
 }
 
@@ -11412,321 +12008,6 @@ function exportPnLPDF(){
   showToast('PDF ready to print/save!');
 }
 // ===== END P&L FUNCTIONS =====
-
-// ===== KHATA LEDGER FUNCTIONS =====
-
-function khataGetParties(){
-  var parties = [];
-  khataEntries.forEach(function(e){
-    if(e.party && parties.indexOf(e.party) === -1) parties.push(e.party);
-  });
-  // Also add from savedCustomers
-  (savedCustomers||[]).forEach(function(c){
-    var name = c.name || c;
-    if(name && parties.indexOf(name) === -1) parties.push(name);
-  });
-  return parties.sort();
-}
-
-function khataPartyBalance(party, entries){
-  var credit = 0, debit = 0;
-  (entries||khataEntries).filter(function(e){ return e.party===party; }).forEach(function(e){
-    if(e.type==='credit') credit += parseFloat(e.amount)||0;
-    else debit += parseFloat(e.amount)||0;
-  });
-  return { credit:credit, debit:debit, net: credit - debit };
-}
-
-function renderKhata(){
-  khataEntries = LS.get('khataEntries')||[];
-
-  // Populate party filter
-  var pf = document.getElementById('khata-party-filter');
-  var selParty = pf ? pf.value : '';
-  if(pf){
-    var parties = khataGetParties();
-    pf.innerHTML = '<option value="">— All Parties —</option>';
-    parties.forEach(function(p){
-      var opt = document.createElement('option');
-      opt.value = p; opt.textContent = p;
-      if(p===selParty) opt.selected=true;
-      pf.appendChild(opt);
-    });
-  }
-
-  var fromEl = document.getElementById('khata-from');
-  var toEl = document.getElementById('khata-to');
-  var from = fromEl ? fromEl.value : '';
-  var to = toEl ? toEl.value : '';
-
-  // Filter entries by date range
-  var filtered = khataEntries.filter(function(e){
-    if(from && e.date < from) return false;
-    if(to && e.date > to) return false;
-    if(selParty && e.party !== selParty) return false;
-    return true;
-  });
-
-  // Summary
-  var totalCredit=0, totalDebit=0;
-  filtered.forEach(function(e){
-    if(e.type==='credit') totalCredit += parseFloat(e.amount)||0;
-    else totalDebit += parseFloat(e.amount)||0;
-  });
-  var net = totalCredit - totalDebit;
-
-  var sumEl = document.getElementById('khata-summary');
-  if(sumEl){
-    sumEl.innerHTML = ''
-      +'<div class="stat-card gold"><div class="stat-card-icon">&#128200;</div><div class="stat-label">Total Credit (Hamara)</div><div class="stat-value">'+fmtNum(totalCredit)+'</div><div class="stat-sub">They owe us</div></div>'
-      +'<div class="stat-card red"><div class="stat-card-icon">&#128201;</div><div class="stat-label">Total Debit (Humara)</div><div class="stat-value">'+fmtNum(totalDebit)+'</div><div class="stat-sub">We owe them</div></div>'
-      +'<div class="stat-card '+(net>=0?'':'red')+'"><div class="stat-card-icon">&#9878;</div><div class="stat-label">Net Balance</div><div class="stat-value" style="color:'+(net>=0?'var(--gd2)':'#c0392b')+';">'+fmtNum(Math.abs(net))+'</div><div class="stat-sub">'+(net>=0?'Net Receivable':'Net Payable')+'</div></div>'
-      +'<div class="stat-card blue"><div class="stat-card-icon">&#128203;</div><div class="stat-label">Total Entries</div><div class="stat-value" style="color:#1565c0;">'+filtered.length+'</div><div class="stat-sub">Transactions</div></div>';
-  }
-
-  var plWrap = document.getElementById('khata-partylist-wrap');
-  var ldWrap = document.getElementById('khata-ledger-wrap');
-
-  if(!selParty){
-    // Show party-wise summary
-    if(ldWrap) ldWrap.innerHTML = '';
-    var parties = khataGetParties();
-    var html = '<div class="card"><div class="card-head"><div class="card-icon">&#128218;</div><div class="card-title">Party-wise Summary</div></div><div class="card-body" style="padding:0;">';
-    if(parties.length===0){
-      html += '<div style="padding:24px;text-align:center;color:var(--mu);font-size:13px;">Koi entry nahi mili. "Add Entry" karein.</div>';
-    } else {
-      html += '<table class="tbl"><thead><tr><th>Party Name</th><th style="text-align:right;">Credit (Hamara)</th><th style="text-align:right;">Debit (Humara)</th><th style="text-align:right;">Net Balance</th><th style="text-align:right;">Entries</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
-      parties.forEach(function(p){
-        var bal = khataPartyBalance(p);
-        var cnt = filtered.filter(function(e){ return e.party===p; }).length;
-        var netColor = bal.net>=0 ? '#2e7d32' : '#c0392b';
-        var netLabel = bal.net>=0 ? 'Receivable' : 'Payable';
-        html += '<tr>'
-          +'<td style="font-weight:600;color:var(--gd);">'+escHtml(p)+'</td>'
-          +'<td style="text-align:right;color:#2e7d32;">'+fmtNum(bal.credit)+'</td>'
-          +'<td style="text-align:right;color:#c0392b;">'+fmtNum(bal.debit)+'</td>'
-          +'<td style="text-align:right;font-weight:700;color:'+netColor+';">'+fmtNum(Math.abs(bal.net))+' <span style="font-size:9px;font-weight:400;">'+netLabel+'</span></td>'
-          +'<td style="text-align:right;">'+cnt+'</td>'
-          +'<td style="text-align:right;"><button class="btn btn-outline" style="padding:4px 10px;font-size:9px;" onclick="khataViewParty('+JSON.stringify(p)+')">View</button></td>'
-          +'</tr>';
-      });
-      html += '</tbody></table>';
-    }
-    html += '</div></div>';
-    if(plWrap) plWrap.innerHTML = html;
-  } else {
-    // Show selected party ledger
-    if(plWrap) plWrap.innerHTML = '';
-    var partyEntries = filtered.filter(function(e){ return e.party===selParty; });
-    partyEntries.sort(function(a,b){ return a.date<b.date?-1:1; });
-
-    var runBal = 0;
-    var html = '<div class="card"><div class="card-head"><div class="card-icon">&#128218;</div><div class="card-title">Ledger: '+escHtml(selParty)+'</div>';
-    html += '<button class="btn btn-green" style="margin-left:auto;padding:6px 12px;font-size:9px;" onclick="navTo(\'khataentry\',null)">&#10133; Add</button>';
-    html += '</div><div class="card-body" style="padding:0;">';
-
-    if(partyEntries.length===0){
-      html += '<div style="padding:24px;text-align:center;color:var(--mu);">Is party ki koi entry nahi.</div>';
-    } else {
-      html += '<div style="overflow-x:auto;"><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Reference</th><th style="text-align:right;">Credit &#9650;</th><th style="text-align:right;">Debit &#9660;</th><th style="text-align:right;">Balance</th><th style="text-align:right;">Action</th></tr></thead><tbody>';
-      partyEntries.forEach(function(e){
-        var amt = parseFloat(e.amount)||0;
-        if(e.type==='credit') runBal += amt;
-        else runBal -= amt;
-        var balColor = runBal>=0?'#2e7d32':'#c0392b';
-        var balLabel = runBal>=0?'Rcv':'Pay';
-        html += '<tr>'
-          +'<td style="white-space:nowrap;">'+fmtDate(e.date)+'</td>'
-          +'<td><span style="padding:2px 7px;font-size:9px;font-weight:700;letter-spacing:1px;border-radius:2px;background:'+(e.type==='credit'?'#e8f5e9':'#ffebee')+';color:'+(e.type==='credit'?'#2e7d32':'#c0392b')+';">'+e.type.toUpperCase()+'</span></td>'
-          +'<td style="color:var(--mu);font-size:11px;">'+escHtml(e.category||'General')+'</td>'
-          +'<td style="font-size:11px;max-width:150px;overflow:hidden;text-overflow:ellipsis;">'+escHtml(e.ref||'—')+'</td>'
-          +'<td style="text-align:right;color:#2e7d32;font-weight:600;">'+(e.type==='credit'?fmtNum(amt):'')+'</td>'
-          +'<td style="text-align:right;color:#c0392b;font-weight:600;">'+(e.type==='debit'?fmtNum(amt):'')+'</td>'
-          +'<td style="text-align:right;font-weight:700;color:'+balColor+';white-space:nowrap;">'+fmtNum(Math.abs(runBal))+' <span style="font-size:9px;font-weight:400;">'+balLabel+'</span></td>'
-          +'<td style="text-align:right;">'
-          +'<button class="btn btn-outline" style="padding:3px 7px;font-size:9px;margin-right:3px;" onclick="khataEditEntry(\'' + e.id + '\')">Edit</button>'
-          +'<button class="btn btn-red" style="padding:3px 7px;font-size:9px;" onclick="khataDeleteEntry(\'' + e.id + '\')">Del</button>'
-          +'</td>'
-          +'</tr>';
-      });
-      var finalBal = runBal;
-      var finalColor = finalBal>=0?'#2e7d32':'#c0392b';
-      html += '<tr style="background:var(--ow);font-weight:700;"><td colspan="4">CLOSING BALANCE</td><td style="text-align:right;color:#2e7d32;">'+fmtNum(khataPartyBalance(selParty).credit)+'</td><td style="text-align:right;color:#c0392b;">'+fmtNum(khataPartyBalance(selParty).debit)+'</td><td style="text-align:right;color:'+finalColor+';">'+fmtNum(Math.abs(finalBal))+' '+(finalBal>=0?'Rcv':'Pay')+'</td><td></td></tr>';
-      html += '</tbody></table></div>';
-    }
-    html += '</div></div>';
-    if(ldWrap) ldWrap.innerHTML = html;
-  }
-}
-
-function khataViewParty(p){
-  var pf = document.getElementById('khata-party-filter');
-  if(pf){ pf.value = p; }
-  renderKhata();
-}
-
-function initKhataEntry(id){
-  // Populate party datalist
-  var dl = document.getElementById('ke-party-list');
-  if(dl){
-    dl.innerHTML = '';
-    khataGetParties().forEach(function(p){
-      var opt = document.createElement('option');
-      opt.value = p; dl.appendChild(opt);
-    });
-  }
-  // Set today date
-  if(!id){
-    var d = document.getElementById('ke-date');
-    if(d && !d.value) d.value = nowDate(); // FIX: nowDate() local date deta hai
-    // Reset form
-    ['ke-party','ke-amount','ke-ref','ke-remarks'].forEach(function(i){ var el=document.getElementById(i); if(el) el.value=''; });
-    var t=document.getElementById('ke-type'); if(t) t.value='debit';
-    var c=document.getElementById('ke-category'); if(c) c.value='General';
-    khataTypeChange();
-    // Remove edit id
-    document.getElementById('page-khataentry').dataset.editId='';
-  }
-}
-
-function khataTypeChange(){
-  var t = document.getElementById('ke-type');
-  var badge = document.getElementById('ke-type-badge');
-  if(!badge) return;
-  if(t && t.value==='credit'){
-    badge.style.background='#e8f5e9'; badge.style.color='#2e7d32'; badge.style.borderColor='#a5d6a7';
-    badge.innerHTML='✅ Credit = Unka hampe dena hai / They owe us';
-  } else {
-    badge.style.background='#fff3cd'; badge.style.color='#856404'; badge.style.borderColor='#ffc107';
-    badge.innerHTML='⚠️ Debit = Hum unhe denge / We owe them';
-  }
-}
-
-function saveKhataEntry(){
-  var type = document.getElementById('ke-type').value;
-  var date = document.getElementById('ke-date').value;
-  var party = document.getElementById('ke-party').value.trim();
-  var amount = parseFloat(document.getElementById('ke-amount').value)||0;
-  var category = document.getElementById('ke-category').value;
-  var ref = document.getElementById('ke-ref').value.trim();
-  var remarks = document.getElementById('ke-remarks').value.trim();
-  var editId = document.getElementById('page-khataentry').dataset.editId;
-
-  if(!party){ showToast('⚠️ Party name required'); return; }
-  if(!date){ showToast('⚠️ Date required'); return; }
-  if(amount<=0){ showToast('⚠️ Valid amount required'); return; }
-
-  khataEntries = LS.get('khataEntries')||[];
-
-  if(editId){
-    var idx = khataEntries.findIndex(function(e){ return e.id===editId; });
-    if(idx>-1){
-      khataEntries[idx] = {id:editId, type:type, date:date, party:party, amount:amount, category:category, ref:ref, remarks:remarks, updated:new Date().toISOString()};
-    }
-    showToast('✅ Entry updated!');
-  } else {
-    var entry = {
-      id: 'KE'+Date.now(),
-      type: type,
-      date: date,
-      party: party,
-      amount: amount,
-      category: category,
-      ref: ref,
-      remarks: remarks,
-      created: new Date().toISOString()
-    };
-    khataEntries.push(entry);
-    showToast('✅ Khata entry saved!');
-  }
-
-  LS.sync('khataEntries', khataEntries);
-  document.getElementById('page-khataentry').dataset.editId='';
-  navTo('khata', null);
-}
-
-function khataEditEntry(id){
-  khataEntries = LS.get('khataEntries')||[];
-  var e = khataEntries.find(function(x){ return x.id===id; });
-  if(!e) return;
-  navTo('khataentry', null);
-  setTimeout(function(){
-    document.getElementById('ke-type').value = e.type;
-    document.getElementById('ke-date').value = e.date;
-    document.getElementById('ke-party').value = e.party;
-    document.getElementById('ke-amount').value = e.amount;
-    document.getElementById('ke-category').value = e.category||'General';
-    document.getElementById('ke-ref').value = e.ref||'';
-    document.getElementById('ke-remarks').value = e.remarks||'';
-    document.getElementById('page-khataentry').dataset.editId = id;
-    khataTypeChange();
-  }, 80);
-}
-
-function khataDeleteEntry(id){
-  if(!confirm('Is entry ko delete karna chahte hain?')) return;
-  khataEntries = LS.get('khataEntries')||[];
-  khataEntries = khataEntries.filter(function(e){ return e.id!==id; });
-  LS.sync('khataEntries', khataEntries);
-  showToast('🗑️ Entry deleted');
-  renderKhata();
-}
-
-function khataExportPDF(){
-  khataEntries = LS.get('khataEntries')||[];
-  var pf = document.getElementById('khata-party-filter');
-  var selParty = pf ? pf.value : '';
-  var fromEl = document.getElementById('khata-from');
-  var toEl = document.getElementById('khata-to');
-  var from = fromEl ? fromEl.value : '';
-  var to = toEl ? toEl.value : '';
-
-  var filtered = khataEntries.filter(function(e){
-    if(from && e.date < from) return false;
-    if(to && e.date > to) return false;
-    if(selParty && e.party !== selParty) return false;
-    return true;
-  }).sort(function(a,b){ return a.date<b.date?-1:1; });
-
-  var title = selParty ? 'Khata Ledger — '+selParty : 'Khata Ledger — All Parties';
-  var rows = '';
-  var runBal = 0;
-  filtered.forEach(function(e){
-    var amt = parseFloat(e.amount)||0;
-    if(e.type==='credit') runBal+=amt; else runBal-=amt;
-    rows += '<tr>'
-      +'<td>'+fmtDate(e.date)+'</td>'
-      +'<td>'+escHtml(e.party)+'</td>'
-      +'<td style="color:'+(e.type==='credit'?'#2e7d32':'#c0392b')+';font-weight:600;">'+e.type.toUpperCase()+'</td>'
-      +'<td>'+escHtml(e.category||'')+'</td>'
-      +'<td>'+escHtml(e.ref||'')+'</td>'
-      +'<td style="text-align:right;color:#2e7d32;">'+(e.type==='credit'?fmtNum(amt):'')+'</td>'
-      +'<td style="text-align:right;color:#c0392b;">'+(e.type==='debit'?fmtNum(amt):'')+'</td>'
-      +'<td style="text-align:right;font-weight:700;color:'+(runBal>=0?'#2e7d32':'#c0392b')+';">'+fmtNum(Math.abs(runBal))+(runBal>=0?' Rcv':' Pay')+'</td>'
-      +'</tr>';
-  });
-
-  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
-    +'<title>'+title+'</title>'
-    +'<style>body{font-family:Arial,sans-serif;font-size:11px;color:#222;margin:20px;}h2{font-size:16px;color:#14342A;}table{width:100%;border-collapse:collapse;margin-top:14px;}th{background:#14342A;color:#fff;padding:6px 8px;font-size:9px;letter-spacing:1px;text-transform:uppercase;text-align:left;}td{padding:6px 8px;border-bottom:1px solid #999;}.footer{margin-top:20px;text-align:center;font-size:9px;color:#555;border-top:1px solid #999;padding-top:10px;}</style>'
-    +'</head><body>'
-    +'<h2>'+title+'</h2>'
-    +'<div style="font-size:10px;color:#666;">Generated: '+new Date().toLocaleString('en-IN')+(from||to?' | Period: '+(from||'start')+' to '+(to||'now'):'')+'</div>'
-    +'<table><thead><tr><th>Date</th><th>Party</th><th>Type</th><th>Category</th><th>Reference</th><th style="text-align:right;">Credit</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Balance</th></tr></thead><tbody>'
-    +rows
-    +'</tbody></table>'
-    +'<div class="footer">The Jeans Club Business Suite — Khata Ledger</div>'
-    +'\n</body></html>';
-
-  var win = window.open('','_blank');
-  if(!win){showToast('Popup blocked!');return;}
-  win.document.write(html);
-  win.document.close();
-  win.onload=function(){win.focus();win.print();};
-  showToast('PDF ready!');
-}
-
-// ===== END KHATA FUNCTIONS =====
 
 // ===== STAFF PERMISSIONS UI FUNCTIONS =====
 
