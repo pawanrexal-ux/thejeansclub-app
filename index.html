@@ -1736,7 +1736,7 @@ input[type=tel], textarea, select {
         </div>
         <div class="set-section"><div class="set-head">&#9993; Telegram Auto Backup</div>
           <div class="set-body">
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Har din ka PDF + Excel report (Invoices, Receipts, Purchase, Expenses, P&amp;L, Due Payments, Inventory) ek ZIP file mein — date wale folder (jaise 13.07.2026) ke andar — apke Telegram par automatically bhej diya jayega. ZIP mein us din ke sabhi Invoices (invoice no. wise, alag-alag PDF), sabhi Payment Receipts, aur sabhi Purchase (Supplier) Payment Receipts bhi alag folders mein shamil hote hain. JSON file nahi bhejta.</p>
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Har din ka PDF + Excel report (Invoices, Receipts, Purchase, Expenses, P&amp;L, Due Payments, Inventory, Inventory Log, Edit Log) ek ZIP file mein — date wale folder (jaise 13.07.2026) ke andar — apke Telegram par <b>agle din subah 8:30 baje</b> automatically bhej diya jayega (chahe Admin ya Staff, jo bhi pehle app khole). ZIP mein us din ke sabhi Invoices (invoice no. wise, alag-alag PDF), sabhi Payment Receipts, aur sabhi Purchase (Supplier) Payment Receipts bhi alag folders mein shamil hote hain. Agar kai din backup miss hua ho, sabhi pending din ek-ek karke bhej diye jaate hain. JSON file nahi bhejta.</p>
             <div class="ig"><label>Bot Token</label><input type="text" id="set-tg-token" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family:Arial,sans-serif;"/></div>
             <div class="ig"><label>Chat ID</label><input type="text" id="set-tg-chatid" placeholder="e.g. 123456789 or -1001234567890" style="font-family:Arial,sans-serif;"/></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu2);font-family:Arial,sans-serif;margin:8px 0;">
@@ -2758,6 +2758,9 @@ async function pushCloud(){
     dailyReports: dailyReports,       // ← was missing before!
     monthlyReports: monthlyReports,   // ← was missing before!
     editLog: editLog,                 // audit log of invoice/receipt edits
+    telegramConfig: getTelegramConfig(),               // bot token/chatId/auto — so staff device also has it
+    tgLastBackupAt: localStorage.getItem('ac_tg_lastBackupAt') || null, // shared across devices to avoid duplicate sends
+    tgLastBackupDate: localStorage.getItem('ac_tg_lastBackupDate') || null, // which calendar date was last backed up
     appVersion: '4.1',
     ts: Date.now()
   };
@@ -2899,6 +2902,22 @@ async function pullCloud(){
         }
         if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
         if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
+        // Telegram auto-backup config + last-sent timestamp — shared across admin & staff devices
+        if(d.telegramConfig && typeof d.telegramConfig === 'object' && (d.telegramConfig.token || d.telegramConfig.chatId)){
+          setTelegramConfig(d.telegramConfig);
+        }
+        if(d.tgLastBackupAt){
+          var _localTgLast = localStorage.getItem('ac_tg_lastBackupAt');
+          if(!_localTgLast || new Date(d.tgLastBackupAt).getTime() > new Date(_localTgLast).getTime()){
+            localStorage.setItem('ac_tg_lastBackupAt', d.tgLastBackupAt);
+          }
+        }
+        if(d.tgLastBackupDate){
+          var _localTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
+          if(d.tgLastBackupDate > _localTgLastDate){
+            localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
+          }
+        }
         // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
         if(Array.isArray(d.editLog)){
           editLog = d.editLog.slice(0, 500);
@@ -2921,6 +2940,9 @@ async function pullCloud(){
         if(invNoEl && currentPage === 'invoice') invNoEl.value = genInvNo();
         renderDashboard();
         checkStorageHealth();
+        // Catch-up: if a scheduled backup was missed (app was closed at midnight),
+        // whichever device (admin or staff) opens/syncs next will send it now.
+        checkAutoTelegramBackup();
       } else if(d === null){
         // No data on Firebase yet — push local data
         setSyncDot('online');
@@ -3288,6 +3310,162 @@ async function generateDailyExpensesPDF(dateStr, asBlob){
   }
 }
 
+// Inventory Movement Log (stock IN/OUT) for a single day
+async function generateDailyInventoryLogPDF(dateStr, asBlob){
+  if(!dateStr) dateStr = nowDate();
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var displayDate = new Date(dateStr).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  var dayLog = (stockMovLog||[]).filter(function(m){ return m.date === dateStr; });
+  var totalIn = dayLog.filter(function(m){ return m.type==='IN'; }).reduce(function(s,m){ return s+(m.qty||0); },0);
+  var totalOut = dayLog.filter(function(m){ return m.type==='OUT'; }).reduce(function(s,m){ return s+(m.qty||0); },0);
+
+  var rows = dayLog.length ? dayLog.map(function(m){
+    return '<tr style="border-bottom:1px solid #eee;">'
+      +'<td style="padding:6px;font-size:10px;">'+escH(m.date)+'</td>'
+      +'<td style="padding:6px;font-size:11px;font-weight:700;">'+escH(m.item||'-')+'</td>'
+      +'<td style="padding:6px;font-size:10px;text-align:center;color:'+(m.type==='IN'?'#1b5e20':'#c0392b')+';font-weight:700;">'+escH(m.type)+'</td>'
+      +'<td style="padding:6px;font-size:11px;text-align:center;font-weight:700;">'+(m.qty||0)+'</td>'
+      +'<td style="padding:6px;font-size:10px;">'+escH(m.ref||'-')+'</td>'
+      +'<td style="padding:6px;font-size:9px;color:#666;">'+escH(m.note||'-')+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="6" style="padding:14px;text-align:center;font-size:11px;color:#999;">Is din koi stock movement nahi hui.</td></tr>';
+
+  var html = '<div style="background:#fff;padding:20px;font-family:Arial,sans-serif;width:900px;">'
+    +'<div style="border-bottom:2px solid #1565c0;padding-bottom:12px;margin-bottom:14px;">'
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:24px;font-weight:700;color:#0d2818;">'+escH(biz)+' — Inventory Log</div>'
+    +'<div style="font-size:11px;color:#666;">'+displayDate+'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">'
+    +'<div style="background:#e8f5e9;padding:10px;text-align:center;"><div style="font-size:9px;color:#1b5e20;font-weight:700;">TOTAL IN</div><div style="font-size:18px;font-weight:700;color:#1b5e20;">'+totalIn+'</div></div>'
+    +'<div style="background:#ffeaea;padding:10px;text-align:center;"><div style="font-size:9px;color:#c0392b;font-weight:700;">TOTAL OUT</div><div style="font-size:18px;font-weight:700;color:#c0392b;">'+totalOut+'</div></div>'
+    +'</div>'
+    +'<table style="width:100%;border-collapse:collapse;">'
+    +'<thead><tr style="background:#1565c0;color:#fff;"><th style="padding:6px;text-align:left;font-size:10px;">Date</th><th style="padding:6px;text-align:left;font-size:10px;">Item</th><th style="padding:6px;text-align:center;font-size:10px;">Type</th><th style="padding:6px;text-align:center;font-size:10px;">Qty</th><th style="padding:6px;text-align:left;font-size:10px;">Reference</th><th style="padding:6px;text-align:left;font-size:10px;">Note</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>'
+    +'<div style="text-align:center;margin-top:12px;font-size:8px;color:#999;">'+new Date().toLocaleString('en-IN')+'</div>'
+    +'</div>';
+
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;width:900px;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try{
+    await new Promise(function(r){setTimeout(r,100);});
+    var canvas = await html2canvas(container.querySelector('div'), {scale:2,useCORS:true,backgroundColor:'#fff',logging:false,width:900,windowWidth:900});
+    document.body.removeChild(container);
+
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth();
+    var imgW = pw - 16;
+    var imgH = (canvas.height * imgW) / canvas.width;
+    var pageH = pdf.internal.pageSize.getHeight() - 16;
+
+    if(imgH <= pageH){
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,imgH);
+    } else {
+      var pxpm = canvas.width / imgW;
+      var pageHpx = pageH * pxpm;
+      var off = 0, pn = 0;
+      while(off < canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl = Math.min(pageHpx, canvas.height-off);
+        var tc = document.createElement('canvas');
+        tc.width = canvas.width; tc.height = Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,sl/pxpm);
+        off+=sl; pn++;
+      }
+    }
+    if(asBlob) return pdf.output('blob');
+    pdf.save('The Jeans Club_InventoryLog_'+dateStr+'.pdf');
+  } catch(e){
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
+    if(asBlob) throw e;
+  }
+}
+
+// Edit Audit Log (invoice/receipt edits) for a single day
+async function generateDailyEditLogPDF(dateStr, asBlob){
+  if(!dateStr) dateStr = nowDate();
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var displayDate = new Date(dateStr).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  var dayLog = (editLog||[]).filter(function(e){ return (e.ts||'').slice(0,10) === dateStr; });
+
+  var blocks = dayLog.length ? dayLog.map(function(e){
+    var d = new Date(e.ts);
+    var timeStr = d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    var changesRows = (e.changes && e.changes.length) ? e.changes.map(function(c){
+      return '<tr style="border-bottom:1px solid #eee;">'
+        +'<td style="padding:4px 6px;font-size:10px;font-weight:700;">'+escH(c.field)+'</td>'
+        +'<td style="padding:4px 6px;font-size:10px;color:#c62828;">'+escH(c.from||'—')+'</td>'
+        +'<td style="padding:4px 6px;font-size:10px;color:#2e7d32;font-weight:700;">'+escH(c.to||'—')+'</td>'
+        +'</tr>';
+    }).join('') : '<tr><td colspan="3" style="padding:4px 6px;font-size:10px;color:#999;">Koi field nahi badla.</td></tr>';
+
+    return '<div style="border:1px solid #eee;margin-bottom:10px;padding:8px 10px;">'
+      +'<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;flex-wrap:wrap;">'
+      +'<span style="background:'+(e.type==='Invoice'?'#e8f5e9':'#fff3e0')+';color:'+(e.type==='Invoice'?'#1a3a2a':'#7b3f00')+';font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;">'+escH(e.type)+'</span>'
+      +'<span style="font-weight:700;font-size:11px;">'+escH(e.ref)+'</span>'
+      +'<span style="font-size:9px;color:#999;margin-left:auto;">'+timeStr+' &middot; by '+escH(e.user||'-')+'</span>'
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#f5f5f5;"><th style="padding:4px 6px;text-align:left;font-size:9px;">Field</th><th style="padding:4px 6px;text-align:left;font-size:9px;">Before</th><th style="padding:4px 6px;text-align:left;font-size:9px;">After</th></tr></thead><tbody>'+changesRows+'</tbody></table>'
+      +'</div>';
+  }).join('') : '<div style="padding:14px;text-align:center;font-size:11px;color:#999;">Is din koi invoice/receipt edit nahi hua.</div>';
+
+  var html = '<div style="background:#fff;padding:20px;font-family:Arial,sans-serif;width:900px;">'
+    +'<div style="border-bottom:2px solid #6a1b9a;padding-bottom:12px;margin-bottom:14px;">'
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:24px;font-weight:700;color:#6a1b9a;">'+escH(biz)+' — Edit Audit Log</div>'
+    +'<div style="font-size:11px;color:#666;">'+displayDate+' | Total Edits: '+dayLog.length+'</div>'
+    +'</div>'
+    +blocks
+    +'<div style="text-align:center;margin-top:12px;font-size:8px;color:#999;">'+new Date().toLocaleString('en-IN')+'</div>'
+    +'</div>';
+
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;width:900px;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try{
+    await new Promise(function(r){setTimeout(r,100);});
+    var canvas = await html2canvas(container.querySelector('div'), {scale:2,useCORS:true,backgroundColor:'#fff',logging:false,width:900,windowWidth:900});
+    document.body.removeChild(container);
+
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth();
+    var imgW = pw - 16;
+    var imgH = (canvas.height * imgW) / canvas.width;
+    var pageH = pdf.internal.pageSize.getHeight() - 16;
+
+    if(imgH <= pageH){
+      pdf.addImage(canvas.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,imgH);
+    } else {
+      var pxpm = canvas.width / imgW;
+      var pageHpx = pageH * pxpm;
+      var off = 0, pn = 0;
+      while(off < canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl = Math.min(pageHpx, canvas.height-off);
+        var tc = document.createElement('canvas');
+        tc.width = canvas.width; tc.height = Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,sl/pxpm);
+        off+=sl; pn++;
+      }
+    }
+    if(asBlob) return pdf.output('blob');
+    pdf.save('The Jeans Club_EditLog_'+dateStr+'.pdf');
+  } catch(e){
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
+    if(asBlob) throw e;
+  }
+}
+
 // ═══════════════ DAY-WISE PDF + EXCEL REPORT BUNDLE (for Telegram) ═══════════════
 // Converts 'YYYY-MM-DD' -> 'DD.MM.YYYY' (used as the folder/file name inside the zip)
 function ddmmyyyy(d){
@@ -3466,6 +3644,8 @@ async function buildDailyReportZip(dateStr){
   var invPdfBlob = await downloadInventoryPDF(true);
   var pnlPdfBlob = await generateDailyPnLPDF(dateStr, true);
   var expPdfBlob = await generateDailyExpensesPDF(dateStr, true);
+  var invLogPdfBlob = await generateDailyInventoryLogPDF(dateStr, true);
+  var editLogPdfBlob = await generateDailyEditLogPDF(dateStr, true);
   
   // Generate Excel
   var wb = buildDailyExcelWorkbook(dateStr);
@@ -3479,6 +3659,8 @@ async function buildDailyReportZip(dateStr){
   dayFolder.file('2_Inventory_Report.pdf', invPdfBlob);    // Inventory snapshot
   dayFolder.file('3_PnL_Report.pdf', pnlPdfBlob);          // Profit & Loss
   dayFolder.file('4_Expenses_Report.pdf', expPdfBlob);     // Expenses breakdown
+  dayFolder.file('5_Inventory_Log.pdf', invLogPdfBlob);    // Stock movement log (IN/OUT) for the day
+  dayFolder.file('6_Edit_Log.pdf', editLogPdfBlob);        // Invoice/receipt edit audit log for the day
   dayFolder.file('Daily_Data.xlsx', xlsxBlob);             // All data as Excel sheets
 
   // ── Today's individual Invoices (invoice-no wise) ──
@@ -3551,6 +3733,8 @@ function saveTelegramConfig(){
   setTelegramConfig(cfg);
   if(msgEl) msgEl.textContent = '✓ Telegram settings saved';
   showToast('✓ Telegram settings saved!');
+  // Push right away so staff devices get the bot token/chatId/auto-flag without waiting for the next periodic sync
+  if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
 }
 
 // Builds the same full-data JSON payload used by exportDataBackup()
@@ -3596,6 +3780,8 @@ function updateTgBackupLabel(){
 //   Daily_Report.pdf   (invoices, receipts, purchases, supplier payments, expenses, P&L)
 //   Daily_Data.xlsx    (invoices, receipts, purchases, supplier payments, expenses, dues, inventory, P&L — as sheets)
 //   Inventory_Report.pdf (current stock snapshot)
+//   Inventory_Log.pdf    (stock IN/OUT movements for the day)
+//   Edit_Log.pdf          (invoice/receipt edit audit trail for the day)
 //   Invoices/, Payment_Receipts/, Purchase_Payment_Receipts/ (invoice-no wise & receipt-wise individual PDFs)
 // This replaces the old raw-JSON Telegram backup.
 function sendTelegramBackup(silent, dateStr){
@@ -3624,7 +3810,7 @@ function sendTelegramBackup(silent, dateStr){
         + '🗓 ' + ddmmyyyy(dateStr) + '\n'
         + '🧾 Invoices: ' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
         + '🧾 Payment Receipts: ' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + daySupPayC.length + '\n'
-        + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, PDF + Excel)';
+        + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, Inventory Log, Edit Log, PDF + Excel)';
 
       var fd = new FormData();
       fd.append('chat_id', cfg.chatId);
@@ -3640,7 +3826,12 @@ function sendTelegramBackup(silent, dateStr){
         .then(function(res){
           if(res && res.ok){
             localStorage.setItem('ac_tg_lastBackupAt', new Date().toISOString());
+            localStorage.setItem('ac_tg_lastBackupDate', dateStr);
             updateTgBackupLabel();
+            // Push the updated timestamp/date to Firebase right away so admin's
+            // and staff's devices both know a backup was just sent — prevents
+            // a second device from sending a duplicate for the same day.
+            if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
             if(!silent){
               if(msgEl) msgEl.textContent = '✓ Daily report Telegram par bhej diya gaya!';
               showToast('✓ Daily PDF+Excel report Telegram par bhej diya gaya!');
@@ -3666,15 +3857,51 @@ function sendTelegramBackupNow(){
   sendTelegramBackup(false);
 }
 
-// Called once on app boot — auto-sends a backup once every 24h if enabled.
+// Fires once the clock passes 8:30 AM local time — for BOTH admin and staff
+// devices, whichever has the app open (checked every 60s via checkDateChange,
+// plus after every Firebase pull/sync). Sends Telegram backup(s) for every
+// PREVIOUS date that hasn't been sent yet (covers multiple missed days too),
+// then stops for the rest of the day once caught up.
+var _tgAutoBackupInProgress = false;
+function _tgAddDays(dateStr, delta){
+  var parts = dateStr.split('-');
+  var n = new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, parseInt(parts[2],10));
+  n.setDate(n.getDate()+delta);
+  var y=n.getFullYear(), m=String(n.getMonth()+1).padStart(2,'0'), d=String(n.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+d;
+}
+function _tgYesterday(){ return _tgAddDays(nowDate(), -1); }
+function _tgPastCutoffTime(){
+  var n = new Date();
+  return (n.getHours() > 8) || (n.getHours() === 8 && n.getMinutes() >= 30); // 8:30 AM cutoff
+}
 function checkAutoTelegramBackup(){
   var cfg = getTelegramConfig();
   if(!cfg.token || !cfg.chatId || !cfg.auto) return;
-  var last = localStorage.getItem('ac_tg_lastBackupAt');
-  var dueMs = 24 * 60 * 60 * 1000; // once a day
-  if(last && (Date.now() - new Date(last).getTime()) < dueMs) return;
-  sendTelegramBackup(true).catch(function(){ /* silent fail, will retry next load */ });
+  if(_tgAutoBackupInProgress) return; // already sending, don't double-fire
+  if(!_tgPastCutoffTime()) return; // wait until 8:30 AM
+  var yesterday = _tgYesterday();
+  var lastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
+  if(lastDate >= yesterday) return; // already caught up — nothing pending
+
+  // Build the list of missing past dates (day after lastDate .. yesterday).
+  // If there's no record of a last backup at all, just catch up yesterday
+  // (avoid accidentally trying to send years of history on first-ever run).
+  var startDate = lastDate ? _tgAddDays(lastDate, 1) : yesterday;
+  var pending = [];
+  var d = startDate;
+  while(d <= yesterday){ pending.push(d); d = _tgAddDays(d, 1); }
+  if(pending.length > 14) pending = pending.slice(-14); // safety cap
+
+  _tgAutoBackupInProgress = true;
+  (function sendNext(i){
+    if(i >= pending.length){ _tgAutoBackupInProgress = false; return; }
+    sendTelegramBackup(true, pending[i])
+      .catch(function(err){ console.error('[8:30AM Telegram Backup] Error for', pending[i], err); })
+      .then(function(){ sendNext(i+1); });
+  })(0);
 }
+
 
 // ===== AUTO SAVE DAILY/MONTHLY =====
 function checkDateChange(){
@@ -3683,17 +3910,10 @@ function checkDateChange(){
   if(!lastCheckedDate) lastCheckedDate = today;
   if(!lastCheckedMonth) lastCheckedMonth = curMonth;
   if(lastCheckedDate && lastCheckedDate !== today){
-    // Date changed — midnight occurred
+    // Date changed — midnight occurred. Just save the day's report here;
+    // the actual Telegram send now happens at 8:30 AM (see checkAutoTelegramBackup),
+    // not at midnight, so invoices/receipts logged right at day-end aren't missed.
     saveDailyReport(lastCheckedDate);
-    
-    // Auto-send yesterday's backup to Telegram (if enabled)
-    var cfg = getTelegramConfig();
-    if(cfg.token && cfg.chatId && cfg.auto){
-      sendTelegramBackup(true, lastCheckedDate).catch(function(err){
-        console.error('[Midnight Telegram Backup] Error:', err);
-      });
-    }
-    
     lastCheckedDate = today;
     LS.setL('lastDate', today);
   }
@@ -3702,6 +3922,9 @@ function checkDateChange(){
     lastCheckedMonth = curMonth;
     LS.setL('lastMonth', curMonth);
   }
+  // Checked every 60s (see setInterval below) — fires the actual send once
+  // the clock passes 8:30 AM local time, for whichever backed-up date(s) are pending.
+  checkAutoTelegramBackup();
 }
 
 function saveDailyReport(date){
@@ -7169,11 +7392,12 @@ function initApp(){
     pullCloud();
   }, 2500);
   else if(SYNC_KEY) setSyncDot('offline');
-  // Auto Telegram backup — now runs at midnight (12:00 AM) when date changes
-  // See checkDateChange() function for implementation
-  // (previously was hourly check, now daily at midnight for better performance)
+  // Auto Telegram backup — now runs at 8:30 AM (not midnight) so invoices/
+  // receipts entered right at day-end aren't missed. Whichever previous
+  // date(s) are pending get sent, for admin OR staff device, whoever is open.
+  // See checkAutoTelegramBackup() for implementation.
   setInterval(updSS,30000);
-  setInterval(checkDateChange,60000);  // Checks every 60s, triggers midnight backup when date changes
+  setInterval(checkDateChange,60000);  // Checks every 60s; also triggers 8:30 AM backup catch-up
   // ── SMART SYNC: pull every 5 minutes (not 20s) to save Firebase quota ──
   // 5 min × 2 devices × 8 hrs = ~192 reads/day vs old 5,760 reads/day
   setInterval(function(){
@@ -8100,6 +8324,26 @@ async function silentPull(){
         console.log('[silentPull] Staff password cloud se update hua');
       }
     }
+
+    // Telegram auto-backup config + catch-up — checked on every poll (not
+    // gated by the cloudTs optimization below) so a missed backup is caught
+    // as soon as ANY device (admin or staff) is online, not just at boot.
+    if(d.telegramConfig && typeof d.telegramConfig === 'object' && (d.telegramConfig.token || d.telegramConfig.chatId)){
+      setTelegramConfig(d.telegramConfig);
+    }
+    if(d.tgLastBackupAt){
+      var _spTgLast = localStorage.getItem('ac_tg_lastBackupAt');
+      if(!_spTgLast || new Date(d.tgLastBackupAt).getTime() > new Date(_spTgLast).getTime()){
+        localStorage.setItem('ac_tg_lastBackupAt', d.tgLastBackupAt);
+      }
+    }
+    if(d.tgLastBackupDate){
+      var _spTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
+      if(d.tgLastBackupDate > _spTgLastDate){
+        localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
+      }
+    }
+    checkAutoTelegramBackup();
 
     // Baaki data ke liye timestamp check — unnecessary reads bachao
     var cloudTs = d.ts || 0;
