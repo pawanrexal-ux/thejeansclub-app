@@ -3595,14 +3595,17 @@ async function generateInvoicePDFBlobFor(inv){
   await new Promise(function(r){ setTimeout(r, 60); });
   var el = document.getElementById('invPrint');
   var blob = null;
-  if(el){
-    await _waitImagesLoaded(el, 900);
-    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
-    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-    blob = pdf.output('blob');
+  try{
+    if(el){
+      await _waitImagesLoaded(el, 900);
+      var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 3, 600);
+      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+      blob = pdf.output('blob');
+    }
+  } finally {
+    currentInv = savedInv;
+    if(savedInv) buildPreview(savedInv);
   }
-  currentInv = savedInv;
-  if(savedInv) buildPreview(savedInv);
   return blob;
 }
 
@@ -3614,14 +3617,17 @@ async function generateReceiptPDFBlobFor(r){
   await new Promise(function(res){ setTimeout(res, 60); });
   var el = document.getElementById('ppPrint');
   var blob = null;
-  if(el){
-    await _waitImagesLoaded(el, 900);
-    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
-    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-    blob = pdf.output('blob');
+  try{
+    if(el){
+      await _waitImagesLoaded(el, 900);
+      var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 3, 600);
+      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+      blob = pdf.output('blob');
+    }
+  } finally {
+    currentPendingReceipt = saved;
+    if(saved) buildPendingPreview(saved);
   }
-  currentPendingReceipt = saved;
-  if(saved) buildPendingPreview(saved);
   return blob;
 }
 
@@ -3633,14 +3639,17 @@ async function generateSPReceiptPDFBlobFor(r){
   await new Promise(function(res){ setTimeout(res, 60); });
   var el = document.getElementById('spPrint');
   var blob = null;
-  if(el){
-    await _waitImagesLoaded(el, 900);
-    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
-    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-    blob = pdf.output('blob');
+  try{
+    if(el){
+      await _waitImagesLoaded(el, 900);
+      var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 3, 600);
+      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+      blob = pdf.output('blob');
+    }
+  } finally {
+    currentSPReceipt = saved;
+    if(saved) buildSPPreview(saved);
   }
-  currentSPReceipt = saved;
-  if(saved) buildSPPreview(saved);
   return blob;
 }
 
@@ -3681,9 +3690,10 @@ async function buildDailyReportZip(dateStr){
   // "invoices/receipts missing from backup" complaints.
   var invOK=0, invFail=0, recOK=0, recFail=0, spOK=0, spFail=0;
   var invFailNames=[], recFailNames=[], spFailNames=[];
+  var invFailItems=[], recFailItems=[], spFailItems=[]; // keep the actual records for the second-chance pass below
   var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
+  var invFolder = dayInvs.length ? dayFolder.folder('Invoices') : null;
   if(dayInvs.length){
-    var invFolder = dayFolder.folder('Invoices');
     for(var ii=0; ii<dayInvs.length; ii++){
       var invLabel = dayInvs[ii].invNo || ('#'+(ii+1));
       try{
@@ -3691,8 +3701,8 @@ async function buildDailyReportZip(dateStr){
         // just the final safety net if all retries are exhausted.
         var invBlob = await generateInvoicePDFBlobFor(dayInvs[ii]);
         if(invBlob){ invFolder.file('Invoice_'+_safeFn(invLabel)+'.pdf', invBlob); invOK++; }
-        else { invFail++; invFailNames.push(invLabel); }
-      }catch(e){ invFail++; invFailNames.push(invLabel); console.error('[Zip] Invoice PDF failed for', invLabel, e); }
+        else { invFail++; invFailNames.push(invLabel); invFailItems.push(dayInvs[ii]); }
+      }catch(e){ invFail++; invFailNames.push(invLabel); invFailItems.push(dayInvs[ii]); console.error('[Zip] Invoice PDF failed for', invLabel, e); }
       // Small breathing-room pause every few items — lets the browser GC/settle
       // so long batches (40-50+ PDFs) don't pile up memory pressure and fail more.
       if(ii % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
@@ -3701,36 +3711,81 @@ async function buildDailyReportZip(dateStr){
 
   // ── Today's individual Customer Payment Receipts ──
   var dayRecs = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  var recFolder = dayRecs.length ? dayFolder.folder('Payment_Receipts') : null;
   if(dayRecs.length){
-    var recFolder = dayFolder.folder('Payment_Receipts');
     for(var ri=0; ri<dayRecs.length; ri++){
       var recLabel = dayRecs[ri].receiptNo || ('#'+(ri+1));
       try{
         var recBlob = await generateReceiptPDFBlobFor(dayRecs[ri]);
         if(recBlob){ recFolder.file('Receipt_'+_safeFn(recLabel)+'.pdf', recBlob); recOK++; }
-        else { recFail++; recFailNames.push(recLabel); }
-      }catch(e){ recFail++; recFailNames.push(recLabel); console.error('[Zip] Receipt PDF failed for', recLabel, e); }
+        else { recFail++; recFailNames.push(recLabel); recFailItems.push(dayRecs[ri]); }
+      }catch(e){ recFail++; recFailNames.push(recLabel); recFailItems.push(dayRecs[ri]); console.error('[Zip] Receipt PDF failed for', recLabel, e); }
       if(ri % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
     }
   }
 
   // ── Today's individual Purchase (Supplier) Payment Receipts ──
   var daySupPay = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
+  var spFolder = daySupPay.length ? dayFolder.folder('Purchase_Payment_Receipts') : null;
   if(daySupPay.length){
-    var spFolder = dayFolder.folder('Purchase_Payment_Receipts');
     for(var si=0; si<daySupPay.length; si++){
       var spLabel = daySupPay[si].spNo || daySupPay[si].ref || ('#'+(si+1));
       try{
         var spBlob = await generateSPReceiptPDFBlobFor(daySupPay[si]);
         if(spBlob){ spFolder.file('SPReceipt_'+_safeFn(spLabel)+'.pdf', spBlob); spOK++; }
-        else { spFail++; spFailNames.push(spLabel); }
-      }catch(e){ spFail++; spFailNames.push(spLabel); console.error('[Zip] SP Receipt PDF failed for', spLabel, e); }
+        else { spFail++; spFailNames.push(spLabel); spFailItems.push(daySupPay[si]); }
+      }catch(e){ spFail++; spFailNames.push(spLabel); spFailItems.push(daySupPay[si]); console.error('[Zip] SP Receipt PDF failed for', spLabel, e); }
       if(si % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
     }
   }
 
+  // ── Second-chance pass ──
+  // Anything that failed above almost always failed due to transient memory/
+  // canvas pressure from generating many PDFs back-to-back. Give the browser
+  // a real pause to settle, then try the failed ones again, one at a time,
+  // before we give up on them for good.
+  if(invFailItems.length || recFailItems.length || spFailItems.length){
+    await new Promise(function(r){ setTimeout(r, 1000); });
+    for(var iR=0; iR<invFailItems.length; iR++){
+      var iv = invFailItems[iR], ivLabel = iv.invNo || '#retry'+iR;
+      try{
+        var retryBlob = await generateInvoicePDFBlobFor(iv);
+        if(retryBlob){
+          invFolder.file('Invoice_'+_safeFn(ivLabel)+'.pdf', retryBlob);
+          invOK++; invFail--; 
+          var idx = invFailNames.indexOf(ivLabel); if(idx>-1) invFailNames.splice(idx,1);
+        }
+      }catch(e){ console.error('[Zip] Invoice PDF second-chance retry also failed for', ivLabel, e); }
+      await new Promise(function(r){ setTimeout(r, 150); });
+    }
+    for(var rR=0; rR<recFailItems.length; rR++){
+      var rc = recFailItems[rR], rcLabel = rc.receiptNo || '#retry'+rR;
+      try{
+        var retryRecBlob = await generateReceiptPDFBlobFor(rc);
+        if(retryRecBlob){
+          recFolder.file('Receipt_'+_safeFn(rcLabel)+'.pdf', retryRecBlob);
+          recOK++; recFail--;
+          var idx2 = recFailNames.indexOf(rcLabel); if(idx2>-1) recFailNames.splice(idx2,1);
+        }
+      }catch(e){ console.error('[Zip] Receipt PDF second-chance retry also failed for', rcLabel, e); }
+      await new Promise(function(r){ setTimeout(r, 150); });
+    }
+    for(var sR=0; sR<spFailItems.length; sR++){
+      var sp = spFailItems[sR], spLbl = sp.spNo || sp.ref || '#retry'+sR;
+      try{
+        var retrySpBlob = await generateSPReceiptPDFBlobFor(sp);
+        if(retrySpBlob){
+          spFolder.file('SPReceipt_'+_safeFn(spLbl)+'.pdf', retrySpBlob);
+          spOK++; spFail--;
+          var idx3 = spFailNames.indexOf(spLbl); if(idx3>-1) spFailNames.splice(idx3,1);
+        }
+      }catch(e){ console.error('[Zip] SP Receipt PDF second-chance retry also failed for', spLbl, e); }
+      await new Promise(function(r){ setTimeout(r, 150); });
+    }
+  }
+
   if(invFailNames.length || recFailNames.length || spFailNames.length){
-    console.warn('[Telegram Backup] PDF generation failures for '+dateStr+':',
+    console.warn('[Telegram Backup] PDF generation failures for '+dateStr+' (after retries):',
       {invoices:invFailNames, receipts:recFailNames, supplierReceipts:spFailNames});
   }
 
@@ -6717,6 +6772,21 @@ async function _retryAsync(fn, retries, delayMs){
 // Clones the element into an off-screen fixed-width container so html2canvas
 // always captures a full-width render regardless of current screen size or
 // whether the source page is active.
+async function _renderCanvas(clone, PDF_W, scale){
+  return html2canvas(clone,{
+    scale:scale,
+    useCORS:true,
+    backgroundColor:'#ffffff',
+    logging:false,
+    width:PDF_W,
+    windowWidth:PDF_W,
+    scrollX:0,
+    scrollY:0,
+    imageTimeout:0,
+    allowTaint:false
+  });
+}
+
 async function _captureElToPDF(el){
   var PDF_W = 800;
   var wrapper = document.createElement('div');
@@ -6727,22 +6797,34 @@ async function _captureElToPDF(el){
   document.body.appendChild(wrapper);
   await _waitImagesLoaded(clone, 900);
   await new Promise(function(r){setTimeout(r,150);}); // small settle time for layout/reflow after images resolve
+
+  // ── Safety cap on html2canvas scale ──
+  // Root cause of "Invoice / Payment Receipt PDF fails" complaints: scale was a
+  // FIXED 3.2 regardless of content height. A long invoice/receipt (many items,
+  // linked payments, GST rows) renders as a tall element — at fixed width 800px,
+  // scale 3.2 can produce a canvas taller than what many browsers (especially on
+  // phones) can allocate, so html2canvas/toDataURL throws and that specific
+  // invoice/receipt fails EVERY time (not randomly), while the shorter summary
+  // reports (which don't grow with item count) keep working fine.
+  // Fix: scale down automatically for tall content, and fall back to an even
+  // lower scale if the capture still errors out.
+  var MAX_CANVAS_DIM = 12000; // safe ceiling comfortably under common mobile/desktop canvas limits
+  var elH = clone.scrollHeight || clone.offsetHeight || 0;
+  var baseScale = 3.2;
+  if(elH * baseScale > MAX_CANVAS_DIM && elH > 0) baseScale = Math.max(1.5, MAX_CANVAS_DIM / elH);
+
   var canvas;
   try{
-    canvas = await html2canvas(clone,{
-      scale:3.2,
-      useCORS:true,
-      backgroundColor:'#ffffff',
-      logging:false,
-      width:PDF_W,
-      windowWidth:PDF_W,
-      scrollX:0,
-      scrollY:0,
-      imageTimeout:0,
-      allowTaint:false
-    });
+    try{
+      canvas = await _renderCanvas(clone, PDF_W, baseScale);
+      if(!canvas || !canvas.width || !canvas.height) throw new Error('empty-canvas');
+    } catch(e1){
+      console.warn('[_captureElToPDF] capture failed at scale '+baseScale.toFixed(2)+', retrying at lower scale:', e1);
+      canvas = await _renderCanvas(clone, PDF_W, Math.min(baseScale, 1.6));
+      if(!canvas || !canvas.width || !canvas.height) throw new Error('empty-canvas-fallback');
+    }
   } finally {
-    document.body.removeChild(wrapper);
+    if(wrapper.parentNode) document.body.removeChild(wrapper);
   }
   var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   var pw = pdf.internal.pageSize.getWidth();
