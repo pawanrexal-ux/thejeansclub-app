@@ -3673,14 +3673,19 @@ async function buildDailyReportZip(dateStr){
   dayFolder.file('Daily_Data.xlsx', xlsxBlob);             // All data as Excel sheets
 
   // ── Today's individual Invoices (invoice-no wise) ──
+  // Track successes/failures so the Telegram caption can tell the user
+  // exactly what got included — silent skips were the root cause of
+  // "invoices/receipts missing from backup" complaints.
+  var invOK=0, invFail=0, recOK=0, recFail=0, spOK=0, spFail=0;
   var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
   if(dayInvs.length){
     var invFolder = dayFolder.folder('Invoices');
     for(var ii=0; ii<dayInvs.length; ii++){
       try{
         var invBlob = await generateInvoicePDFBlobFor(dayInvs[ii]);
-        if(invBlob) invFolder.file('Invoice_'+_safeFn(dayInvs[ii].invNo||('#'+(ii+1)))+'.pdf', invBlob);
-      }catch(e){ console.error('[Zip] Invoice PDF failed for', dayInvs[ii].invNo, e); }
+        if(invBlob){ invFolder.file('Invoice_'+_safeFn(dayInvs[ii].invNo||('#'+(ii+1)))+'.pdf', invBlob); invOK++; }
+        else invFail++;
+      }catch(e){ invFail++; console.error('[Zip] Invoice PDF failed for', dayInvs[ii].invNo, e); }
     }
   }
 
@@ -3691,8 +3696,9 @@ async function buildDailyReportZip(dateStr){
     for(var ri=0; ri<dayRecs.length; ri++){
       try{
         var recBlob = await generateReceiptPDFBlobFor(dayRecs[ri]);
-        if(recBlob) recFolder.file('Receipt_'+_safeFn(dayRecs[ri].receiptNo||('#'+(ri+1)))+'.pdf', recBlob);
-      }catch(e){ console.error('[Zip] Receipt PDF failed for', dayRecs[ri].receiptNo, e); }
+        if(recBlob){ recFolder.file('Receipt_'+_safeFn(dayRecs[ri].receiptNo||('#'+(ri+1)))+'.pdf', recBlob); recOK++; }
+        else recFail++;
+      }catch(e){ recFail++; console.error('[Zip] Receipt PDF failed for', dayRecs[ri].receiptNo, e); }
     }
   }
 
@@ -3703,13 +3709,19 @@ async function buildDailyReportZip(dateStr){
     for(var si=0; si<daySupPay.length; si++){
       try{
         var spBlob = await generateSPReceiptPDFBlobFor(daySupPay[si]);
-        if(spBlob) spFolder.file('SPReceipt_'+_safeFn(daySupPay[si].spNo||daySupPay[si].ref||('#'+(si+1)))+'.pdf', spBlob);
-      }catch(e){ console.error('[Zip] SP Receipt PDF failed for', daySupPay[si].spNo, e); }
+        if(spBlob){ spFolder.file('SPReceipt_'+_safeFn(daySupPay[si].spNo||daySupPay[si].ref||('#'+(si+1)))+'.pdf', spBlob); spOK++; }
+        else spFail++;
+      }catch(e){ spFail++; console.error('[Zip] SP Receipt PDF failed for', daySupPay[si].spNo, e); }
     }
   }
 
   var zipBlob = await zip.generateAsync({type:'blob'});
-  return { blob: zipBlob, filename: 'TJC_Backup_' + folder + '.zip', folder: folder };
+  return {
+    blob: zipBlob, filename: 'TJC_Backup_' + folder + '.zip', folder: folder,
+    invOK: invOK, invFail: invFail, invTotal: dayInvs.length,
+    recOK: recOK, recFail: recFail, recTotal: dayRecs.length,
+    spOK: spOK, spFail: spFail, spTotal: daySupPay.length
+  };
 }
 
 // ═══════════════ TELEGRAM AUTO BACKUP ═══════════════
@@ -3815,11 +3827,22 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
       var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
       var dayRecsC = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
       var daySupPayC = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
+      var failNote = '';
+      var totalFail = (built.invFail||0) + (built.recFail||0) + (built.spFail||0);
+      if(totalFail > 0){
+        failNote = '\n⚠️ PDF nahi ban paye: ';
+        var parts = [];
+        if(built.invFail) parts.push(built.invFail+' invoice(s)');
+        if(built.recFail) parts.push(built.recFail+' receipt(s)');
+        if(built.spFail) parts.push(built.spFail+' supplier receipt(s)');
+        failNote += parts.join(', ') + ' — Daily_Report.pdf mein data phir bhi mil jayega.';
+      }
       var caption = '📦 The Jeans Club — Daily Backup' + (isAutoSend ? ' (Auto)' : ' (Manual)') + '\n'
         + '🗓 ' + ddmmyyyy(dateStr) + '\n'
-        + '🧾 Invoices: ' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
-        + '🧾 Payment Receipts: ' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + daySupPayC.length + '\n'
-        + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, Inventory Log, Edit Log, PDF + Excel)';
+        + '🧾 Invoices: ' + (built.invOK||0) + '/' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
+        + '🧾 Payment Receipts: ' + (built.recOK||0) + '/' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + (built.spOK||0) + '/' + daySupPayC.length + '\n'
+        + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, Inventory Log, Edit Log, PDF + Excel)'
+        + failNote;
 
       var fd = new FormData();
       fd.append('chat_id', cfg.chatId);
@@ -3849,8 +3872,13 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
             // a second device from sending a duplicate for the same day.
             if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
             if(!silent){
-              if(msgEl) msgEl.textContent = '✓ Daily report Telegram par bhej diya gaya!';
-              showToast('✓ Daily PDF+Excel report Telegram par bhej diya gaya!');
+              if(totalFail > 0){
+                if(msgEl) msgEl.textContent = '⚠️ Bhej diya, lekin '+totalFail+' PDF nahi ban paye — console check karein';
+                showToast('⚠️ Backup bhej diya, par '+totalFail+' invoice/receipt PDF fail ho gaye', 'warn');
+              } else {
+                if(msgEl) msgEl.textContent = '✓ Daily report Telegram par bhej diya gaya!';
+                showToast('✓ Daily PDF+Excel report Telegram par bhej diya gaya!');
+              }
             }
             resolve(res);
           } else {
@@ -5364,29 +5392,14 @@ function persistInvoice(fd){
       gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
       paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0};
 
-    // ── EDIT MODE: restore old invoice's stock first ──
+    // ── EDIT MODE: capture old invoice (for stock restore) BEFORE replacing it ──
+    var oldInvForStock = null;
     if(isEditMode){
-      var oldInv = invoices.find(function(i){ return i.id===editingInvId; });
-      if(oldInv && Array.isArray(oldInv.items)){
-        oldInv.items.forEach(function(oldItem){
-          var si = stockItems.find(function(s){ return s.name.toLowerCase()===oldItem.name.toLowerCase(); });
-          if(si) si.qty += (oldItem.qty||0);
-          // Log stock reversal
-          stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN',
-            item:oldItem.name, qty:oldItem.qty||0,
-            ref:'Invoice #'+finalInvNo+' EDIT (Old Stock Restored)', note:''});
-        });
-      }
+      oldInvForStock = invoices.find(function(i){ return i.id===editingInvId; });
       // Replace existing invoice by id (not invNo) to keep the right record
       var existingIdx = invoices.findIndex(function(i){ return i.id===editingInvId; });
       inv.id = editingInvId; // keep original id so references stay intact
       if(existingIdx >= 0) invoices[existingIdx] = inv; else invoices.unshift(inv);
-      // ── AUDIT LOG: record what changed ──
-      if(window._editInvSnapshot){
-        var invChanges = diffInvoice(window._editInvSnapshot, inv);
-        logEdit('Invoice', inv.invNo, invChanges, 'Invoice edit save hua');
-        window._editInvSnapshot = null;
-      }
     } else {
       var existing = invoices.findIndex(function(i){ return i.invNo===inv.invNo; });
       if(existing>=0) invoices[existing]=inv; else invoices.unshift(inv);
@@ -5395,16 +5408,56 @@ function persistInvoice(fd){
     LS.sync('invoices', invoices);
     saveCustomer(inv.custName, inv.custPhone, inv.custAddr);
 
-    // ── Deduct stock for new/updated items ──
-    fd.items.forEach(function(item){
-      var si = stockItems.find(function(s){ return s.name.toLowerCase()===item.name.toLowerCase(); });
-      if(si) si.qty = Math.max(0, si.qty-item.qty);
-      // Log OUT movement
-      stockMovLog.push({id:Date.now()+Math.random(), date:inv.invDate, type:'OUT',
-        item:item.name, qty:item.qty, ref:'Invoice #'+finalInvNo+' ('+inv.custName+')', note:''});
-    });
+    // ── STOCK ADJUSTMENT (restore old + deduct new) — wrapped so ONE bad item
+    // (e.g. missing name in an old/legacy invoice) can never silently stop the
+    // rest of the adjustment from running. Restore aur deduct isi ek try block
+    // mein hain taaki dono hamesha saath chalein — kabhi bhi sirf IN ho aur
+    // OUT reh na jaaye. ──
+    try {
+      if(isEditMode && oldInvForStock && Array.isArray(oldInvForStock.items)){
+        oldInvForStock.items.forEach(function(oldItem){
+          var nm = (oldItem && oldItem.name) ? String(oldItem.name).toLowerCase() : '';
+          if(!nm) return;
+          var si = stockItems.find(function(s){ return s.name.toLowerCase()===nm; });
+          if(si) si.qty += (oldItem.qty||0);
+          // Log stock reversal
+          stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN',
+            item:oldItem.name, qty:oldItem.qty||0,
+            ref:'Invoice #'+finalInvNo+' EDIT (Old Stock Restored)',
+            note:'Invoice edit se pehle wapas jodi gayi — is invoice mein pehle '+(oldItem.qty||0)+' pcs the (Customer: '+(oldInvForStock.custName||'-')+')'});
+        });
+      }
+
+      // ── Deduct stock for new/updated items ──
+      fd.items.forEach(function(item){
+        var nm = (item && item.name) ? String(item.name).toLowerCase() : '';
+        if(!nm) return;
+        var si = stockItems.find(function(s){ return s.name.toLowerCase()===nm; });
+        if(si) si.qty = Math.max(0, si.qty-(item.qty||0));
+        // Log OUT movement
+        stockMovLog.push({id:Date.now()+Math.random(), date:inv.invDate, type:'OUT',
+          item:item.name, qty:item.qty, ref:'Invoice #'+finalInvNo+' ('+inv.custName+')',
+          note:(isEditMode ? 'Invoice edit ke baad updated qty stock se ghatai gayi' : 'Sale — is invoice ke through customer ko diya gaya')+' (Customer: '+inv.custName+', Payment: '+inv.payMode+')'});
+      });
+    } catch(stockErr){
+      console.error('[persistInvoice] Stock adjustment error:', stockErr);
+      showToast('⚠️ Stock update mein issue aaya — Inventory check karein!');
+    }
     LS.sync('stock', stockItems);
     LS.sync('stockMovLog', stockMovLog);
+
+    // ── AUDIT LOG: record what changed — AFTER stock is already synced, so a
+    // log failure can never block or roll back the stock deduction above. ──
+    if(isEditMode && window._editInvSnapshot){
+      try {
+        var invChanges = diffInvoice(window._editInvSnapshot, inv);
+        logEdit('Invoice', inv.invNo, invChanges, 'Invoice edit save hua');
+      } catch(logErr){
+        console.error('[persistInvoice] Audit log error:', logErr);
+      }
+      window._editInvSnapshot = null;
+    }
+
     checkDateChange();
     return inv;
   });
@@ -5436,7 +5489,7 @@ function buildPreview(inv){
   pendingPayments = LS.get('pendingPayments') || pendingPayments || [];
   var dateStr = inv.invDate ? new Date(inv.invDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
   var rows = '';
-  inv.items.filter(function(i){return i.name||i.price>0;}).forEach(function(i,idx){
+  (inv.items||[]).filter(function(i){return i.name||i.price>0;}).forEach(function(i,idx){
     var dispRate = i.price;
     var dispAmt = i.qty * i.price;
     var rowBg = idx%2===0 ? '#fff' : '#f9f7f3';
@@ -5736,7 +5789,8 @@ function deleteInv(id){
       // Log reversal movement
       stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN',
         item:item.name, qty:item.qty||0,
-        ref:'Invoice #'+(inv.invNo||inv.id)+' DELETE (Stock Restored)', note:''});
+        ref:'Invoice #'+(inv.invNo||inv.id)+' DELETE (Stock Restored)',
+        note:'Invoice delete hone ke wajah se stock wapas jodi gayi (Customer: '+(inv.custName||'-')+')'});
     });
     LS.sync('stock', stockItems);
     LS.sync('stockMovLog', stockMovLog);
@@ -6238,14 +6292,14 @@ function addStock(){
   if(existing){
     existing.qty+=qty; if(cost>0)existing.cost=cost; if(mrp>0)existing.mrp=mrp;
     LS.sync('stock',stockItems);
-    stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'Qty updated'});
+    stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'Inventory page se manually qty add ki gayi (+'+qty+' pcs, naya total: '+existing.qty+')'});
     LS.sync('stockMovLog', stockMovLog);
     document.getElementById('inv-name').value=''; document.getElementById('inv-qty').value='10';
     renderInventory(); showToast('Qty updated! Total: '+existing.qty+' pcs'); return;
   }
   stockItems.unshift({id:Date.now(),name:name,category:cat,size:size,qty:qty,cost:cost,mrp:mrp,addedOn:nowDate()});
   LS.sync('stock',stockItems);
-  stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'New item added'});
+  stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'Inventory page se naya item manually add kiya gaya ('+qty+' pcs)'});
   LS.sync('stockMovLog', stockMovLog);
   document.getElementById('inv-name').value=''; document.getElementById('inv-qty').value='10';
   renderInventory(); showToast('Stock added!');
@@ -7035,9 +7089,10 @@ function renderInvReport() {
           var dOut=entries.filter(function(m){return m.type==='OUT';}).reduce(function(s,m){return s+m.qty;},0);
           var rows=entries.map(function(m,idx){
             var isIn=m.type==='IN';
-            return '<tr style="border-bottom:1px solid #f0ede8;'+(idx%2===1?'background:#fafaf9;':'')+'"><td style="padding:8px 10px;"><span style="display:inline-block;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:1px;background:'+(isIn?'#e8f5e9':'#ffebee')+';color:'+(isIn?'#1b5e20':'#b71c1c')+';">'+m.type+'</span></td><td style="padding:8px 10px;font-weight:600;font-size:12px;">'+m.item+'</td><td style="padding:8px 10px;text-align:center;font-weight:700;color:'+(isIn?'#2e7d32':'#c0392b')+';font-size:13px;">'+(isIn?'+':'-')+m.qty+'</td><td style="padding:8px 10px;font-size:11px;color:#555;">'+m.ref+'</td></tr>';
+            var noteHtml = m.note ? '<div style="font-size:10px;color:#8a8a8a;margin-top:3px;line-height:1.4;">💬 '+m.note+'</div>' : '';
+            return '<tr style="border-bottom:1px solid #f0ede8;'+(idx%2===1?'background:#fafaf9;':'')+'"><td style="padding:8px 10px;vertical-align:top;"><span style="display:inline-block;padding:2px 8px;font-size:10px;font-weight:700;letter-spacing:1px;background:'+(isIn?'#e8f5e9':'#ffebee')+';color:'+(isIn?'#1b5e20':'#b71c1c')+';">'+m.type+'</span></td><td style="padding:8px 10px;font-weight:600;font-size:12px;vertical-align:top;">'+m.item+'</td><td style="padding:8px 10px;text-align:center;font-weight:700;color:'+(isIn?'#2e7d32':'#c0392b')+';font-size:13px;vertical-align:top;">'+(isIn?'+':'-')+m.qty+'</td><td style="padding:8px 10px;font-size:11px;color:#555;"><div>'+m.ref+'</div>'+noteHtml+'</td></tr>';
           }).join('');
-          dhtml+='<div><div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 24px;cursor:pointer;background:#fff;border-bottom:1px solid #f0ede8;"><span style="font-weight:600;font-size:12px;font-family:Arial,sans-serif;flex:1;color:#333;">'+dateLabel+'</span><span style="font-size:10px;color:#2e7d32;font-weight:700;">+'+dIn+'</span><span style="font-size:10px;color:#c0392b;font-weight:700;margin-left:4px;">-'+dOut+'</span><span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div><div id="'+did+'" style="display:none;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;"><thead><tr style="background:linear-gradient(90deg,#2d3a42,#37474f);color:#fff;"><th style="padding:8px 10px;text-align:left;">Type</th><th style="padding:8px 10px;text-align:left;">Item</th><th style="padding:8px 10px;text-align:center;">Qty</th><th style="padding:8px 10px;text-align:left;">Reference</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+          dhtml+='<div><div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 24px;cursor:pointer;background:#fff;border-bottom:1px solid #f0ede8;"><span style="font-weight:600;font-size:12px;font-family:Arial,sans-serif;flex:1;color:#333;">'+dateLabel+'</span><span style="font-size:10px;color:#2e7d32;font-weight:700;">+'+dIn+'</span><span style="font-size:10px;color:#c0392b;font-weight:700;margin-left:4px;">-'+dOut+'</span><span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div><div id="'+did+'" style="display:none;overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;"><thead><tr style="background:linear-gradient(90deg,#2d3a42,#37474f);color:#fff;"><th style="padding:8px 10px;text-align:left;">Type</th><th style="padding:8px 10px;text-align:left;">Item</th><th style="padding:8px 10px;text-align:center;">Qty</th><th style="padding:8px 10px;text-align:left;">Reference / Remarks</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
         });
         mhtml+='<div style="margin-bottom:8px;"><div class="fold-head" data-fid="'+mid+'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;"><span style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;color:var(--gd);flex:1;">'+monthLabel+'</span><span style="font-size:10px;color:#2e7d32;font-weight:700;">IN:'+mIn+'</span><span style="font-size:10px;color:#c0392b;font-weight:700;margin-left:6px;">OUT:'+mOut+'</span><span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div><div id="'+mid+'" style="display:none;border:1px solid var(--bdr);border-top:none;">'+dhtml+'</div></div>';
       });
@@ -10356,7 +10411,7 @@ function savePurchase(){
     if(rate > 0) existing.cost = rate; // update cost
     if(category && category !== 'Other') existing.category = category; // update category if explicitly selected
     LS.sync('stock', stockItems);
-    stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:notes});
+    stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se stock aayi — supplier '+supplier+' se +'+qty+' pcs'+(notes?' ('+notes+')':'')});
     LS.sync('stockMovLog', stockMovLog);
     showToast('Purchase saved! ' + item + ' qty updated in inventory (total: ' + existing.qty + ')');
   } else {
@@ -10372,7 +10427,7 @@ function savePurchase(){
       addedOn: date || nowDate()
     });
     LS.sync('stock', stockItems);
-    stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:notes||'New item'});
+    stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se naya item stock mein add hua — supplier '+supplier+' se '+qty+' pcs'+(notes?' ('+notes+')':'')});
     LS.sync('stockMovLog', stockMovLog);
     showToast('Purchase saved! New item added to inventory.');
   }
@@ -10396,7 +10451,8 @@ function deletePurchase(id){
     // Log reversal
     stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'OUT',
       item:pur.item, qty:pur.qty,
-      ref:'Purchase DELETE - ' + (pur.supplier||'Unknown') + ' (Stock Reversed)', note:''});
+      ref:'Purchase DELETE - ' + (pur.supplier||'Unknown') + ' (Stock Reversed)',
+      note:'Purchase delete hone ke wajah se stock se qty ghatai gayi (supplier: '+(pur.supplier||'Unknown')+')'});
     LS.sync('stockMovLog', stockMovLog);
   }
 
