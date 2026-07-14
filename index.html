@@ -3596,7 +3596,8 @@ async function generateInvoicePDFBlobFor(inv){
   var el = document.getElementById('invPrint');
   var blob = null;
   if(el){
-    var pdf = await _captureElToPDF(el);
+    await _waitImagesLoaded(el, 900);
+    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     blob = pdf.output('blob');
   }
@@ -3614,7 +3615,8 @@ async function generateReceiptPDFBlobFor(r){
   var el = document.getElementById('ppPrint');
   var blob = null;
   if(el){
-    var pdf = await _captureElToPDF(el);
+    await _waitImagesLoaded(el, 900);
+    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     blob = pdf.output('blob');
   }
@@ -3632,7 +3634,8 @@ async function generateSPReceiptPDFBlobFor(r){
   var el = document.getElementById('spPrint');
   var blob = null;
   if(el){
-    var pdf = await _captureElToPDF(el);
+    await _waitImagesLoaded(el, 900);
+    var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 2, 400);
     addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     blob = pdf.output('blob');
   }
@@ -3677,15 +3680,22 @@ async function buildDailyReportZip(dateStr){
   // exactly what got included — silent skips were the root cause of
   // "invoices/receipts missing from backup" complaints.
   var invOK=0, invFail=0, recOK=0, recFail=0, spOK=0, spFail=0;
+  var invFailNames=[], recFailNames=[], spFailNames=[];
   var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
   if(dayInvs.length){
     var invFolder = dayFolder.folder('Invoices');
     for(var ii=0; ii<dayInvs.length; ii++){
+      var invLabel = dayInvs[ii].invNo || ('#'+(ii+1));
       try{
+        // generateInvoicePDFBlobFor already retries internally — this catch is
+        // just the final safety net if all retries are exhausted.
         var invBlob = await generateInvoicePDFBlobFor(dayInvs[ii]);
-        if(invBlob){ invFolder.file('Invoice_'+_safeFn(dayInvs[ii].invNo||('#'+(ii+1)))+'.pdf', invBlob); invOK++; }
-        else invFail++;
-      }catch(e){ invFail++; console.error('[Zip] Invoice PDF failed for', dayInvs[ii].invNo, e); }
+        if(invBlob){ invFolder.file('Invoice_'+_safeFn(invLabel)+'.pdf', invBlob); invOK++; }
+        else { invFail++; invFailNames.push(invLabel); }
+      }catch(e){ invFail++; invFailNames.push(invLabel); console.error('[Zip] Invoice PDF failed for', invLabel, e); }
+      // Small breathing-room pause every few items — lets the browser GC/settle
+      // so long batches (40-50+ PDFs) don't pile up memory pressure and fail more.
+      if(ii % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
     }
   }
 
@@ -3694,11 +3704,13 @@ async function buildDailyReportZip(dateStr){
   if(dayRecs.length){
     var recFolder = dayFolder.folder('Payment_Receipts');
     for(var ri=0; ri<dayRecs.length; ri++){
+      var recLabel = dayRecs[ri].receiptNo || ('#'+(ri+1));
       try{
         var recBlob = await generateReceiptPDFBlobFor(dayRecs[ri]);
-        if(recBlob){ recFolder.file('Receipt_'+_safeFn(dayRecs[ri].receiptNo||('#'+(ri+1)))+'.pdf', recBlob); recOK++; }
-        else recFail++;
-      }catch(e){ recFail++; console.error('[Zip] Receipt PDF failed for', dayRecs[ri].receiptNo, e); }
+        if(recBlob){ recFolder.file('Receipt_'+_safeFn(recLabel)+'.pdf', recBlob); recOK++; }
+        else { recFail++; recFailNames.push(recLabel); }
+      }catch(e){ recFail++; recFailNames.push(recLabel); console.error('[Zip] Receipt PDF failed for', recLabel, e); }
+      if(ri % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
     }
   }
 
@@ -3707,20 +3719,27 @@ async function buildDailyReportZip(dateStr){
   if(daySupPay.length){
     var spFolder = dayFolder.folder('Purchase_Payment_Receipts');
     for(var si=0; si<daySupPay.length; si++){
+      var spLabel = daySupPay[si].spNo || daySupPay[si].ref || ('#'+(si+1));
       try{
         var spBlob = await generateSPReceiptPDFBlobFor(daySupPay[si]);
-        if(spBlob){ spFolder.file('SPReceipt_'+_safeFn(daySupPay[si].spNo||daySupPay[si].ref||('#'+(si+1)))+'.pdf', spBlob); spOK++; }
-        else spFail++;
-      }catch(e){ spFail++; console.error('[Zip] SP Receipt PDF failed for', daySupPay[si].spNo, e); }
+        if(spBlob){ spFolder.file('SPReceipt_'+_safeFn(spLabel)+'.pdf', spBlob); spOK++; }
+        else { spFail++; spFailNames.push(spLabel); }
+      }catch(e){ spFail++; spFailNames.push(spLabel); console.error('[Zip] SP Receipt PDF failed for', spLabel, e); }
+      if(si % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
     }
+  }
+
+  if(invFailNames.length || recFailNames.length || spFailNames.length){
+    console.warn('[Telegram Backup] PDF generation failures for '+dateStr+':',
+      {invoices:invFailNames, receipts:recFailNames, supplierReceipts:spFailNames});
   }
 
   var zipBlob = await zip.generateAsync({type:'blob'});
   return {
     blob: zipBlob, filename: 'TJC_Backup_' + folder + '.zip', folder: folder,
-    invOK: invOK, invFail: invFail, invTotal: dayInvs.length,
-    recOK: recOK, recFail: recFail, recTotal: dayRecs.length,
-    spOK: spOK, spFail: spFail, spTotal: daySupPay.length
+    invOK: invOK, invFail: invFail, invTotal: dayInvs.length, invFailNames: invFailNames,
+    recOK: recOK, recFail: recFail, recTotal: dayRecs.length, recFailNames: recFailNames,
+    spOK: spOK, spFail: spFail, spTotal: daySupPay.length, spFailNames: spFailNames
   };
 }
 
@@ -3832,10 +3851,11 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
       if(totalFail > 0){
         failNote = '\n⚠️ PDF nahi ban paye: ';
         var parts = [];
-        if(built.invFail) parts.push(built.invFail+' invoice(s)');
-        if(built.recFail) parts.push(built.recFail+' receipt(s)');
-        if(built.spFail) parts.push(built.spFail+' supplier receipt(s)');
-        failNote += parts.join(', ') + ' — Daily_Report.pdf mein data phir bhi mil jayega.';
+        function _nameList(arr){ if(!arr || !arr.length) return ''; var shown = arr.slice(0,5).join(', '); return ' ('+shown+(arr.length>5?' +'+(arr.length-5)+' more':'')+')'; }
+        if(built.invFail) parts.push(built.invFail+' invoice(s)'+_nameList(built.invFailNames));
+        if(built.recFail) parts.push(built.recFail+' receipt(s)'+_nameList(built.recFailNames));
+        if(built.spFail) parts.push(built.spFail+' supplier receipt(s)'+_nameList(built.spFailNames));
+        failNote += parts.join(', ') + ' — Daily_Report.pdf mein data phir bhi mil jayega. Inventory se "Retry Failed" ya dobara backup bhejein.';
       }
       var caption = '📦 The Jeans Club — Daily Backup' + (isAutoSend ? ' (Auto)' : ' (Manual)') + '\n'
         + '🗓 ' + ddmmyyyy(dateStr) + '\n'
@@ -3873,7 +3893,7 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
             if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
             if(!silent){
               if(totalFail > 0){
-                if(msgEl) msgEl.textContent = '⚠️ Bhej diya, lekin '+totalFail+' PDF nahi ban paye — console check karein';
+                if(msgEl) msgEl.textContent = '⚠️ Bhej diya, lekin '+totalFail+' PDF nahi ban paye — Telegram caption mein naam dekhein';
                 showToast('⚠️ Backup bhej diya, par '+totalFail+' invoice/receipt PDF fail ho gaye', 'warn');
               } else {
                 if(msgEl) msgEl.textContent = '✓ Daily report Telegram par bhej diya gaya!';
@@ -6656,6 +6676,44 @@ function renderDashboard(){
 }
 
 // ===== SHARED PDF CAPTURE HELPER =====
+// Waits for all <img> tags inside an element to actually finish loading
+// (or fail) before we snapshot it — a fixed timeout alone isn't reliable
+// once the phone is under load generating many PDFs back-to-back.
+function _waitImagesLoaded(el, maxWaitMs){
+  maxWaitMs = maxWaitMs || 900;
+  var imgs = el.querySelectorAll('img');
+  if(!imgs.length) return Promise.resolve();
+  var proms = Array.prototype.map.call(imgs, function(img){
+    if(img.complete && img.naturalWidth > 0) return Promise.resolve();
+    return new Promise(function(res){
+      var done = false;
+      function finish(){ if(!done){ done = true; res(); } }
+      img.addEventListener('load', finish, {once:true});
+      img.addEventListener('error', finish, {once:true});
+      setTimeout(finish, maxWaitMs); // per-image safety timeout, never hangs forever
+    });
+  });
+  return Promise.all(proms);
+}
+
+// Retries an async PDF-building function a few times with a short gap —
+// most html2canvas failures at scale (40-50 PDFs in a row) are transient
+// (a slow image, a GC pause, a momentary layout hiccup), not permanent.
+async function _retryAsync(fn, retries, delayMs){
+  var lastErr = null;
+  for(var attempt = 0; attempt <= retries; attempt++){
+    try{
+      var result = await fn();
+      if(result) return result;
+      lastErr = new Error('empty-result');
+    } catch(e){
+      lastErr = e;
+    }
+    if(attempt < retries) await new Promise(function(r){ setTimeout(r, delayMs); });
+  }
+  throw lastErr || new Error('failed-after-retries');
+}
+
 // Clones the element into an off-screen fixed-width container so html2canvas
 // always captures a full-width render regardless of current screen size or
 // whether the source page is active.
@@ -6667,7 +6725,8 @@ async function _captureElToPDF(el){
   clone.style.cssText = 'width:'+PDF_W+'px !important;max-width:'+PDF_W+'px !important;font-size:12px;box-sizing:border-box;';
   wrapper.appendChild(clone);
   document.body.appendChild(wrapper);
-  await new Promise(function(r){setTimeout(r,250);});
+  await _waitImagesLoaded(clone, 900);
+  await new Promise(function(r){setTimeout(r,150);}); // small settle time for layout/reflow after images resolve
   var canvas;
   try{
     canvas = await html2canvas(clone,{
