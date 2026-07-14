@@ -1736,7 +1736,7 @@ input[type=tel], textarea, select {
         </div>
         <div class="set-section"><div class="set-head">&#9993; Telegram Auto Backup</div>
           <div class="set-body">
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Har din ka PDF + Excel report (Invoices, Receipts, Purchase, Expenses, P&amp;L, Due Payments, Inventory, Inventory Log, Edit Log) ek ZIP file mein — date wale folder (jaise 13.07.2026) ke andar — apke Telegram par <b>agle din subah 8:30 baje</b> automatically bhej diya jayega (chahe Admin ya Staff, jo bhi pehle app khole). ZIP mein us din ke sabhi Invoices (invoice no. wise, alag-alag PDF), sabhi Payment Receipts, aur sabhi Purchase (Supplier) Payment Receipts bhi alag folders mein shamil hote hain. Agar kai din backup miss hua ho, sabhi pending din ek-ek karke bhej diye jaate hain. JSON file nahi bhejta.</p>
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Har din ka PDF + Excel report (Invoices, Receipts, Purchase, Purchase Dashboard &amp; Supplier Pending Payments, Expenses, P&amp;L, Due Payments, Inventory, Inventory Log, Edit Log) ek ZIP file mein — date wale folder (jaise 13.07.2026) ke andar — apke Telegram par <b>agle din subah 8:30 baje</b> automatically bhej diya jayega (chahe Admin ya Staff, jo bhi pehle app khole). ZIP mein us din ke sabhi Invoices (invoice no. wise, alag-alag PDF), sabhi Payment Receipts, aur sabhi Purchase (Supplier) Payment Receipts bhi alag folders mein shamil hote hain. Agar kai din backup miss hua ho, sabhi pending din ek-ek karke bhej diye jaate hain. JSON file nahi bhejta.</p>
             <div class="ig"><label>Bot Token</label><input type="text" id="set-tg-token" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family:Arial,sans-serif;"/></div>
             <div class="ig"><label>Chat ID</label><input type="text" id="set-tg-chatid" placeholder="e.g. 123456789 or -1001234567890" style="font-family:Arial,sans-serif;"/></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu2);font-family:Arial,sans-serif;margin:8px 0;">
@@ -3158,6 +3158,7 @@ async function generateDailyPnLPDF(dateStr, asBlob){
   var dayInvs = (invoices||[]).filter(function(i){ return i.invDate === dateStr; });
   var dayPurs = (purchases||[]).filter(function(p){ return p.date === dateStr; });
   var dayExps = (expenses||[]).filter(function(e){ return e.date === dateStr; });
+  var daySupPay = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date === dateStr; });
   
   var sales = dayInvs.reduce(function(s,i){ return s+i.total; },0);
   var purCost = dayPurs.reduce(function(s,p){
@@ -3166,9 +3167,10 @@ async function generateDailyPnLPDF(dateStr, asBlob){
     if(p.payStatus==='Partial') return s+(p.paidAmount||0);
     return s;
   },0);
+  var supPayCost = daySupPay.reduce(function(s,r){ return s+(r.amount||0); },0);
   var expCost = dayExps.reduce(function(s,e){ return s+e.amount; },0);
   var gross = sales - purCost;
-  var net = gross - expCost;
+  var net = gross - supPayCost - expCost;
   
   // Category-wise expenses
   var expCats = {};
@@ -3197,11 +3199,14 @@ async function generateDailyPnLPDF(dateStr, asBlob){
     +'<tr style="background:#fff3e0;"><td style="padding:10px;font-weight:700;color:#c45e00;font-size:13px;">🛒 PURCHASE COST</td><td style="padding:10px;text-align:right;font-weight:700;color:#c45e00;font-size:14px;">−'+fmt(purCost)+'</td></tr>'
     +'<tr style="background:#f9f9f9;"><td style="padding:8px;font-size:11px;color:#666;">Items purchased</td><td style="padding:8px;text-align:right;font-size:11px;">'+dayPurs.length+' purchases</td></tr>'
     
+    +(supPayCost>0?'<tr style="background:#f3f4ff;"><td style="padding:10px;font-weight:700;color:#5c35b5;font-size:13px;">🏷️ SUPPLIER PAYMENTS</td><td style="padding:10px;text-align:right;font-weight:700;color:#5c35b5;font-size:14px;">−'+fmt(supPayCost)+'</td></tr>'
+    +'<tr style="background:#f9f9f9;"><td style="padding:8px;font-size:11px;color:#666;">Payments made to suppliers (dues)</td><td style="padding:8px;text-align:right;font-size:11px;">'+daySupPay.length+' payment(s)</td></tr>':'')
+    
     +'<tr style="background:#ffeaea;"><td style="padding:10px;font-weight:700;color:#c0392b;font-size:13px;">💸 EXPENSES</td><td style="padding:10px;text-align:right;font-weight:700;color:#c0392b;font-size:14px;">−'+fmt(expCost)+'</td></tr>'
     +(expRows?'<tr><td colspan="2" style="padding:0;"><table style="width:100%;border-collapse:collapse;">'+expRows+'</table></td></tr>':'')
     
     +'<tr style="background:#1565c0;color:#fff;"><td style="padding:12px;font-weight:700;font-size:14px;">═══ GROSS PROFIT (Sales − Purchase)</td><td style="padding:12px;text-align:right;font-weight:700;font-size:15px;">'+fmt(gross)+'</td></tr>'
-    +'<tr style="background:'+(net>=0?'#c8e6c9':'#ffcdd2')+';"><td style="padding:12px;font-weight:700;font-size:15px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">★ NET PROFIT (Gross − Expenses)</td><td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">'+fmt(net)+'</td></tr>'
+    +'<tr style="background:'+(net>=0?'#c8e6c9':'#ffcdd2')+';"><td style="padding:12px;font-weight:700;font-size:15px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">★ NET PROFIT (Gross − Sup.Payments − Expenses)</td><td style="padding:12px;text-align:right;font-weight:700;font-size:16px;color:'+(net>=0?'#1b5e20':'#c0392b')+';">'+fmt(net)+'</td></tr>'
     +'</table>'
     
     +'<div style="text-align:center;margin-top:16px;font-size:9px;color:#666;border-top:1px solid #ddd;padding-top:10px;">Generated: '+new Date().toLocaleString('en-IN')+' | '+escH(biz)+'</div>'
@@ -3581,6 +3586,130 @@ function buildDailyExcelWorkbook(dateStr){
   return wb;
 }
 
+// Purchase Dashboard Report for a single day — this was MISSING from the
+// Telegram ZIP backup before: the main Daily_Report only listed that day's
+// purchase rows, it never showed the Purchase Dashboard KPIs (Today/Month
+// Purchase & Qty) or, most importantly, the Supplier-wise Pending Payments
+// table (i.e. "kis supplier ko kitna pending hai" — all-time, not just today).
+// This generator rebuilds that exact view as a standalone PDF so it always
+// rides along in the daily ZIP, same as the other reports.
+async function generateDailyPurchaseDashboardPDF(dateStr, asBlob){
+  if(!dateStr) dateStr = nowDate();
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var displayDate = new Date(dateStr).toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  var allPurs = purchases || [];
+  var todayP  = allPurs.filter(function(p){ return p.date === dateStr; });
+  var mKey    = monthKey(dateStr);
+  var monthP  = allPurs.filter(function(p){ return monthKey(p.date) === mKey; });
+
+  var todayAmt = todayP.reduce(function(s,p){ return s+p.totalCost; },0);
+  var todayQty = todayP.reduce(function(s,p){ return s+(p.qty||0); },0);
+  var monthAmt = monthP.reduce(function(s,p){ return s+p.totalCost; },0);
+  var monthQty = monthP.reduce(function(s,p){ return s+(p.qty||0); },0);
+
+  // Supplier-wise Pending Payments (all-time snapshot, as of this report date) —
+  // same grouping logic as the on-screen Purchase Dashboard.
+  var supplierMap = {};
+  allPurs.forEach(function(p){
+    if(p.payStatus === 'Paid') return;
+    var sup = (p.supplier || 'Unknown').trim();
+    if(!supplierMap[sup]) supplierMap[sup] = { total:0, partial:0, pending:0, entries:0 };
+    var pendAmt = 0;
+    if(p.payStatus === 'Pending'){ pendAmt = p.totalCost; supplierMap[sup].pending += p.totalCost; }
+    else if(p.payStatus === 'Partial'){ pendAmt = Math.max(0, p.totalCost-(p.paidAmount||0)); supplierMap[sup].partial += pendAmt; }
+    supplierMap[sup].total += pendAmt;
+    supplierMap[sup].entries++;
+  });
+  var supNames = Object.keys(supplierMap).filter(function(s){ return supplierMap[s].total>0; });
+  supNames.sort(function(a,b){ return supplierMap[b].total - supplierMap[a].total; });
+  var grandPending = supNames.reduce(function(s,n){ return s+supplierMap[n].total; },0);
+
+  var supRows = supNames.map(function(sup){
+    var sd = supplierMap[sup];
+    return '<tr style="border-bottom:1px solid #eee;">'
+      +'<td style="padding:8px;font-weight:700;font-size:11px;">'+escH(sup)+'</td>'
+      +'<td style="padding:8px;text-align:center;font-size:11px;">'+sd.entries+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px;color:#9a6a00;">'+(sd.partial>0?fmt(sd.partial):'—')+'</td>'
+      +'<td style="padding:8px;text-align:right;font-size:11px;color:#c45e00;">'+(sd.pending>0?fmt(sd.pending):'—')+'</td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700;font-size:12px;color:#c45e00;">'+fmt(sd.total)+'</td>'
+      +'</tr>';
+  }).join('');
+
+  var html = '<div style="background:#fff;padding:20px;font-family:Arial,sans-serif;width:794px;">'
+    +'<div style="border-bottom:2px solid #1565c0;padding-bottom:12px;margin-bottom:16px;">'
+    +(LOGO_URL?'<img src="'+LOGO_URL+'" style="width:40px;height:40px;object-fit:contain;vertical-align:middle;margin-right:10px;"/>':'')
+    +'<div style="display:inline-block;vertical-align:middle;">'
+    +'<div style="font-family:Cormorant Garamond,serif;font-size:24px;font-weight:700;color:#1a3a2a;">'+escH(biz)+'</div>'
+    +'<div style="font-size:10px;color:#666;margin-top:2px;">Purchase Dashboard Report — '+displayDate+'</div>'
+    +'</div></div>'
+
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">'
+    +'<div style="background:#e3f2fd;border-left:3px solid #1565c0;padding:10px;text-align:center;"><div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:3px;">Today Purchase</div><div style="font-size:16px;font-weight:700;color:#1565c0;">'+fmt(todayAmt)+'</div><div style="font-size:9px;color:#777;">'+todayP.length+' items</div></div>'
+    +'<div style="background:#e3f2fd;border-left:3px solid #1565c0;padding:10px;text-align:center;"><div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:3px;">This Month</div><div style="font-size:16px;font-weight:700;color:#1565c0;">'+fmt(monthAmt)+'</div><div style="font-size:9px;color:#777;">'+monthP.length+' items</div></div>'
+    +'<div style="background:#fff8e1;border-left:3px solid #f9a825;padding:10px;text-align:center;"><div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:3px;">Today Qty</div><div style="font-size:16px;font-weight:700;color:#9a7a00;">'+fmtN(todayQty)+'</div><div style="font-size:9px;color:#777;">pieces</div></div>'
+    +'<div style="background:#fff8e1;border-left:3px solid #f9a825;padding:10px;text-align:center;"><div style="font-size:9px;text-transform:uppercase;color:#555;margin-bottom:3px;">Month Qty</div><div style="font-size:16px;font-weight:700;color:#9a7a00;">'+fmtN(monthQty)+'</div><div style="font-size:9px;color:#777;">pieces</div></div>'
+    +'</div>'
+
+    +'<div style="background:#c45e00;color:#fff;padding:10px 12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;">'
+    +'<span>⏳ SUPPLIER PENDING PAYMENTS ('+supNames.length+' suppliers)</span><span>Total: '+fmt(grandPending)+'</span></div>'
+    +(supNames.length ?
+      '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#fff3e0;">'
+      +'<th style="padding:8px;text-align:left;font-size:9px;">Supplier</th>'
+      +'<th style="padding:8px;text-align:center;font-size:9px;">Purchases</th>'
+      +'<th style="padding:8px;text-align:right;font-size:9px;">Partial Due</th>'
+      +'<th style="padding:8px;text-align:right;font-size:9px;">Full Pending</th>'
+      +'<th style="padding:8px;text-align:right;font-size:9px;">Total Due</th>'
+      +'</tr></thead><tbody>'+supRows+'</tbody>'
+      +'<tfoot><tr style="background:#fff3e0;border-top:2px solid #c45e00;">'
+      +'<td colspan="4" style="padding:8px;font-weight:700;font-size:11px;color:#c45e00;">★ GRAND TOTAL PENDING</td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700;font-size:13px;color:#c45e00;">'+fmt(grandPending)+'</td>'
+      +'</tr></tfoot></table>'
+      : '<div style="text-align:center;padding:20px;color:#555;font-size:12px;">✓ Koi pending payment nahi — sab suppliers ko payment ho gayi.</div>')
+
+    +'<div style="text-align:center;margin-top:16px;font-size:9px;color:#666;border-top:1px solid #ddd;padding-top:10px;">Generated: '+new Date().toLocaleString('en-IN')+' | '+escH(biz)+'</div>'
+    +'</div>';
+
+  var container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;width:794px;';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try{
+    await new Promise(function(r){setTimeout(r,100);});
+    var canvas = await html2canvas(container.querySelector('div'), {scale:2,useCORS:true,backgroundColor:'#fff',logging:false,width:794,windowWidth:794});
+    document.body.removeChild(container);
+
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth();
+    var ph = pdf.internal.pageSize.getHeight();
+    var imgW = pw - 16;
+    var imgH = (canvas.height * imgW) / canvas.width;
+    var imgData = canvas.toDataURL('image/jpeg', 0.90);
+
+    if(imgH <= ph-16){
+      pdf.addImage(imgData,'JPEG',8,8,imgW,imgH);
+    } else {
+      var pxpm = canvas.width/imgW, off=0, pn=0;
+      while(off < canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl = Math.min(ph*pxpm-128, canvas.height-off);
+        var tc = document.createElement('canvas');
+        tc.width = canvas.width; tc.height = Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg',0.90),'JPEG',8,8,imgW,sl/pxpm);
+        off+=sl; pn++;
+      }
+    }
+    if(asBlob) return pdf.output('blob');
+    pdf.save('The Jeans Club_Purchase_Dashboard_'+dateStr+'.pdf');
+  } catch(e){
+    if(container.parentNode) document.body.removeChild(container);
+    if(!asBlob) showToast('PDF error: '+e.message);
+    if(asBlob) throw e;
+  }
+}
+
 // Small filename-safe helper (mirrors the pattern already used elsewhere: replace / with _)
 function _safeFn(s){ return String(s||'').replace(/[\/\\:*?"<>|]/g,'_').trim(); }
 
@@ -3667,6 +3796,7 @@ async function buildDailyReportZip(dateStr){
   var expPdfBlob = await generateDailyExpensesPDF(dateStr, true);
   var invLogPdfBlob = await generateDailyInventoryLogPDF(dateStr, true);
   var editLogPdfBlob = await generateDailyEditLogPDF(dateStr, true);
+  var purDashPdfBlob = await generateDailyPurchaseDashboardPDF(dateStr, true); // Purchase Dashboard + Supplier Pending Payments
   
   // Generate Excel
   var wb = buildDailyExcelWorkbook(dateStr);
@@ -3682,6 +3812,7 @@ async function buildDailyReportZip(dateStr){
   dayFolder.file('4_Expenses_Report.pdf', expPdfBlob);     // Expenses breakdown
   dayFolder.file('5_Inventory_Log.pdf', invLogPdfBlob);    // Stock movement log (IN/OUT) for the day
   dayFolder.file('6_Edit_Log.pdf', editLogPdfBlob);        // Invoice/receipt edit audit log for the day
+  dayFolder.file('7_Purchase_Dashboard_Report.pdf', purDashPdfBlob); // Purchase Dashboard KPIs + Supplier Pending Payments (all-time snapshot)
   dayFolder.file('Daily_Data.xlsx', xlsxBlob);             // All data as Excel sheets
 
   // ── Today's individual Invoices (invoice-no wise) ──
