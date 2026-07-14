@@ -1740,10 +1740,12 @@ input[type=tel], textarea, select {
             <div class="ig"><label>Bot Token</label><input type="text" id="set-tg-token" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="font-family:Arial,sans-serif;"/></div>
             <div class="ig"><label>Chat ID</label><input type="text" id="set-tg-chatid" placeholder="e.g. 123456789 or -1001234567890" style="font-family:Arial,sans-serif;"/></div>
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu2);font-family:Arial,sans-serif;margin:8px 0;">
-              <input type="checkbox" id="set-tg-auto" style="width:auto;"/> Daily auto-backup enable karein
+              <input type="checkbox" id="set-tg-auto" style="width:auto;"/> Daily auto-backup enable karein (subah 8:30 baje)
             </label>
             <button class="btn btn-green btn-full" onclick="saveTelegramConfig()" style="margin-bottom:8px;">&#128190; Save Telegram Settings</button>
-            <button class="btn btn-gold btn-full" onclick="sendTelegramBackupNow()" style="margin-bottom:8px;">&#9993; Send Backup to Telegram Now</button>
+            <div class="ig" style="margin-top:4px;"><label>Manual Backup — Date chuno</label><input type="date" id="tg-manual-date" style="font-family:Arial,sans-serif;"/></div>
+            <p style="font-size:10px;color:var(--mu);margin:2px 0 8px;font-family:Arial,sans-serif;">Kisi bhi purani date ka backup chahiye ho to yahan date select karke neeche button dabayein. Manual backup kitni bhi baar bhejein, isse roz subah 8:30 baje wala automatic backup kabhi skip nahi hoga — dono ek dusre se independent hain.</p>
+            <button class="btn btn-gold btn-full" onclick="sendTelegramBackupNow()" style="margin-bottom:8px;">&#9993; Selected Date ka Backup Bhejein</button>
             <div style="margin-top:6px;font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">
               Last Telegram backup: <span id="lastTgBackupLabel" style="color:var(--g);font-weight:600;">—</span>
             </div>
@@ -2760,7 +2762,8 @@ async function pushCloud(){
     editLog: editLog,                 // audit log of invoice/receipt edits
     telegramConfig: getTelegramConfig(),               // bot token/chatId/auto — so staff device also has it
     tgLastBackupAt: localStorage.getItem('ac_tg_lastBackupAt') || null, // shared across devices to avoid duplicate sends
-    tgLastBackupDate: localStorage.getItem('ac_tg_lastBackupDate') || null, // which calendar date was last backed up
+    tgLastBackupDate: localStorage.getItem('ac_tg_lastBackupDate') || null, // which calendar date was last backed up (any send)
+    tgLastAutoBackupDate: localStorage.getItem('ac_tg_lastAutoBackupDate') || null, // which date the 8:30 AM AUTO send last covered (manual sends never touch this)
     appVersion: '4.1',
     ts: Date.now()
   };
@@ -2916,6 +2919,12 @@ async function pullCloud(){
           var _localTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
           if(d.tgLastBackupDate > _localTgLastDate){
             localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
+          }
+        }
+        if(d.tgLastAutoBackupDate){
+          var _localTgLastAutoDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
+          if(d.tgLastAutoBackupDate > _localTgLastAutoDate){
+            localStorage.setItem('ac_tg_lastAutoBackupDate', d.tgLastAutoBackupDate);
           }
         }
         // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
@@ -3784,7 +3793,7 @@ function updateTgBackupLabel(){
 //   Edit_Log.pdf          (invoice/receipt edit audit trail for the day)
 //   Invoices/, Payment_Receipts/, Purchase_Payment_Receipts/ (invoice-no wise & receipt-wise individual PDFs)
 // This replaces the old raw-JSON Telegram backup.
-function sendTelegramBackup(silent, dateStr){
+function sendTelegramBackup(silent, dateStr, isAutoSend){
   dateStr = dateStr || nowDate();
   return new Promise(function(resolve, reject){
     var cfg = getTelegramConfig();
@@ -3806,7 +3815,7 @@ function sendTelegramBackup(silent, dateStr){
       var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
       var dayRecsC = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
       var daySupPayC = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
-      var caption = '📦 The Jeans Club — Daily Backup\n'
+      var caption = '📦 The Jeans Club — Daily Backup' + (isAutoSend ? ' (Auto)' : ' (Manual)') + '\n'
         + '🗓 ' + ddmmyyyy(dateStr) + '\n'
         + '🧾 Invoices: ' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
         + '🧾 Payment Receipts: ' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + daySupPayC.length + '\n'
@@ -3825,8 +3834,15 @@ function sendTelegramBackup(silent, dateStr){
       }).then(function(res){ return res.json(); })
         .then(function(res){
           if(res && res.ok){
+            // General "last backup sent" — used only for the UI label, updated by BOTH manual and auto sends.
             localStorage.setItem('ac_tg_lastBackupAt', new Date().toISOString());
             localStorage.setItem('ac_tg_lastBackupDate', dateStr);
+            // Auto-schedule tracking — updated ONLY by the actual 8:30 AM auto-send,
+            // NEVER by a manual send. This keeps manual backups (for any date, any
+            // number of times) from ever suppressing the automatic daily 8:30 AM send.
+            if(isAutoSend){
+              localStorage.setItem('ac_tg_lastAutoBackupDate', dateStr);
+            }
             updateTgBackupLabel();
             // Push the updated timestamp/date to Firebase right away so admin's
             // and staff's devices both know a backup was just sent — prevents
@@ -3854,7 +3870,9 @@ function sendTelegramBackup(silent, dateStr){
 }
 
 function sendTelegramBackupNow(){
-  sendTelegramBackup(false);
+  var dateEl = document.getElementById('tg-manual-date');
+  var chosenDate = (dateEl && dateEl.value) ? dateEl.value : nowDate();
+  sendTelegramBackup(false, chosenDate, false);
 }
 
 // Fires once the clock passes 8:30 AM local time — for BOTH admin and staff
@@ -3881,7 +3899,11 @@ function checkAutoTelegramBackup(){
   if(_tgAutoBackupInProgress) return; // already sending, don't double-fire
   if(!_tgPastCutoffTime()) return; // wait until 8:30 AM
   var yesterday = _tgYesterday();
-  var lastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
+  // NOTE: uses the dedicated auto-tracking key (ac_tg_lastAutoBackupDate), which is
+  // ONLY ever updated by this function's own successful sends — never by a manual
+  // "Send Backup Now" click. So manual backups (for any date, any number of times)
+  // never suppress the automatic daily 8:30 AM send.
+  var lastDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
   if(lastDate >= yesterday) return; // already caught up — nothing pending
 
   // Build the list of missing past dates (day after lastDate .. yesterday).
@@ -3896,7 +3918,7 @@ function checkAutoTelegramBackup(){
   _tgAutoBackupInProgress = true;
   (function sendNext(i){
     if(i >= pending.length){ _tgAutoBackupInProgress = false; return; }
-    sendTelegramBackup(true, pending[i])
+    sendTelegramBackup(true, pending[i], true)
       .catch(function(err){ console.error('[8:30AM Telegram Backup] Error for', pending[i], err); })
       .then(function(){ sendNext(i+1); });
   })(0);
@@ -7296,6 +7318,7 @@ function loadSettings(){
   var tgTok=document.getElementById('set-tg-token'); if(tgTok) tgTok.value = tgCfg.token || '';
   var tgChat=document.getElementById('set-tg-chatid'); if(tgChat) tgChat.value = tgCfg.chatId || '';
   var tgAuto=document.getElementById('set-tg-auto'); if(tgAuto) tgAuto.checked = !!tgCfg.auto;
+  var tgDateEl=document.getElementById('tg-manual-date'); if(tgDateEl && !tgDateEl.value) tgDateEl.value = nowDate();
   updateTgBackupLabel();
   var sk=document.getElementById('set-syncKey');if(sk)sk.value=SYNC_KEY||'';
   var bid=localStorage.getItem('ac_bin_'+SYNC_KEY)||'';
@@ -8341,6 +8364,12 @@ async function silentPull(){
       var _spTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
       if(d.tgLastBackupDate > _spTgLastDate){
         localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
+      }
+    }
+    if(d.tgLastAutoBackupDate){
+      var _spTgLastAutoDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
+      if(d.tgLastAutoBackupDate > _spTgLastAutoDate){
+        localStorage.setItem('ac_tg_lastAutoBackupDate', d.tgLastAutoBackupDate);
       }
     }
     checkAutoTelegramBackup();
