@@ -1842,6 +1842,8 @@ input[type=tel], textarea, select {
           <option value="">All</option>
           <option value="Invoice">Invoice</option>
           <option value="Receipt">Receipt</option>
+          <option value="Purchase">Purchase</option>
+          <option value="Expense">Expense</option>
         </select>
       </div>
       <div style="flex:1;min-width:140px;">
@@ -1973,6 +1975,111 @@ input[type=tel], textarea, select {
       <div style="display:flex;gap:8px;margin-top:8px;">
         <button class="btn btn-outline btn-full" onclick="closeEditModal()">Cancel</button>
         <button class="btn btn-green btn-full" onclick="saveEditStock()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PURCHASE MODAL -->
+<div class="modal-overlay" id="editPurchaseModal">
+  <div class="modal-box">
+    <div class="modal-hdr"><div class="modal-title">Edit Purchase</div><button class="modal-close" onclick="closeEditPurchaseModal()">&#10005;</button></div>
+    <div class="modal-body">
+      <div class="row2">
+        <div class="ig"><label>Date</label><input type="date" id="epur-date"/></div>
+        <div class="ig"><label>Supplier Name</label><input type="text" id="epur-supplier" placeholder="Supplier / Party name" style="font-family:Arial,sans-serif;"/></div>
+      </div>
+      <div class="ig"><label>Item Name</label><input type="text" id="epur-item" placeholder="Item purchased" style="font-family:Arial,sans-serif;"/></div>
+      <div class="row2">
+        <div class="ig"><label>Category</label>
+          <select id="epur-category" style="font-family:Arial,sans-serif;">
+            <option value="Shirt">Shirt</option>
+            <option value="T-Shirt">T-Shirt</option>
+            <option value="Polo Shirt">Polo Shirt</option>
+            <option value="Full Sleeve Shirt">Full Sleeve Shirt</option>
+            <option value="Half Sleeve Shirt">Half Sleeve Shirt</option>
+            <option value="Pants">Pants</option>
+            <option value="Jeans">Jeans</option>
+            <option value="Jacket">Jacket</option>
+            <option value="Kurta">Kurta</option>
+            <option value="Blazer">Blazer</option>
+            <option value="Shorts">Shorts</option>
+            <option value="Track Pant">Track Pant</option>
+            <option value="Sweatshirt">Sweatshirt</option>
+            <option value="Hoodie">Hoodie</option>
+            <option value="Ethnic Wear">Ethnic Wear</option>
+            <option value="Undergarment">Undergarment</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="ig"><label>Payment Mode</label>
+          <select id="epur-paymode" style="font-family:Arial,sans-serif;">
+            <option value="Cash">&#128181; Cash</option>
+            <option value="Credit">&#128203; Credit (Udhar)</option>
+            <option value="UPI">&#128241; UPI</option>
+            <option value="Bank">&#127974; Bank Transfer</option>
+            <option value="Cheque">&#128196; Cheque</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div class="ig"><label>Qty</label><input type="number" id="epur-qty" inputmode="numeric" min="1" oninput="onEPurPartialChange()"/></div>
+        <div class="ig"><label>Rate Rs./piece</label><input type="number" id="epur-rate" inputmode="numeric" oninput="onEPurPartialChange()"/></div>
+        <div class="ig"><label>Freight Rs.</label><input type="number" id="epur-freight" inputmode="numeric" oninput="onEPurPartialChange()"/></div>
+      </div>
+      <div class="ig"><label>Payment Status</label>
+        <select id="epur-paystatus" style="font-family:Arial,sans-serif;" onchange="onEPurPayStatusChange()">
+          <option value="Paid">&#9989; Paid</option>
+          <option value="Pending">&#8987; Pending (Credit)</option>
+          <option value="Partial">&#128310; Partial</option>
+        </select>
+      </div>
+      <div id="epur-partial-section" style="display:none;background:#fffbea;border:1px solid #ffe18a;border-radius:3px;padding:10px 12px;margin-top:6px;">
+        <div style="font-size:11px;font-weight:700;color:#9a6a00;margin-bottom:8px;font-family:Arial,sans-serif;">&#9654; Partial Payment — Kitna paid hai?</div>
+        <div class="row2">
+          <div class="ig">
+            <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Paid (&#8377;)</label>
+            <div class="iw"><span class="ip">&#8377;</span><input type="number" id="epur-partial-paid" placeholder="0" inputmode="numeric" oninput="onEPurPartialChange()" style="border-color:#ffe18a;"/></div>
+          </div>
+          <div class="ig">
+            <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Pending Due (&#8377;)</label>
+            <div style="padding:10px 12px;background:#fff3e0;border:1px solid #ffd4a0;font-size:14px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;" id="epur-partial-remaining">&#8377; 0</div>
+          </div>
+        </div>
+      </div>
+      <div class="ig"><label>Notes (Optional)</label><textarea id="epur-notes" placeholder="e.g. Bill no, remarks..."></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-outline btn-full" onclick="closeEditPurchaseModal()">Cancel</button>
+        <button class="btn btn-green btn-full" onclick="saveEditPurchase()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT EXPENSE MODAL -->
+<div class="modal-overlay" id="editExpenseModal">
+  <div class="modal-box">
+    <div class="modal-hdr"><div class="modal-title">Edit Expense</div><button class="modal-close" onclick="closeEditExpenseModal()">&#10005;</button></div>
+    <div class="modal-body">
+      <div class="row2">
+        <div class="ig"><label>Date</label><input type="date" id="eexp-date"/></div>
+        <div class="ig"><label>Category</label><select id="eexp-category" style="font-family:Arial,sans-serif;"></select></div>
+      </div>
+      <div class="ig"><label>Description (Optional)</label><input type="text" id="eexp-desc" placeholder="e.g. Electricity bill, Rent..." style="font-family:Arial,sans-serif;"/></div>
+      <div class="row2">
+        <div class="ig"><label>Amount Rs.</label><input type="number" id="eexp-amount" inputmode="numeric" min="0"/></div>
+        <div class="ig"><label>Payment Mode</label>
+          <select id="eexp-paymode" style="font-family:Arial,sans-serif;">
+            <option value="Cash">Cash</option>
+            <option value="UPI">UPI</option>
+            <option value="Bank">Bank</option>
+          </select>
+        </div>
+      </div>
+      <div class="ig"><label>Notes (Optional)</label><textarea id="eexp-notes"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-outline btn-full" onclick="closeEditExpenseModal()">Cancel</button>
+        <button class="btn btn-green btn-full" onclick="saveEditExpense()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -4127,6 +4234,67 @@ function _tgPastCutoffTime(){
   var n = new Date();
   return (n.getHours() > 8) || (n.getHours() === 8 && n.getMinutes() >= 30); // 8:30 AM cutoff
 }
+// ── Cross-device race guard ──
+// Local cache (ac_tg_lastAutoBackupDate) only refreshes from Firebase on boot
+// or via the periodic 5-min pull. If two devices (e.g. mobile + laptop) are
+// opened within that window around 8:30 AM, BOTH can still see the OLD local
+// value and both try to send the same day's backup. To fix this, right
+// before actually sending we talk to Firebase directly (bypassing the local
+// cache) to "claim" that date — whichever device gets there first wins, and
+// the other one sees the claim already in place and skips sending.
+function _tgAutoDateFieldUrl(){
+  return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/data/tgLastAutoBackupDate.json';
+}
+function _tgClaimAutoBackupSlot(dateStr, _retryDepth){
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl) return Promise.resolve({claimed:true, prev:null}); // no cloud configured, nothing to race against
+  _retryDepth = _retryDepth || 0;
+  // Read the current value together with its ETag (Firebase's built-in
+  // optimistic-concurrency token) so the write below can be made conditional.
+  return fetch(_tgAutoDateFieldUrl(), {headers:{'X-Firebase-ETag':'true'}})
+    .then(function(res){
+      var etag = res.headers.get('ETag');
+      return res.json().then(function(serverDate){ return {serverDate:serverDate, etag:etag}; });
+    })
+    .then(function(state){
+      if(state.serverDate && state.serverDate >= dateStr){
+        // Another device already sent this date (or a later one) — sync local cache and bail.
+        localStorage.setItem('ac_tg_lastAutoBackupDate', state.serverDate);
+        return {claimed:false, prev:state.serverDate};
+      }
+      // Conditional write: only succeeds if nobody changed the value since we
+      // just read it (If-Match against the ETag). If another device wrote in
+      // that same instant, Firebase returns 412 and we simply re-check fresh
+      // state — this is what makes the claim genuinely atomic, not just "fast".
+      return fetch(_tgAutoDateFieldUrl(), {
+        method:'PUT',
+        headers:{'Content-Type':'application/json', 'if-Match': state.etag},
+        body: JSON.stringify(dateStr)
+      }).then(function(res2){
+        if(res2.status === 412){
+          if(_retryDepth >= 5) return {claimed:false, prev:state.serverDate}; // safety cap, don't loop forever
+          return _tgClaimAutoBackupSlot(dateStr, _retryDepth+1); // lost the race — re-read fresh state and retry
+        }
+        if(res2.ok){
+          // Also update local cache RIGHT NOW (not just after the Telegram send
+          // succeeds later). Otherwise, if this same device does any unrelated
+          // save in the meantime, its own pushCloud() would read the OLD value
+          // from localStorage and overwrite our just-claimed server field.
+          localStorage.setItem('ac_tg_lastAutoBackupDate', dateStr);
+        }
+        return {claimed: res2.ok, prev: state.serverDate};
+      });
+    }).catch(function(){ return {claimed:true, prev:null}; }); // network hiccup — fall back to old behaviour rather than blocking backups
+}
+function _tgReleaseAutoBackupSlot(prevValue){
+  // Roll back local cache too (we set it optimistically when claiming).
+  if(prevValue) localStorage.setItem('ac_tg_lastAutoBackupDate', prevValue);
+  else localStorage.removeItem('ac_tg_lastAutoBackupDate');
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl) return;
+  // Roll the claim back on the server so a failed send gets retried on the next check.
+  fetch(_tgAutoDateFieldUrl(), {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(prevValue||null)}).catch(function(){});
+}
 function checkAutoTelegramBackup(){
   var cfg = getTelegramConfig();
   if(!cfg.token || !cfg.chatId || !cfg.auto) return;
@@ -4152,9 +4320,20 @@ function checkAutoTelegramBackup(){
   _tgAutoBackupInProgress = true;
   (function sendNext(i){
     if(i >= pending.length){ _tgAutoBackupInProgress = false; return; }
-    sendTelegramBackup(true, pending[i], true)
-      .catch(function(err){ console.error('[8:30AM Telegram Backup] Error for', pending[i], err); })
-      .then(function(){ sendNext(i+1); });
+    _tgClaimAutoBackupSlot(pending[i]).then(function(claim){
+      if(!claim.claimed){
+        // Some other device already covers this date (and likely later ones too) — stop here.
+        _tgAutoBackupInProgress = false;
+        return;
+      }
+      return sendTelegramBackup(true, pending[i], true)
+        .then(function(){ sendNext(i+1); })
+        .catch(function(err){
+          console.error('[8:30AM Telegram Backup] Error for', pending[i], err);
+          _tgReleaseAutoBackupSlot(claim.prev); // let it retry on the next check
+          _tgAutoBackupInProgress = false;
+        });
+    });
   })(0);
 }
 
@@ -8955,6 +9134,76 @@ function deleteExpense(id){
   showToast('Deleted');
 }
 
+// ===== EDIT EXPENSE =====
+var editingExpenseId = null;
+
+function editExpense(id){
+  if(CURRENT_ROLE!=='admin'){ showToast('⛔ Only Admin can edit expenses'); return; }
+  var exp = expenses.find(function(e){ return e.id===id; });
+  if(!exp){ showToast('Expense not found'); return; }
+  editingExpenseId = id;
+  document.getElementById('eexp-date').value = exp.date || '';
+  buildExpCatSelect('eexp-category');
+  var ec = document.getElementById('eexp-category'); if(ec) ec.value = exp.category;
+  document.getElementById('eexp-desc').value = exp.desc && exp.desc!==exp.category ? exp.desc : '';
+  document.getElementById('eexp-amount').value = exp.amount || 0;
+  var pm = document.getElementById('eexp-paymode'); if(pm) pm.value = exp.payMode || 'Cash';
+  document.getElementById('eexp-notes').value = exp.notes || '';
+  document.getElementById('editExpenseModal').classList.add('show');
+}
+
+function closeEditExpenseModal(){
+  editingExpenseId = null;
+  document.getElementById('editExpenseModal').classList.remove('show');
+}
+
+function saveEditExpense(){
+  if(CURRENT_ROLE!=='admin'){ showToast('⛔ Only Admin can edit expenses'); return; }
+  if(!editingExpenseId) return;
+  var exp = expenses.find(function(e){ return e.id===editingExpenseId; });
+  if(!exp){ closeEditExpenseModal(); return; }
+
+  var date = document.getElementById('eexp-date').value || exp.date;
+  var category = document.getElementById('eexp-category').value;
+  var desc = document.getElementById('eexp-desc').value.trim();
+  var amount = parseFloat(document.getElementById('eexp-amount').value)||0;
+  var payMode = document.getElementById('eexp-paymode').value;
+  var notes = document.getElementById('eexp-notes').value.trim();
+
+  if(amount <= 0){ showToast('Amount required!'); return; }
+
+  var old = { date:exp.date, category:exp.category, desc:exp.desc, amount:exp.amount, payMode:exp.payMode, notes:exp.notes };
+
+  exp.date = date;
+  exp.category = category;
+  exp.desc = desc || category;
+  exp.amount = amount;
+  exp.payMode = payMode;
+  exp.notes = notes;
+  exp.editedAt = new Date().toISOString();
+
+  LS.sync('expenses', expenses);
+
+  try {
+    var changes = [];
+    function pushCh(label, oldV, newV){ if(String(oldV)!==String(newV)) changes.push({field:label, from:oldV, to:newV}); }
+    pushCh('Date', old.date, exp.date);
+    pushCh('Category', old.category, exp.category);
+    pushCh('Description', old.desc, exp.desc);
+    pushCh('Amount', old.amount, exp.amount);
+    pushCh('Payment Mode', old.payMode, exp.payMode);
+    pushCh('Notes', old.notes, exp.notes);
+    if(changes.length) logEdit('Expense', exp.category, changes, 'Expense edit save hua');
+  } catch(logErr){
+    console.error('[saveEditExpense] Audit log error:', logErr);
+  }
+
+  closeEditExpenseModal();
+  renderExpenses();
+  renderExpenseDashboard();
+  showToast('✓ Expense updated!');
+}
+
 function renderExpenseDashboard(){
   expenses = LS.get('expenses') || [];
   var today = nowDate(), cm = monthKey(today);
@@ -9194,7 +9443,7 @@ function renderExpenses(){
       var did = 'expdf'+date.replace(/[^a-zA-Z0-9]/g,'');
       var rows = '';
       exps.forEach(function(e){
-        var delCell = isStaff ? '<td></td>' : '<td><button class="btn btn-red" style="padding:3px 8px;font-size:9px;" data-action="delexp" data-eid="'+e.id+'">Del</button></td>';
+        var delCell = isStaff ? '<td></td>' : '<td><button class="btn btn-outline" style="padding:3px 8px;font-size:9px;margin-right:4px;" data-action="editexp" data-eid="'+e.id+'">Edit</button><button class="btn btn-red" style="padding:3px 8px;font-size:9px;" data-action="delexp" data-eid="'+e.id+'">Del</button></td>';
         var pdfCell = '<td><button class="btn btn-green" style="padding:3px 8px;font-size:9px;" data-action="pdfexp" data-eid="'+e.id+'">⬇ PDF</button></td>';
         rows += '<tr>'
           +'<td style="font-family:Arial,sans-serif;font-weight:700;">'+escH(e.category)+'</td>'
@@ -9237,6 +9486,7 @@ function renderExpenses(){
     if(btn){
       var act = btn.getAttribute('data-action');
       if(act==='delexp') deleteExpense(parseInt(btn.getAttribute('data-eid')));
+      else if(act==='editexp') editExpense(parseInt(btn.getAttribute('data-eid')));
       else if(act==='pdfexp') downloadSingleExpensePDF(parseInt(btn.getAttribute('data-eid')));
       else if(act==='pdfexpdate') downloadExpenseDatePDF(btn.getAttribute('data-date'));
     }
@@ -10836,15 +11086,18 @@ function renderPurchases(){
           '<td style="text-align:center;">'+psBadge+'</td>' +
           '<td style="text-align:right;">'+pendCol+'</td>' +
           '<td>'+(p.notes?'<span style="font-size:10px;color:var(--mu);">'+escH(p.notes)+'</span>':'')+'</td>' +
-          '<td><button class="btn btn-red" style="padding:3px 8px;font-size:9px;" data-action="delpurch" data-pid="'+p.id+'">Del</button></td>' +
+          '<td style="white-space:nowrap;"><button class="btn btn-green" style="padding:3px 8px;font-size:9px;margin-right:4px;" data-action="pdfpurch" data-pid="'+p.id+'">&#8681; PDF</button><button class="btn btn-outline" style="padding:3px 8px;font-size:9px;margin-right:4px;" data-action="editpurch" data-pid="'+p.id+'">Edit</button><button class="btn btn-red" style="padding:3px 8px;font-size:9px;" data-action="delpurch" data-pid="'+p.id+'">Del</button></td>' +
           '</tr>';
       });
+      // Date-level PDF download button
+      var purDatePdfBtn = '<button class="btn btn-green" style="padding:3px 9px;font-size:9px;" data-action="pdfpurchdate" data-date="'+date+'">&#8681; PDF ('+date+')</button>';
       dhtml += '<div>' +
         '<div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 24px;cursor:pointer;background:var(--w);border-bottom:1px solid var(--bdr);">' +
         '<span style="font-weight:500;font-size:12px;font-family:Arial,sans-serif;flex:1;">'+dateLabel+'</span>' +
         '<span style="font-size:10px;color:var(--mu);">'+ps2.length+' items | '+fmt(dt)+'</span>' +
         '<span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div>' +
         '<div id="'+did+'" style="display:none;overflow-x:auto;">' +
+        '<div style="padding:8px 12px;background:#f9f9f9;border-bottom:1px solid var(--bdr);display:flex;gap:6px;flex-wrap:wrap;">'+purDatePdfBtn+'</div>' +
         '<table class="tbl"><thead><tr><th>Item</th><th>Supplier</th><th>Qty</th><th>Rate</th><th>Freight</th><th>Total</th><th>Status</th><th style="text-align:right;">Pending</th><th>Notes</th><th></th></tr></thead>' +
         '<tbody>'+rows+'</tbody></table></div></div>';
     });
@@ -10865,9 +11118,301 @@ function renderPurchases(){
     if(btn && btn.getAttribute('data-action')==='delpurch'){
       deletePurchase(parseInt(btn.getAttribute('data-pid')));
     }
+    if(btn && btn.getAttribute('data-action')==='editpurch'){
+      editPurchase(parseInt(btn.getAttribute('data-pid')));
+    }
+    if(btn && btn.getAttribute('data-action')==='pdfpurch'){
+      downloadSinglePurchasePDF(parseInt(btn.getAttribute('data-pid')));
+    }
+    if(btn && btn.getAttribute('data-action')==='pdfpurchdate'){
+      downloadPurchaseDatePDF(btn.getAttribute('data-date'));
+    }
   };
 }
 
+
+// ===== EDIT PURCHASE =====
+var editingPurchaseId = null;
+
+function editPurchase(id){
+  if(CURRENT_ROLE!=='admin'){ showToast('⛔ Only Admin can edit purchases'); return; }
+  var p = purchases.find(function(pu){ return pu.id===id; });
+  if(!p){ showToast('Purchase not found'); return; }
+  editingPurchaseId = id;
+  document.getElementById('epur-date').value = p.date || '';
+  document.getElementById('epur-supplier').value = p.supplier || '';
+  document.getElementById('epur-item').value = p.item || '';
+  var ec = document.getElementById('epur-category'); if(ec) ec.value = p.category || 'Other';
+  document.getElementById('epur-qty').value = p.qty || 0;
+  document.getElementById('epur-rate').value = p.rate || 0;
+  document.getElementById('epur-freight').value = p.freight || 0;
+  var pm = document.getElementById('epur-paymode'); if(pm) pm.value = p.payMode || 'Cash';
+  var pst = document.getElementById('epur-paystatus'); if(pst) pst.value = p.payStatus || 'Paid';
+  var pp = document.getElementById('epur-partial-paid'); if(pp) pp.value = p.paidAmount || 0;
+  document.getElementById('epur-notes').value = p.notes || '';
+  onEPurPayStatusChange();
+  document.getElementById('editPurchaseModal').classList.add('show');
+}
+
+function closeEditPurchaseModal(){
+  editingPurchaseId = null;
+  document.getElementById('editPurchaseModal').classList.remove('show');
+}
+
+function onEPurPayStatusChange(){
+  var ps = document.getElementById('epur-paystatus');
+  var sec = document.getElementById('epur-partial-section');
+  if(!ps || !sec) return;
+  if(ps.value === 'Partial'){
+    sec.style.display = 'block';
+    onEPurPartialChange();
+  } else {
+    sec.style.display = 'none';
+  }
+}
+
+function onEPurPartialChange(){
+  var rateEl = document.getElementById('epur-rate');
+  var qtyEl  = document.getElementById('epur-qty');
+  var freightEl = document.getElementById('epur-freight');
+  var paidEl = document.getElementById('epur-partial-paid');
+  var remEl  = document.getElementById('epur-partial-remaining');
+  if(!rateEl || !qtyEl || !paidEl || !remEl) return;
+  var rate = parseFloat(rateEl.value)||0;
+  var qty  = parseInt(qtyEl.value)||0;
+  var freight = parseFloat((freightEl?freightEl.value:0))||0;
+  var total = (qty * rate) + freight;
+  var paid  = parseFloat(paidEl.value)||0;
+  var rem   = Math.max(0, total - paid);
+  remEl.textContent = '₹ ' + rem.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function saveEditPurchase(){
+  if(CURRENT_ROLE!=='admin'){ showToast('⛔ Only Admin can edit purchases'); return; }
+  if(!editingPurchaseId) return;
+  var p = purchases.find(function(pu){ return pu.id===editingPurchaseId; });
+  if(!p){ closeEditPurchaseModal(); return; }
+
+  var date = document.getElementById('epur-date').value || p.date;
+  var supplier = document.getElementById('epur-supplier').value.trim() || 'Unknown';
+  var item = document.getElementById('epur-item').value.trim();
+  var category = document.getElementById('epur-category') ? document.getElementById('epur-category').value : p.category;
+  var qty = parseInt(document.getElementById('epur-qty').value)||0;
+  var rate = parseFloat(document.getElementById('epur-rate').value)||0;
+  var freight = parseFloat(document.getElementById('epur-freight').value)||0;
+  var notes = document.getElementById('epur-notes').value.trim();
+  var payMode = document.getElementById('epur-paymode') ? document.getElementById('epur-paymode').value : p.payMode;
+  var payStatus = document.getElementById('epur-paystatus') ? document.getElementById('epur-paystatus').value : p.payStatus;
+
+  if(!item){ showToast('Item name required!'); return; }
+  if(qty <= 0){ showToast('Qty required!'); return; }
+  if(rate <= 0){ showToast('Rate required!'); return; }
+
+  var totalCost = (qty * rate) + freight;
+  var paidAmount = 0;
+  if(payStatus === 'Paid'){
+    paidAmount = totalCost;
+  } else if(payStatus === 'Partial'){
+    var ppEl = document.getElementById('epur-partial-paid');
+    paidAmount = ppEl ? (parseFloat(ppEl.value)||0) : 0;
+    if(paidAmount <= 0){ showToast('⚠️ Partial paid amount enter karein!'); if(ppEl) ppEl.focus(); return; }
+    if(paidAmount >= totalCost){ paidAmount = totalCost; payStatus = 'Paid'; }
+  } else {
+    paidAmount = 0; // Pending
+  }
+
+  // Snapshot old values — used for stock reversal & audit log
+  var old = {
+    date:p.date, supplier:p.supplier, item:p.item, category:p.category,
+    qty:p.qty, rate:p.rate, freight:p.freight, totalCost:p.totalCost,
+    payMode:p.payMode, payStatus:p.payStatus, paidAmount:p.paidAmount
+  };
+
+  // ── Stock adjustment: reverse old qty from old item, then apply new qty to new item.
+  // Wrapped in try/catch so a stock hiccup never blocks saving the purchase edit itself. ──
+  try {
+    var siOld = stockItems.find(function(s){ return s.name.toLowerCase()===String(old.item||'').toLowerCase(); });
+    if(siOld){
+      siOld.qty = Math.max(0, siOld.qty - (old.qty||0));
+      stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'OUT', item:old.item, qty:old.qty||0,
+        ref:'Purchase EDIT (Old Stock Reversed)',
+        note:'Purchase edit se pehle purani entry ki qty stock se ghatai gayi (supplier: '+(old.supplier||'Unknown')+')'});
+    }
+    var siNew = stockItems.find(function(s){ return s.name.toLowerCase()===item.toLowerCase(); });
+    if(siNew){
+      siNew.qty += qty;
+      if(rate > 0) siNew.cost = rate;
+      if(category && category !== 'Other') siNew.category = category;
+    } else {
+      stockItems.unshift({
+        id: Date.now()+2, name:item, category:category||'Other', size:'Mix Size',
+        qty:qty, cost:rate, mrp:Math.round(rate*1.5), addedOn:date||nowDate()
+      });
+    }
+    stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty,
+      ref:'Purchase EDIT (Updated Stock Applied)',
+      note:'Purchase edit ke baad nayi qty stock mein jodi gayi (supplier: '+(supplier||'Unknown')+')'});
+    LS.sync('stock', stockItems);
+    LS.sync('stockMovLog', stockMovLog);
+  } catch(stockErr){
+    console.error('[saveEditPurchase] Stock adjustment error:', stockErr);
+    showToast('⚠️ Stock update mein issue aaya — Inventory check karein!');
+  }
+
+  // ── Apply changes to the purchase record ──
+  p.date = date; p.supplier = supplier; p.item = item; p.category = category;
+  p.qty = qty; p.rate = rate; p.freight = freight; p.totalCost = totalCost;
+  p.payMode = payMode; p.payStatus = payStatus; p.paidAmount = paidAmount;
+  p.directPaidAmount = paidAmount;
+  p.notes = notes;
+  p.editedAt = new Date().toISOString();
+
+  LS.sync('purchases', purchases);
+
+  // ── Audit log — after stock/purchase data is already saved, so a log
+  // failure never rolls back the actual edit. ──
+  try {
+    var changes = [];
+    function pushCh(label, oldV, newV){ if(String(oldV)!==String(newV)) changes.push({field:label, from:oldV, to:newV}); }
+    pushCh('Date', old.date, p.date);
+    pushCh('Supplier', old.supplier, p.supplier);
+    pushCh('Item', old.item, p.item);
+    pushCh('Category', old.category, p.category);
+    pushCh('Qty', old.qty, p.qty);
+    pushCh('Rate', old.rate, p.rate);
+    pushCh('Freight', old.freight, p.freight);
+    pushCh('Total Cost', old.totalCost, p.totalCost);
+    pushCh('Payment Mode', old.payMode, p.payMode);
+    pushCh('Payment Status', old.payStatus, p.payStatus);
+    pushCh('Paid Amount', old.paidAmount, p.paidAmount);
+    if(changes.length) logEdit('Purchase', p.item, changes, 'Purchase edit save hua (supplier: '+p.supplier+')');
+  } catch(logErr){
+    console.error('[saveEditPurchase] Audit log error:', logErr);
+  }
+
+  closeEditPurchaseModal();
+  renderPurchases();
+  renderInventory();
+  showToast('✓ Purchase updated & stock adjusted!');
+}
+
+// Single purchase PDF (for staff/admin) — mirrors downloadSingleExpensePDF
+async function downloadSinglePurchasePDF(pid){
+  var pur = (LS.get('purchases')||[]).find(function(p){ return p.id===pid; });
+  if(!pur){ showToast('Purchase not found'); return; }
+  showToast('Generating PDF...');
+  try{
+    var biz = (SETTINGS && SETTINGS.biz) ? SETTINGS.biz : 'The Jeans Club';
+    var dateStr = new Date(pur.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    var psColor = pur.payStatus==='Paid' ? '#1e6e3a' : (pur.payStatus==='Partial' ? '#9a6a00' : '#c45e00');
+    var pendAmt = Math.max(0, (pur.totalCost||0) - (pur.paidAmount||0));
+    var html = '<div style="font-family:Arial,sans-serif;width:600px;padding:30px;background:#fff;">'
+      +'<div style="text-align:center;margin-bottom:20px;">'
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:#1a3a2a;">'+biz+'</div>'
+      +'<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-top:4px;">Purchase Receipt</div>'
+      +'</div>'
+      +'<div style="border:2px solid #1a3a2a;padding:20px;">'
+      +'<table style="width:100%;font-size:13px;border-collapse:collapse;">'
+      +'<tr><td style="padding:6px 0;color:#555;width:40%;">Date</td><td style="font-weight:700;">'+dateStr+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Item</td><td style="font-weight:700;color:#1565c0;">'+escH(pur.item)+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Category</td><td>'+escH(pur.category||'-')+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Supplier</td><td>'+escH(pur.supplier||'-')+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Qty</td><td>'+pur.qty+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Rate / piece</td><td>Rs. '+Math.round(pur.rate).toLocaleString('en-IN')+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Freight</td><td>Rs. '+Math.round(pur.freight||0).toLocaleString('en-IN')+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Payment Mode</td><td>'+escH(pur.payMode||'-')+'</td></tr>'
+      +'<tr><td style="padding:6px 0;color:#555;">Payment Status</td><td style="font-weight:700;color:'+psColor+';">'+escH(pur.payStatus||'-')+'</td></tr>'
+      +(pur.payStatus!=='Paid' ? '<tr><td style="padding:6px 0;color:#555;">Pending Due</td><td style="font-weight:700;color:#c45e00;">Rs. '+Math.round(pendAmt).toLocaleString('en-IN')+'</td></tr>' : '')
+      +(pur.notes?'<tr><td style="padding:6px 0;color:#555;">Notes</td><td>'+escH(pur.notes)+'</td></tr>':'')
+      +'<tr style="border-top:2px solid #1a3a2a;"><td style="padding:10px 0;font-size:15px;font-weight:700;">Total Cost</td><td style="font-family:Arial,sans-serif;font-size:22px;font-weight:700;color:#1a3a2a;">Rs. '+Math.round(pur.totalCost).toLocaleString('en-IN')+'</td></tr>'
+      +'</table>'
+      +'</div>'
+      +'<div style="text-align:center;margin-top:16px;font-size:10px;color:#555;letter-spacing:1px;">Generated by The Jeans Club Business Suite</div>'
+      +'</div>';
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper);
+    await new Promise(function(r){ setTimeout(r, 200); });
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
+    document.body.removeChild(wrapper);
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+    var margin = 10, imgW = pw-margin*2, imgH = (canvas.height*imgW)/canvas.width;
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,Math.min(imgH,ph-margin*2));
+    addWatermark(pdf, pw, ph);
+    var fname = 'The Jeans Club_Purchase_'+String(pur.item).replace(/\s+/g,'_')+'_'+pur.date+'.pdf';
+    pdf.save(fname);
+    showToast('Purchase PDF downloaded!');
+  } catch(err){ showToast('PDF error: '+err.message); }
+}
+
+// Date-wise purchase PDF (all purchases of a specific date) — mirrors downloadExpenseDatePDF
+async function downloadPurchaseDatePDF(date){
+  var pursForDate = (LS.get('purchases')||[]).filter(function(p){ return p.date===date; });
+  if(!pursForDate.length){ showToast('No purchases for this date'); return; }
+  showToast('Generating PDF...');
+  try{
+    var biz = (SETTINGS && SETTINGS.biz) ? SETTINGS.biz : 'The Jeans Club';
+    var dateStr = new Date(date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    var total = pursForDate.reduce(function(s,p){ return s+p.totalCost; },0);
+    var rows = pursForDate.map(function(p,i){
+      return '<tr style="background:'+(i%2===0?'#f9f9f9':'#fff')+'">'
+        +'<td style="padding:7px 10px;font-family:Arial,sans-serif;font-weight:700;">'+escH(p.item)+'</td>'
+        +'<td style="padding:7px 10px;font-family:Arial,sans-serif;">'+escH(p.supplier||'-')+'</td>'
+        +'<td style="padding:7px 10px;font-family:Arial,sans-serif;text-align:center;">'+p.qty+'</td>'
+        +'<td style="padding:7px 10px;font-family:Arial,sans-serif;">'+escH(p.payStatus||'-')+'</td>'
+        +'<td style="padding:7px 10px;font-family:Arial,sans-serif;font-weight:700;color:#1565c0;text-align:right;">Rs.'+Math.round(p.totalCost).toLocaleString('en-IN')+'</td>'
+        +'<td style="padding:7px 10px;font-size:11px;color:#555;">'+escH(p.notes||'-')+'</td>'
+        +'</tr>';
+    }).join('');
+    var html = '<div style="font-family:Arial,sans-serif;width:700px;padding:30px;background:#fff;">'
+      +'<div style="text-align:center;margin-bottom:20px;">'
+      +'<div style="font-family:Cormorant Garamond,serif;font-size:26px;font-weight:700;color:#1a3a2a;">'+biz+'</div>'
+      +'<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-top:4px;">Daily Purchase Report</div>'
+      +'<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;">'+dateStr+'</div>'
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse;font-size:13px;">'
+      +'<thead><tr style="background:#1a3a2a;color:#fff;">'
+      +'<th style="padding:8px 10px;text-align:left;">Item</th><th style="padding:8px 10px;text-align:left;">Supplier</th>'
+      +'<th style="padding:8px 10px;text-align:center;">Qty</th><th style="padding:8px 10px;text-align:left;">Status</th>'
+      +'<th style="padding:8px 10px;text-align:right;">Total</th><th style="padding:8px 10px;text-align:left;">Notes</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody>'
+      +'<tfoot><tr style="background:#1a3a2a;color:#fff;">'
+      +'<td colspan="4" style="padding:8px 10px;font-weight:700;">TOTAL</td>'
+      +'<td style="padding:8px 10px;font-family:Arial,sans-serif;font-size:17px;font-weight:700;text-align:right;">Rs.'+Math.round(total).toLocaleString('en-IN')+'</td>'
+      +'<td></td></tr></tfoot>'
+      +'</table>'
+      +'<div style="text-align:center;margin-top:16px;font-size:10px;color:#555;letter-spacing:1px;">Generated by The Jeans Club Business Suite</div>'
+      +'</div>';
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper);
+    await new Promise(function(r){ setTimeout(r, 200); });
+    var canvas = await html2canvas(wrapper.firstChild, {scale:2.5, useCORS:true, backgroundColor:'#fff', letterRendering:true, imageTimeout:0, logging:false});
+    document.body.removeChild(wrapper);
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+    var margin = 8, imgW = pw-margin*2, imgH = (canvas.height*imgW)/canvas.width;
+    if(imgH <= ph-margin*2){
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,imgH);
+    } else {
+      var pxpm = canvas.width/imgW, pageHpx = (ph-margin*2)*pxpm, off = 0, pn = 0;
+      while(off < canvas.height){
+        if(pn>0) pdf.addPage();
+        var sl = Math.min(pageHpx, canvas.height-off), slmm = sl/pxpm;
+        var tc = document.createElement('canvas'); tc.width=canvas.width; tc.height=Math.ceil(sl);
+        tc.getContext('2d').drawImage(canvas,0,off,canvas.width,sl,0,0,canvas.width,sl);
+        pdf.addImage(tc.toDataURL('image/jpeg', 0.90),'JPEG',margin,margin,imgW,slmm);
+        off+=sl; pn++;
+      }
+    }
+    addWatermark(pdf, pw, ph);
+    pdf.save('The Jeans Club_Purchases_'+date+'.pdf');
+    showToast('Purchase PDF downloaded!');
+  } catch(err){ showToast('PDF error: '+err.message); }
+}
 
 // ===== SUPPLIER PAYMENT FUNCTIONS =====
 
