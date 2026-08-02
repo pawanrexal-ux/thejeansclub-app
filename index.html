@@ -309,9 +309,6 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .btn-gold{background:linear-gradient(135deg,var(--gold),#c9a84c);color:var(--gd);box-shadow:0 2px 8px rgba(184,148,46,.2);}
 .btn-gold:hover{background:linear-gradient(135deg,#c9a84c,var(--gold));box-shadow:0 4px 14px rgba(184,148,46,.3);}
 .btn-outline{background:transparent;border:1px solid var(--bdrg);color:var(--gd2);}
-.inv-menu-item{padding:10px 14px;font-family:Arial,sans-serif;font-size:12.5px;cursor:pointer;border-bottom:1px solid #f0f0f0;white-space:nowrap;}
-.inv-menu-item:last-child{border-bottom:none;}
-.inv-menu-item:active{background:#faf6ea;}
 .btn-outline:hover{background:var(--gbg);color:var(--gold);border-color:var(--gold);}
 .btn-red{background:#fff4f4;border:1px solid #f5c6c6;color:var(--red);}
 .btn-red:hover{background:#ffe8e8;}
@@ -711,34 +708,6 @@ input[type=tel], textarea, select {
 
 .pl-section-tag{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--gd2);background:var(--gbg);border:1px solid var(--bdrg);padding:4px 10px;border-radius:20px;margin-bottom:10px;font-family:Arial,sans-serif;}
 
-/* ===== Return / Exchange — attractive redesign ===== */
-.retex-search-row{transition:background .15s ease,transform .15s ease;border-radius:8px;}
-.retex-search-row:hover{background:var(--ow);transform:translateX(2px);}
-.retex-toggle{display:flex;gap:8px;flex-wrap:wrap;}
-.retex-toggle-btn{flex:1;min-width:130px;padding:12px 14px;border:1px solid var(--bdr);background:#fff;border-radius:9px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:var(--t2);cursor:pointer;transition:all .15s ease;}
-.retex-toggle-btn.active{background:linear-gradient(135deg,var(--g),var(--gm));color:#fff;border-color:var(--g);box-shadow:0 3px 10px rgba(20,52,42,.25);}
-.retex-toggle-btn:hover:not(.active){border-color:var(--bdrg);background:var(--ow);}
-.retex-item-card{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--bdr);border-radius:9px;margin-bottom:8px;background:#fff;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease;cursor:pointer;}
-.retex-item-card.sel{border-color:var(--gold);background:var(--gbg);box-shadow:0 2px 8px rgba(184,148,46,.12);}
-.retex-item-card.disabled{opacity:.5;cursor:default;}
-.retex-item-name{font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:var(--t);}
-.retex-item-sub{font-size:10.5px;color:var(--mu);font-family:Arial,sans-serif;margin-top:2px;}
-.retex-item-linetotal{font-size:11.5px;font-family:Arial,sans-serif;font-weight:700;color:var(--gd2);margin-top:4px;}
-.retex-qty-input{width:56px;padding:8px 6px;border:1px solid var(--bdr);border-radius:6px;text-align:center;font-family:Arial,sans-serif;font-weight:700;outline:none;}
-.retex-stepper{display:flex;align-items:center;gap:0;flex-shrink:0;border:1px solid var(--bdr);border-radius:8px;overflow:hidden;background:var(--ow);}
-.retex-step-btn{width:30px;height:30px;border:none;background:#fff;font-size:16px;font-weight:800;color:var(--gd2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;line-height:1;}
-.retex-step-btn:active{background:var(--gbg);}
-.retex-step-btn:disabled{opacity:.35;cursor:default;}
-.retex-step-val{width:30px;text-align:center;font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:var(--t);}
-.retex-summary-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;}
-.retex-diff-banner{margin-top:10px;padding:12px 14px;border-radius:9px;font-family:Arial,sans-serif;font-weight:700;font-size:13.5px;text-align:center;}
-.retex-diff-banner.pay{background:linear-gradient(135deg,#fff3e0,#ffe4c4);color:#a34700;}
-.retex-diff-banner.refund{background:linear-gradient(135deg,#e9f5ec,#d3ecd9);color:#1e6e3a;}
-.retex-diff-banner.none{background:var(--ow);color:var(--mu);}
-.retex-hist-card{background:#fff;border:1px solid var(--bdr);border-radius:9px;margin-bottom:8px;padding:12px 14px;font-family:Arial,sans-serif;font-size:12px;box-shadow:var(--sh0);transition:transform .15s ease,box-shadow .15s ease;}
-.retex-hist-card:hover{transform:translateY(-2px);box-shadow:var(--sh1);}
-.retex-type-pill{padding:2px 9px;border-radius:12px;font-size:9.5px;font-weight:700;letter-spacing:.3px;}
-
 .pl-stmt-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-radius:6px;}
 .pl-stmt-row.section-head{background:var(--ow);font-weight:700;letter-spacing:.6px;font-size:10.5px;text-transform:uppercase;color:var(--mu2);margin-top:4px;}
 .pl-stmt-row .pl-stmt-label{font-size:12.5px;color:var(--t2);font-family:Arial,sans-serif;}
@@ -814,7 +783,6 @@ input[type=tel], textarea, select {
       <div class="nav-sec">Sales</div>
       <div class="nav-item" onclick="navTo('invoice',this)"><span class="nav-icon">&#128221;</span>New Invoice</div>
       <div class="nav-item" onclick="navTo('history',this)"><span class="nav-icon">&#128194;</span>Invoice History</div>
-      <div class="nav-item" onclick="navTo('returns',this)"><span class="nav-icon">&#8617;</span>Return / Exchange</div>
       <div class="nav-sec">Collections &#128178;</div>
       <div class="nav-item" onclick="navTo('payments',this)"><span class="nav-icon">&#128179;</span>Payments Ledger</div>
       <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Dues</div>
@@ -1009,137 +977,6 @@ input[type=tel], textarea, select {
         <div id="historyList"></div>
       </div>
 
-      <!-- RETURN / EXCHANGE -->
-      <div class="page" id="page-returns">
-        <div id="retex-searchWrap">
-          <div class="cc-step">
-            <div class="cc-step-head">
-              <div class="cc-step-num">&#128269;</div>
-              <div class="cc-step-titlewrap">
-                <div class="cc-step-title">Find the Invoice</div>
-                <div class="cc-step-hint">Customer naam, invoice number ya phone se search karein</div>
-              </div>
-            </div>
-            <div class="cc-step-body">
-              <div class="search-wrap" style="margin-bottom:0;"><input class="search-box" type="text" id="retex-search" placeholder="Search invoice no, customer name or phone..." oninput="renderReturns()" style="font-family:Arial,sans-serif;"/></div>
-              <div id="retex-searchResults" style="margin-top:10px;"></div>
-            </div>
-          </div>
-        </div>
-
-        <div id="retex-formWrap" style="display:none;">
-          <button class="btn btn-outline" style="padding:7px 13px;font-size:11px;margin-bottom:14px;border-radius:20px;" onclick="backToRetexSearch()">&larr; Change Invoice</button>
-
-          <div class="cc-step">
-            <div class="cc-step-head">
-              <div class="cc-step-num">1</div>
-              <div class="cc-step-titlewrap">
-                <div class="cc-step-title">&#129534; Invoice Selected</div>
-                <div class="cc-step-hint">Yeh invoice return/exchange ke liye select ki gayi hai</div>
-              </div>
-            </div>
-            <div class="cc-step-body" id="retex-invHead"></div>
-          </div>
-
-          <div class="cc-arrow-down">&#8681;</div>
-
-          <div class="cc-step">
-            <div class="cc-step-head">
-              <div class="cc-step-num">2</div>
-              <div class="cc-step-titlewrap">
-                <div class="cc-step-title">&#128230; Select Items to Return</div>
-                <div class="cc-step-hint">Item par tap karke select karein, phir +/- se quantity set karein</div>
-              </div>
-            </div>
-            <div class="cc-step-body" id="retex-itemsList"></div>
-          </div>
-
-          <div class="cc-arrow-down">&#8681;</div>
-
-          <div class="cc-step gold">
-            <div class="cc-step-head">
-              <div class="cc-step-num">3</div>
-              <div class="cc-step-titlewrap">
-                <div class="cc-step-title">&#128260; Return or Exchange?</div>
-                <div class="cc-step-hint">Sirf return, ya customer koi naya item lega?</div>
-              </div>
-            </div>
-            <div class="cc-step-body">
-              <div class="retex-toggle">
-                <button type="button" id="retex-modeReturn" class="retex-toggle-btn active" onclick="setRetexMode('return')">&#8617;&#65039; Return Only</button>
-                <button type="button" id="retex-modeExchange" class="retex-toggle-btn" onclick="setRetexMode('exchange')">&#128260; Exchange</button>
-              </div>
-              <div id="retex-exchangeSection" style="display:none;margin-top:14px;">
-                <div style="font-family:Arial,sans-serif;font-weight:700;font-size:12.5px;margin-bottom:2px;color:var(--t2);">New Item(s) Given to Customer</div>
-                <div style="font-family:Arial,sans-serif;font-size:10.5px;color:var(--mu);margin-bottom:8px;">Naam type karke inventory se select karein, qty aur rate set karein</div>
-                <div id="retex-exchangeItems"></div>
-                <button class="btn btn-outline" style="padding:7px 13px;font-size:11px;border-radius:20px;" onclick="addExchangeItemRow()">+ Add Item</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="cc-arrow-down">&#8681;</div>
-
-          <div class="cc-step">
-            <div class="cc-step-head">
-              <div class="cc-step-num">4</div>
-              <div class="cc-step-titlewrap">
-                <div class="cc-step-title">&#128176; Summary &amp; Payment</div>
-                <div class="cc-step-hint">Refund ya extra payment yahan auto-calculate hota hai</div>
-              </div>
-            </div>
-            <div class="cc-step-body">
-              <div id="retex-summary"></div>
-              <div id="retex-payModeWrap" style="display:none;margin-top:14px;">
-                <label style="font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:6px;">Payment Mode</label>
-                <select id="retex-payMode" style="width:100%;padding:10px;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:13px;border-radius:6px;background:var(--ow);">
-                  <option value="Cash">Cash</option>
-                  <option value="UPI">UPI</option>
-                  <option value="Bank">Bank</option>
-                </select>
-              </div>
-              <div style="margin-top:14px;">
-                <label style="font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:6px;">Reason for Return/Exchange</label>
-                <select id="retex-reason" onchange="onRetexReasonChange()" style="width:100%;padding:10px;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:13px;border-radius:6px;background:var(--ow);">
-                  <option value="">— Select Reason —</option>
-                  <option value="Size Issue">📏 Size Issue (chhota/bada)</option>
-                  <option value="Quality/Defect">⚠️ Quality Issue / Defect</option>
-                  <option value="Wrong Item Delivered">📦 Wrong Item Diya Gaya</option>
-                  <option value="Color Mismatch">🎨 Color Mismatch</option>
-                  <option value="Fabric Issue">🧵 Fabric Issue</option>
-                  <option value="Customer Didn't Like">🙁 Customer Ko Pasand Nahi Aaya</option>
-                  <option value="Order Mistake">❌ Order Galat Aaya</option>
-                  <option value="Other">📝 Other (note mein likhein)</option>
-                </select>
-              </div>
-              <div style="margin-top:14px;">
-                <label style="font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:6px;">Note (optional)</label>
-                <textarea id="retex-note" rows="2" style="width:100%;padding:10px;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:13px;border-radius:6px;background:var(--ow);box-sizing:border-box;" placeholder="Additional details (optional)..."></textarea>
-              </div>
-            </div>
-          </div>
-
-          <button class="btn btn-green btn-full" style="margin-top:16px;padding:14px;font-size:14px;border-radius:8px;" onclick="saveReturnExchange()">&#10004; Save Return/Exchange</button>
-        </div>
-
-        <div style="margin-top:26px;">
-          <div class="pl-section-tag">&#8617;&#65039; RETURN / EXCHANGE HISTORY</div>
-          <div id="retex-historyList"></div>
-        </div>
-      </div>
-
-      <!-- RETURN / EXCHANGE RECEIPT PREVIEW -->
-      <div class="page" id="page-retexpreview">
-        <div id="retexPreviewBox"></div>
-        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <button class="btn btn-green" onclick="downloadRetexPDF()">&#8595; PDF</button>
-          <button class="btn btn-wa" onclick="shareRetexWA(currentRetexReceipt?currentRetexReceipt.id:0)">&#128172; WhatsApp</button>
-          <button class="btn btn-outline" onclick="goBack()">&#8592; Back</button>
-        </div>
-      </div>
-
-      <!-- PAYMENTS -->
-
       <!-- PAYMENTS -->
       <div class="page" id="page-payments">
         <!-- Filters -->
@@ -1156,7 +993,6 @@ input[type=tel], textarea, select {
             <option value="Receipt">Payment Receipts</option>
             <option value="Purchase">Purchase</option>
             <option value="Expense">Expense</option>
-            <option value="Return">Return / Exchange</option>
             <option value="Pending">Pending Sales</option>
             <option value="Cash">Cash Only</option>
             <option value="UPI">UPI Only</option>
@@ -1866,15 +1702,6 @@ input[type=tel], textarea, select {
 
       <!-- SETTINGS -->
       <div class="page" id="page-settings">
-        <div class="set-section"><div class="set-head">&#128260; Sync Status</div>
-          <div class="set-body">
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Login/sync hote hi sirf <b>naya/badla hua data</b> download hota hai aur purane data ke saath merge ho jaata hai — poora dataset baar-baar download nahi hota, isse Firebase ka download quota bacha rehta hai.</p>
-            <div style="background:var(--ow);border:1px solid var(--bdr);padding:10px 12px;margin-bottom:6px;text-align:center;">
-              <span id="dataWindowLabel" style="font-size:12px;font-weight:700;color:var(--gd);font-family:Arial,sans-serif;">Sab data local mein maujood hai</span>
-            </div>
-            <button class="btn btn-outline btn-full" onclick="forcSync()">&#8635; Sync Now</button>
-          </div>
-        </div>
         <div class="set-section"><div class="set-head">&#128293; Firebase Sync Setup</div>
           <div class="set-body">
             
@@ -2580,7 +2407,6 @@ async function pushStaffInvoices(){
       invoices: invoices,
       pendingPayments: pendingPayments,
       expenses: expenses,
-      returns: returns,
       stock: stockItems,
       stockMovLog: stockMovLog,
       customers: savedCustomers,
@@ -2683,22 +2509,6 @@ async function pullAndMergeStaffData(){
         expenses.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
         LS.setL('expenses', expenses);
         merged = true;
-      }
-    }
-
-    // Return/Exchange merge — staff ne jo return/exchange kiya use admin ke returns mein jodo
-    if(Array.isArray(sd.returns)){
-      returns = LS.get('returns')||returns||[];
-      var retIds = new Set(returns.map(function(r){ return r.id; }));
-      var newRet = sd.returns.filter(function(r){ return !retIds.has(r.id); });
-      if(newRet.length > 0){
-        returns = returns.concat(newRet);
-        returns.sort(function(a,b){ return (b.id||0)-(a.id||0); });
-        LS.sync('returns', returns);
-        merged = true;
-        console.log('[StaffSync] Merged ' + newRet.length + ' staff return/exchange records');
-        if(currentPage==='returns') renderReturnsHistoryList();
-        if(currentPage==='payments') renderPayments();
       }
     }
 
@@ -2826,7 +2636,6 @@ async function pullAndMergeStaffData(){
 // ===== GLOBALS =====
 var SYNC_KEY='', syncTmr=null, lastSync=0;
 var invoices=[], stockItems=[], savedCustomers=[], items=[], currentInv=null;
-var returns=[]; // return/exchange records: {id, retNo, date, invId, invNo, custName, custPhone, type:'Return'/'Exchange', returnedItems, newItems, returnedValue, newValue, diffAmount, diffType, payMode, note}
 var editingInvId = null; // tracks which invoice is being edited (null = new invoice)
 var stockMovLog = []; // inventory movement log: {id, date, type:'IN'/'OUT', item, qty, ref, note}
 var editLog = []; // audit log: tracks all invoice & receipt edits {id, ts, type, ref, user, changes:[]}
@@ -3009,52 +2818,8 @@ function setFirebaseUrl(url){
 }
 
 function getSyncPath(){
-  // Path in Firebase: /thejeans/SYNC_KEY/data.json (FULL, all-time data)
+  // Path in Firebase: /thejeans/SYNC_KEY/data.json
   return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/data.json';
-}
-
-// ===== DELTA SYNC (only NEW/CHANGED data is uploaded & downloaded) =====
-// Firebase mein ek chhota "changes" log rakha jaata hai (/thejeans/SYNC_KEY/changes/{key}).
-// Har save par sirf jo record naya/badla hai wahi is log mein add hota hai (chhota upload).
-// Doosra device jab bhi sync karta hai (login ya periodic), sirf apne "lastChangeTs" ke
-// baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
-// deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
-// data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog'];
-var _hasFullData = (localStorage.getItem('ac_hasFullData') === '1'); // true jab is device par ek baar poora data aa chuka ho
-var _lastChangeTs = parseInt(localStorage.getItem('ac_lastChangeTs'), 10) || 0; // is device ne ab tak kaunse changes dekh liye hain
-
-function getChangesPath(){
-  // Path in Firebase: /thejeans/SYNC_KEY/changes/{key}.json — chhoti, naye-data-only entries
-  return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/changes';
-}
-
-// Chhota, tez string hash — record content compare karne ke liye (kya record badla hai ya nahi)
-function _quickHash(str){
-  var h = 0;
-  for(var i=0; i<str.length; i++){ h = (h*31 + str.charCodeAt(i)) | 0; }
-  return h;
-}
-
-function _getPushSnapshot(){
-  try{ return JSON.parse(localStorage.getItem('ac_pushSnapshot') || '{}'); }catch(e){ return {}; }
-}
-function _savePushSnapshot(snap){
-  try{ localStorage.setItem('ac_pushSnapshot', JSON.stringify(snap)); }catch(e){ console.warn('[DeltaSync] snapshot save failed:', e); }
-}
-
-// Bootstrap (pehli baar full data.json aane) ke turant baad chalta hai — taaki
-// agla pushCloud() sirf naya/badla data bheje, poora dataset dobara nahi.
-function _seedPushSnapshotFromCurrentData(){
-  var snap = {};
-  DELTA_TYPES.forEach(function(type){
-    var arr = _getDeltaArrayRef(type) || [];
-    snap[type] = {};
-    arr.forEach(function(rec){
-      snap[type][String(rec.id)] = _quickHash(JSON.stringify(rec));
-    });
-  });
-  _savePushSnapshot(snap);
 }
 
 function schedSync(){
@@ -3099,7 +2864,6 @@ async function pushCloud(){
     supplierPayments: supplierPayments,  // supplier payments sync
     pendingPayments: pendingPayments,
     expenses: expenses,
-    returns: returns,
     dailyReports: dailyReports,       // ← was missing before!
     monthlyReports: monthlyReports,   // ← was missing before!
     editLog: editLog,                 // audit log of invoice/receipt edits
@@ -3121,302 +2885,32 @@ async function pushCloud(){
 
   try{
     setSyncDot('syncing');
-
-    // ── DELTA PUSH ──
-    // Sirf woh records jo naye hain ya badle hain, unhi ko chhote change-log
-    // entry ke roop mein Firebase par bhejo — poora dataset upload nahi hota.
-    var snap = _getPushSnapshot();
-    var deltaItems = [];
-    DELTA_TYPES.forEach(function(type){
-      var arr = payload[type] || [];
-      if(!snap[type]) snap[type] = {};
-      var seenIds = {};
-      arr.forEach(function(rec){
-        var recId = String(rec.id);
-        seenIds[recId] = true;
-        var h = _quickHash(JSON.stringify(rec));
-        if(snap[type][recId] !== h){
-          deltaItems.push({ t: type, id: rec.id, op: 'up', rec: rec });
-          snap[type][recId] = h;
-        }
-      });
-      // Deletions: jo id pehle snapshot mein thi, ab array mein nahi hai
-      Object.keys(snap[type]).forEach(function(oldId){
-        if(!seenIds[oldId]){
-          deltaItems.push({ t: type, id: oldId, op: 'del' });
-          delete snap[type][oldId];
-        }
-      });
+    var res = await fetch(getSyncPath(), {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
     });
-
-    if(deltaItems.length){
-      var changeKey = Date.now() + '_' + Math.random().toString(36).slice(2,8);
-      var changeEntry = { ts: Date.now(), items: deltaItems };
-      var res = await fetch(getChangesPath() + '/' + changeKey + '.json', {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(changeEntry)
-      });
-      if(!res.ok){
-        var txt = await res.text();
-        console.log('[Sync] Delta push error:', res.status, txt);
-        setSyncDot('offline');
-        queueOfflineWrite(payload);
-        return false;
-      }
-      _savePushSnapshot(snap);
-      _lastChangeTs = changeEntry.ts;
-      localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
-      console.log('[Sync] Delta pushed OK — ' + deltaItems.length + ' changed record(s)');
+    if(res.ok){
+      setSyncDot('online');
+      lastSync = Date.now();
+      localStorage.setItem('ac_lastSync', String(payload.ts));
+      updSS();
+      flushOfflineQueue(); // clear any queued writes since we succeeded
+      console.log('[Sync] Pushed to Firebase OK — ' + invoices.length + ' invoices');
+      return true;
     } else {
-      console.log('[Sync] Nothing changed — delta push skipped');
+      var txt = await res.text();
+      console.log('[Sync] Firebase push error:', res.status, txt);
+      setSyncDot('offline');
+      queueOfflineWrite(payload);
+      return false;
     }
-
-    // ── Occasional FULL snapshot (throttled, best-effort) ──
-    // Naye device ke pehli-baar-login bootstrap ke liye aur changes-log ko
-    // bahut lamba hone se rokne ke liye — HAR save par nahi, sirf kabhi-kabhi.
-    var lastFullAt = parseInt(localStorage.getItem('ac_lastFullSnapshotAt'), 10) || 0;
-    var FULL_SNAPSHOT_INTERVAL = 24 * 60 * 60 * 1000; // 24 ghante
-    if(Date.now() - lastFullAt > FULL_SNAPSHOT_INTERVAL){
-      fetch(getSyncPath(), {
-        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
-      }).then(function(r){
-        if(r.ok) localStorage.setItem('ac_lastFullSnapshotAt', String(Date.now()));
-      }).catch(function(e){ console.warn('[Sync] full snapshot skipped (non-fatal):', e); });
-    }
-
-    setSyncDot('online');
-    lastSync = Date.now();
-    localStorage.setItem('ac_lastSync', String(payload.ts));
-    updSS();
-    flushOfflineQueue(); // clear any queued writes since we succeeded
-    return true;
   }catch(e){
     setSyncDot('offline');
     queueOfflineWrite(payload);
     console.log('[Sync] Push error:', e);
     return false;
   }
-}
-
-// ===== APPLY PULLED DATA =====
-// Firebase se aaya hua data (chahe recent.json ho ya full data.json) app ke
-// in-memory arrays + IndexedDB mein restore karta hai. pullCloud() aur
-// ensureFullDataLoaded() dono isi function ko use karte hain — taaki merge
-// logic (staff-vs-admin, etc.) ek hi jagah rahe.
-function applyPulledData(d){
-  // Yeh function sirf FULL bootstrap pull (data.json) par chalta hai —
-  // delta changes alag se applyDeltaItems() se merge hote hain.
-  if(Array.isArray(d.invoices)){
-    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-      // Staff: cloud + local merge — new records add, edited records ka newer version use karo
-      var fbInvIdMap = {};
-      d.invoices.forEach(function(i){ fbInvIdMap[i.id] = i; });
-      var lcInvIdMap = {};
-      invoices.forEach(function(i){ lcInvIdMap[i.id] = i; });
-      var mergedPullArr = [];
-      d.invoices.forEach(function(fbInv){
-        var lcInv = lcInvIdMap[fbInv.id];
-        if(!lcInv){
-          mergedPullArr.push(fbInv);
-        } else {
-          var fbTs = fbInv.savedAt || '';
-          var lcTs = lcInv.savedAt || '';
-          mergedPullArr.push(lcTs >= fbTs ? lcInv : fbInv);
-        }
-      });
-      invoices.forEach(function(lcInv){
-        if(!fbInvIdMap[lcInv.id]) mergedPullArr.push(lcInv);
-      });
-      mergedPullArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? -1 : 1; });
-      invoices = mergedPullArr;
-    } else {
-      invoices = d.invoices;
-    }
-    LS.setL('invoices', invoices);
-  }
-  if(Array.isArray(d.stock)){ stockItems = d.stock; LS.setL('stock', stockItems); }
-  if(Array.isArray(d.stockMovLog)){ stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog); }
-  if(d.settings){ SETTINGS = d.settings; LS.setL('settings', SETTINGS); }
-  // Auth (password) sync — dusre device pe naya password apply ho
-  if(d.auth && d.auth.pass){
-    AUTH = d.auth;
-    LS.setL('auth', AUTH);
-  }
-  if(d.staffAuth && d.staffAuth.pass){
-    LS.setL('staffAuth', d.staffAuth);
-  }
-  if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
-  if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
-  if(Array.isArray(d.supplierPayments)){ supplierPayments = d.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
-  if(d.staffPerms && typeof d.staffPerms === 'object'){ LS.setL('staffPerms', d.staffPerms); loadStaffPerms(); }
-  if(Array.isArray(d.pendingPayments)){
-    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-      var fbPPIds = new Set(d.pendingPayments.map(function(r){ return r.id; }));
-      var localOnlyPP = pendingPayments.filter(function(r){ return !fbPPIds.has(r.id); });
-      pendingPayments = d.pendingPayments.concat(localOnlyPP);
-      pendingPayments.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-    } else {
-      pendingPayments = d.pendingPayments;
-    }
-    LS.setL('pendingPayments', pendingPayments);
-  }
-  if(Array.isArray(d.expenses)){
-    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-      var fbExpIds = new Set(d.expenses.map(function(e){ return e.id; }));
-      var localOnlyExp = expenses.filter(function(e){ return !fbExpIds.has(e.id); });
-      expenses = d.expenses.concat(localOnlyExp);
-      expenses.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-    } else {
-      expenses = d.expenses;
-    }
-    LS.setL('expenses', expenses);
-  }
-  if(Array.isArray(d.returns)){
-    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
-      var fbRetIds = new Set(d.returns.map(function(r){ return r.id; }));
-      var localOnlyRet = returns.filter(function(r){ return !fbRetIds.has(r.id); });
-      returns = d.returns.concat(localOnlyRet);
-      returns.sort(function(a,b){ return (b.id||0)-(a.id||0); });
-    } else {
-      returns = d.returns;
-    }
-    LS.setL('returns', returns);
-    if(currentPage==='returns') renderReturnsHistoryList();
-    if(currentPage==='payments') renderPayments();
-  }
-  if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
-  if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
-  // Telegram auto-backup config + last-sent timestamp — shared across admin & staff devices
-  if(d.telegramConfig && typeof d.telegramConfig === 'object' && (d.telegramConfig.token || d.telegramConfig.chatId)){
-    setTelegramConfig(d.telegramConfig);
-  }
-  if(d.tgLastBackupAt){
-    var _localTgLast = localStorage.getItem('ac_tg_lastBackupAt');
-    if(!_localTgLast || new Date(d.tgLastBackupAt).getTime() > new Date(_localTgLast).getTime()){
-      localStorage.setItem('ac_tg_lastBackupAt', d.tgLastBackupAt);
-    }
-  }
-  if(d.tgLastBackupDate){
-    var _localTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
-    if(d.tgLastBackupDate > _localTgLastDate){
-      localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
-    }
-  }
-  if(d.tgLastAutoBackupDate){
-    var _localTgLastAutoDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
-    if(d.tgLastAutoBackupDate > _localTgLastAutoDate){
-      localStorage.setItem('ac_tg_lastAutoBackupDate', d.tgLastAutoBackupDate);
-    }
-  }
-  // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
-  if(Array.isArray(d.editLog)){
-    editLog = d.editLog.slice(0, 500);
-    saveEditLog();
-    if(currentPage === 'editlog') renderEditLog();
-  }
-
-  setSyncDot('online');
-  lastSync = Date.now();
-  updSS();
-  flushOfflineQueue();
-  // Admin ke liye: staff ka pending data bhi merge karo
-  if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
-    pullAndMergeStaffData();
-  }
-  showToast('✓ Synced! ' + invoices.length + ' invoices loaded');
-
-  // Refresh invoice number on form
-  var invNoEl = document.getElementById('invNo');
-  if(invNoEl && currentPage === 'invoice') invNoEl.value = genInvNo();
-  renderDashboard();
-  // Financial Dashboards/Reports agar already khule hain, unhe fresh data ke saath refresh karo
-  if(currentPage === 'pnl') renderPnL();
-  if(currentPage === 'salesreport') renderSalesReport();
-  if(currentPage === 'profitreport') renderProfitReport();
-  if(currentPage === 'purchases') renderPurchaseDashboard();
-  if(currentPage === 'purchaselist') renderPurchases();
-  if(currentPage === 'pending') renderPendingDashboard();
-  if(currentPage === 'expenses') renderExpenseDashboard();
-  if(currentPage === 'expenselist') renderExpenses();
-  if(currentPage === 'pendingreceipts') renderPendingReceipts();
-  checkStorageHealth();
-  // Catch-up: if a scheduled backup was missed (app was closed at midnight),
-  // whichever device (admin or staff) opens/syncs next will send it now.
-  checkAutoTelegramBackup();
-}
-
-// ===== APPLY DELTA CHANGES =====
-// Change-log se aaye hue chhote "naye/badle hue records" ko local arrays mein
-// merge karta hai (upsert by id, ya delete). Yehi function login/periodic sync
-// ke waqt purane data ke saath naya data jodta hai.
-function _getDeltaArrayRef(type){
-  switch(type){
-    case 'invoices': return invoices;
-    case 'returns': return returns;
-    case 'purchases': return purchases;
-    case 'supplierPayments': return supplierPayments;
-    case 'pendingPayments': return pendingPayments;
-    case 'expenses': return expenses;
-    case 'stockMovLog': return stockMovLog;
-    default: return null;
-  }
-}
-
-function applyDeltaItems(items){
-  if(!items || !items.length) return;
-  var touched = {};
-  items.forEach(function(item){
-    var arr = _getDeltaArrayRef(item.t);
-    if(!arr) return;
-    touched[item.t] = true;
-    var idx = -1;
-    for(var i=0; i<arr.length; i++){ if(String(arr[i].id) === String(item.id)){ idx = i; break; } }
-    if(item.op === 'del'){
-      if(idx !== -1) arr.splice(idx, 1);
-    } else {
-      if(idx !== -1) arr[idx] = item.rec; else arr.push(item.rec);
-    }
-  });
-
-  Object.keys(touched).forEach(function(type){
-    LS.setL(type, _getDeltaArrayRef(type));
-  });
-
-  // Push-snapshot bhi update karo — taaki yeh device abhi-abhi mila hua data
-  // dobara Firebase par upload na kar de
-  var snap = _getPushSnapshot();
-  items.forEach(function(item){
-    if(!snap[item.t]) snap[item.t] = {};
-    if(item.op === 'del'){
-      delete snap[item.t][String(item.id)];
-    } else {
-      snap[item.t][String(item.id)] = _quickHash(JSON.stringify(item.rec));
-    }
-  });
-  _savePushSnapshot(snap);
-
-  // Jo bhi screen abhi khuli hai, usse turant refresh karo taaki merge dikhe
-  if(touched.invoices && currentPage === 'history') renderHistory();
-  if(touched.returns && currentPage === 'returns') renderReturnsHistoryList();
-  if(touched.purchases){
-    if(currentPage === 'purchaselist') renderPurchases();
-    if(currentPage === 'purchases') renderPurchaseDashboard();
-  }
-  if(touched.supplierPayments && currentPage === 'supplierpay') renderSupplierPayPage();
-  if(touched.pendingPayments){
-    if(currentPage === 'pendingreceipts') renderPendingReceipts();
-    if(currentPage === 'pending') renderPendingDashboard();
-  }
-  if(touched.expenses){
-    if(currentPage === 'expenselist') renderExpenses();
-    if(currentPage === 'expenses') renderExpenseDashboard();
-  }
-  if(currentPage === 'pnl') renderPnL();
-  if(currentPage === 'salesreport') renderSalesReport();
-  if(currentPage === 'profitreport') renderProfitReport();
-  if(currentPage === 'payments') renderPayments();
-  renderDashboard();
 }
 
 var _lastManualPull = 0;
@@ -3446,92 +2940,145 @@ async function pullCloud(){
 
   try{
     setSyncDot('syncing');
+    var res = await fetch(getSyncPath() + '?t=' + Date.now()); // cache-bust
+    if(res.ok){
+      var d = await res.json();
+      if(d && d.syncKey === SYNC_KEY){
+        // Restore ALL data fields
+        if(Array.isArray(d.invoices)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            // Staff: cloud + local merge — new records add, edited records ka newer version use karo
+            var fbInvIdMap = {};
+            d.invoices.forEach(function(i){ fbInvIdMap[i.id] = i; });
+            var lcInvIdMap = {};
+            invoices.forEach(function(i){ lcInvIdMap[i.id] = i; });
+            var mergedPullArr = [];
+            d.invoices.forEach(function(fbInv){
+              var lcInv = lcInvIdMap[fbInv.id];
+              if(!lcInv){
+                mergedPullArr.push(fbInv);
+              } else {
+                var fbTs = fbInv.savedAt || '';
+                var lcTs = lcInv.savedAt || '';
+                mergedPullArr.push(lcTs >= fbTs ? lcInv : fbInv);
+              }
+            });
+            invoices.forEach(function(lcInv){
+              if(!fbInvIdMap[lcInv.id]) mergedPullArr.push(lcInv);
+            });
+            mergedPullArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? -1 : 1; });
+            invoices = mergedPullArr;
+          } else {
+            invoices = d.invoices;
+          }
+          LS.setL('invoices', invoices);
+        }
+        if(Array.isArray(d.stock)){ stockItems = d.stock; LS.setL('stock', stockItems); }
+        if(Array.isArray(d.stockMovLog)){ stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog); }
+        if(d.settings){ SETTINGS = d.settings; LS.setL('settings', SETTINGS); }
+        // Auth (password) sync — dusre device pe naya password apply ho
+        if(d.auth && d.auth.pass){
+          AUTH = d.auth;
+          LS.setL('auth', AUTH);
+        }
+        if(d.staffAuth && d.staffAuth.pass){
+          LS.setL('staffAuth', d.staffAuth);
+        }
+        if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
+        if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
+        if(Array.isArray(d.supplierPayments)){ supplierPayments = d.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
+        if(d.staffPerms && typeof d.staffPerms === 'object'){ LS.setL('staffPerms', d.staffPerms); loadStaffPerms(); }
+        if(Array.isArray(d.pendingPayments)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            var fbPPIds = new Set(d.pendingPayments.map(function(r){ return r.id; }));
+            var localOnlyPP = pendingPayments.filter(function(r){ return !fbPPIds.has(r.id); });
+            pendingPayments = d.pendingPayments.concat(localOnlyPP);
+            pendingPayments.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+          } else {
+            pendingPayments = d.pendingPayments;
+          }
+          LS.setL('pendingPayments', pendingPayments);
+        }
+        if(Array.isArray(d.expenses)){
+          if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+            var fbExpIds = new Set(d.expenses.map(function(e){ return e.id; }));
+            var localOnlyExp = expenses.filter(function(e){ return !fbExpIds.has(e.id); });
+            expenses = d.expenses.concat(localOnlyExp);
+            expenses.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+          } else {
+            expenses = d.expenses;
+          }
+          LS.setL('expenses', expenses);
+        }
+        if(d.dailyReports && typeof d.dailyReports === 'object'){ dailyReports = d.dailyReports; LS.setL('dailyReports', dailyReports); }
+        if(d.monthlyReports && typeof d.monthlyReports === 'object'){ monthlyReports = d.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
+        // Telegram auto-backup config + last-sent timestamp — shared across admin & staff devices
+        if(d.telegramConfig && typeof d.telegramConfig === 'object' && (d.telegramConfig.token || d.telegramConfig.chatId)){
+          setTelegramConfig(d.telegramConfig);
+        }
+        if(d.tgLastBackupAt){
+          var _localTgLast = localStorage.getItem('ac_tg_lastBackupAt');
+          if(!_localTgLast || new Date(d.tgLastBackupAt).getTime() > new Date(_localTgLast).getTime()){
+            localStorage.setItem('ac_tg_lastBackupAt', d.tgLastBackupAt);
+          }
+        }
+        if(d.tgLastBackupDate){
+          var _localTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
+          if(d.tgLastBackupDate > _localTgLastDate){
+            localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
+          }
+        }
+        if(d.tgLastAutoBackupDate){
+          var _localTgLastAutoDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
+          if(d.tgLastAutoBackupDate > _localTgLastAutoDate){
+            localStorage.setItem('ac_tg_lastAutoBackupDate', d.tgLastAutoBackupDate);
+          }
+        }
+        // EditLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
+        if(Array.isArray(d.editLog)){
+          editLog = d.editLog.slice(0, 500);
+          saveEditLog();
+          if(currentPage === 'editlog') renderEditLog();
+        }
 
-    if(!_hasFullData){
-      // ── FIRST-TIME BOOTSTRAP (is device par abhi tak koi data nahi) ──
-      // Ek hi baar poora data.json fetch hota hai. Iske baad hamesha delta hi chalega.
-      var res = await fetch(getSyncPath() + '?t=' + Date.now());
-      if(res.ok){
-        var d = await res.json();
-        if(d && d.syncKey === SYNC_KEY){
-          applyPulledData(d);
-          _hasFullData = true;
-          localStorage.setItem('ac_hasFullData', '1');
-          _lastChangeTs = d.ts || Date.now();
-          localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
-          _seedPushSnapshotFromCurrentData(); // taaki agla push sirf naya data bheje, sab kuch dobara nahi
-          showToast('✓ Poora data load ho gaya (' + invoices.length + ' invoices)');
-        } else if(d === null){
-          // Firebase par abhi kuch bhi nahi — local data pehli baar upload karo
-          setSyncDot('online');
-          _hasFullData = true;
-          localStorage.setItem('ac_hasFullData', '1');
-          await pushCloud();
-          showToast('Data uploaded to Firebase!');
-        } else {
-          showToast('Wrong sync key!');
-          setSyncDot('offline');
-        }
-      } else {
-        var err = await res.text();
-        console.log('[Sync] Pull error response:', err);
-        setSyncDot('offline');
-        showToast('Firebase error - check URL and permissions');
-      }
-    } else {
-      // ── DELTA PULL ── sirf _lastChangeTs ke baad wale naye/badle records fetch karo
-      var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
-      var res2 = await fetch(q);
-      if(res2.ok){
-        var changes = await res2.json(); // { key: {ts, items:[...]}, ... } ya null
-        var totalItems = 0;
-        if(changes && typeof changes === 'object'){
-          var allItems = [];
-          var maxTs = _lastChangeTs;
-          Object.keys(changes).forEach(function(k){
-            var entry = changes[k];
-            if(entry && Array.isArray(entry.items)){
-              allItems = allItems.concat(entry.items);
-              if(entry.ts > maxTs) maxTs = entry.ts;
-            }
-          });
-          totalItems = allItems.length;
-          if(totalItems) applyDeltaItems(allItems);
-          _lastChangeTs = maxTs;
-          localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
-        }
         setSyncDot('online');
         lastSync = Date.now();
         updSS();
         flushOfflineQueue();
+        // Admin ke liye: staff ka pending data bhi merge karo
         if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
           pullAndMergeStaffData();
         }
-        if(totalItems) showToast('✓ ' + totalItems + ' naye/updated record(s) merge ho gaye');
+        showToast('✓ Synced! ' + invoices.length + ' invoices loaded');
+
+        // Refresh invoice number on form
+        var invNoEl = document.getElementById('invNo');
+        if(invNoEl && currentPage === 'invoice') invNoEl.value = genInvNo();
+        renderDashboard();
+        checkStorageHealth();
+        // Catch-up: if a scheduled backup was missed (app was closed at midnight),
+        // whichever device (admin or staff) opens/syncs next will send it now.
         checkAutoTelegramBackup();
+      } else if(d === null){
+        // No data on Firebase yet — push local data
+        setSyncDot('online');
+        await pushCloud();
+        showToast('Data uploaded to Firebase!');
       } else {
-        var err2 = await res2.text();
-        console.log('[Sync] Delta pull error:', err2);
+        showToast('Wrong sync key!');
         setSyncDot('offline');
-        showToast('Firebase error - check URL and permissions');
       }
+    } else {
+      var err = await res.text();
+      console.log('[Sync] Pull error response:', err);
+      setSyncDot('offline');
+      showToast('Firebase error - check URL and permissions');
     }
   }catch(e){
     setSyncDot('offline');
     console.log('[Sync] Pull error:', e);
     showToast('Sync failed - check Firebase URL');
   }
-}
-
-// ===== LEGACY COMPAT SHIM =====
-// Pehle yeh function ek-time full-data fetch karta tha (windowed system ke liye).
-// Ab delta-sync ki wajah se local data hamesha complete/current rehta hai, isliye
-// yeh sirf itna ensure karta hai ki agar is device par bootstrap abhi tak nahi
-// hua, to ek baar sync ho jaaye. Naam purane call-sites ke saath compatibility
-// ke liye rakha gaya hai.
-function ensureFullDataLoaded(cb){
-  if(_hasFullData){ cb(); return; }
-  pullCloud().then(cb).catch(function(){ cb(); });
 }
 
 function forcSync(){
@@ -3618,15 +3165,6 @@ function updateBackupLabel(){
   var txt = days === 0 ? 'Aaj' : days === 1 ? 'Kal' : days + ' din pehle';
   el.textContent = txt + ' (' + d.toISOString().slice(0,10) + ')';
   el.style.color = days > 7 ? '#c0392b' : '#1e6e3a';
-}
-
-// ===== SYNC STATUS (Settings) =====
-function updateDataWindowLabel(){
-  var el = document.getElementById('dataWindowLabel');
-  if(!el) return;
-  el.textContent = _hasFullData
-    ? 'Sab data local mein maujood hai (naya data automatically merge hota rehta hai)'
-    : 'Pehli baar sync abhi baaki hai — Sync Now dabayein';
 }
 
 // Export data as JSON file (for safety before GitHub updates)
@@ -4351,28 +3889,6 @@ async function generateSPReceiptPDFBlobFor(r){
   return blob;
 }
 
-// ── Individual Return/Exchange Receipt PDF — used for the Telegram ZIP ──
-async function generateRetexReceiptPDFBlobFor(r){
-  var saved = currentRetexReceipt;
-  currentRetexReceipt = r;
-  buildRetexPreview(r);
-  await new Promise(function(res){ setTimeout(res, 60); });
-  var el = document.getElementById('retexPrint');
-  var blob = null;
-  try{
-    if(el){
-      await _waitImagesLoaded(el, 900);
-      var pdf = await _retryAsync(function(){ return _captureElToPDF(el); }, 3, 600);
-      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-      blob = pdf.output('blob');
-    }
-  } finally {
-    currentRetexReceipt = saved;
-    if(saved) buildRetexPreview(saved);
-  }
-  return blob;
-}
-
 // Builds the zip: {DD.MM.YYYY}/ with all daily reports (PDF + Excel)
 // PLUS invoice-no wise individual invoice PDFs, individual customer payment
 // receipt PDFs, and individual purchase (supplier) payment receipt PDFs for that day.
@@ -4461,22 +3977,6 @@ async function buildDailyReportZip(dateStr){
     }
   }
 
-  // ── Today's individual Return/Exchange Receipts ──
-  var dayRetex = (LS.get('returns')||returns||[]).filter(function(r){ return r.date===dateStr; });
-  var retexFolder = dayRetex.length ? dayFolder.folder('Return_Exchange_Receipts') : null;
-  var retexOK=0, retexFail=0, retexFailNames=[], retexFailItems=[];
-  if(dayRetex.length){
-    for(var xi=0; xi<dayRetex.length; xi++){
-      var retexLabel = dayRetex[xi].retNo || ('#'+(xi+1));
-      try{
-        var retexBlob = await generateRetexReceiptPDFBlobFor(dayRetex[xi]);
-        if(retexBlob){ retexFolder.file('ReturnExchange_'+_safeFn(retexLabel)+'.pdf', retexBlob); retexOK++; }
-        else { retexFail++; retexFailNames.push(retexLabel); retexFailItems.push(dayRetex[xi]); }
-      }catch(e){ retexFail++; retexFailNames.push(retexLabel); retexFailItems.push(dayRetex[xi]); console.error('[Zip] Return/Exchange PDF failed for', retexLabel, e); }
-      if(xi % 5 === 4) await new Promise(function(r){ setTimeout(r, 120); });
-    }
-  }
-
   // ── Second-chance pass ──
   // Anything that failed above almost always failed due to transient memory/
   // canvas pressure from generating many PDFs back-to-back. Give the browser
@@ -4520,23 +4020,11 @@ async function buildDailyReportZip(dateStr){
       }catch(e){ console.error('[Zip] SP Receipt PDF second-chance retry also failed for', spLbl, e); }
       await new Promise(function(r){ setTimeout(r, 150); });
     }
-    for(var xR=0; xR<retexFailItems.length; xR++){
-      var rx = retexFailItems[xR], rxLbl = rx.retNo || '#retry'+xR;
-      try{
-        var retryRetexBlob = await generateRetexReceiptPDFBlobFor(rx);
-        if(retryRetexBlob){
-          retexFolder.file('ReturnExchange_'+_safeFn(rxLbl)+'.pdf', retryRetexBlob);
-          retexOK++; retexFail--;
-          var idx4 = retexFailNames.indexOf(rxLbl); if(idx4>-1) retexFailNames.splice(idx4,1);
-        }
-      }catch(e){ console.error('[Zip] Return/Exchange PDF second-chance retry also failed for', rxLbl, e); }
-      await new Promise(function(r){ setTimeout(r, 150); });
-    }
   }
 
-  if(invFailNames.length || recFailNames.length || spFailNames.length || retexFailNames.length){
+  if(invFailNames.length || recFailNames.length || spFailNames.length){
     console.warn('[Telegram Backup] PDF generation failures for '+dateStr+' (after retries):',
-      {invoices:invFailNames, receipts:recFailNames, supplierReceipts:spFailNames, returnExchange:retexFailNames});
+      {invoices:invFailNames, receipts:recFailNames, supplierReceipts:spFailNames});
   }
 
   var zipBlob = await zip.generateAsync({type:'blob'});
@@ -4544,8 +4032,7 @@ async function buildDailyReportZip(dateStr){
     blob: zipBlob, filename: 'TJC_Backup_' + folder + '.zip', folder: folder,
     invOK: invOK, invFail: invFail, invTotal: dayInvs.length, invFailNames: invFailNames,
     recOK: recOK, recFail: recFail, recTotal: dayRecs.length, recFailNames: recFailNames,
-    spOK: spOK, spFail: spFail, spTotal: daySupPay.length, spFailNames: spFailNames,
-    retexOK: retexOK, retexFail: retexFail, retexTotal: dayRetex.length, retexFailNames: retexFailNames
+    spOK: spOK, spFail: spFail, spTotal: daySupPay.length, spFailNames: spFailNames
   };
 }
 
@@ -4652,9 +4139,8 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
       var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
       var dayRecsC = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
       var daySupPayC = (LS.get('supplierPayments')||[]).filter(function(r){ return r.date===dateStr; });
-      var dayRetexC = (LS.get('returns')||returns||[]).filter(function(r){ return r.date===dateStr; });
       var failNote = '';
-      var totalFail = (built.invFail||0) + (built.recFail||0) + (built.spFail||0) + (built.retexFail||0);
+      var totalFail = (built.invFail||0) + (built.recFail||0) + (built.spFail||0);
       if(totalFail > 0){
         failNote = '\n⚠️ PDF nahi ban paye: ';
         var parts = [];
@@ -4662,14 +4148,12 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
         if(built.invFail) parts.push(built.invFail+' invoice(s)'+_nameList(built.invFailNames));
         if(built.recFail) parts.push(built.recFail+' receipt(s)'+_nameList(built.recFailNames));
         if(built.spFail) parts.push(built.spFail+' supplier receipt(s)'+_nameList(built.spFailNames));
-        if(built.retexFail) parts.push(built.retexFail+' return/exchange receipt(s)'+_nameList(built.retexFailNames));
         failNote += parts.join(', ') + ' — Daily_Report.pdf mein data phir bhi mil jayega. Inventory se "Retry Failed" ya dobara backup bhejein.';
       }
       var caption = '📦 The Jeans Club — Daily Backup' + (isAutoSend ? ' (Auto)' : ' (Manual)') + '\n'
         + '🗓 ' + ddmmyyyy(dateStr) + '\n'
         + '🧾 Invoices: ' + (built.invOK||0) + '/' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
         + '🧾 Payment Receipts: ' + (built.recOK||0) + '/' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + (built.spOK||0) + '/' + daySupPayC.length + '\n'
-        + (dayRetexC.length ? '↩️ Return/Exchange Receipts: ' + (built.retexOK||0) + '/' + dayRetexC.length + '\n' : '')
         + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, Inventory Log, Edit Log, PDF + Excel)'
         + failNote;
 
@@ -5007,7 +4491,6 @@ var STAFF_PERMISSION_DEFS = [
   { key:'dashboard',      label:'Dashboard',           navLabel:'Dashboard',           defaultOn:false, icon:'📊' },
   { key:'invoice',        label:'New Invoice',          navLabel:'New Invoice',         defaultOn:true,  icon:'🧾' },
   { key:'history',        label:'Invoice History',      navLabel:'Invoice History',     defaultOn:true,  icon:'📁' },
-  { key:'returns',        label:'Return / Exchange',    navLabel:'Return / Exchange',   defaultOn:true,  icon:'↩️' },
   { key:'payments',       label:'Payments',             navLabel:'Payments',            defaultOn:false, icon:'💳' },
   { key:'purchases',      label:'Purchase Dashboard',   navLabel:'Purchase Dashboard',  defaultOn:false, icon:'🚚' },
   { key:'purchaselist',   label:'Purchase Records',     navLabel:'Purchase Records',    defaultOn:false, icon:'📋' },
@@ -5070,7 +4553,6 @@ function checkLogin(){
   invoices = LS.get('invoices') || [];
   stockItems = LS.get('stock') || [];
   stockMovLog = LS.get('stockMovLog') || [];
-  returns = LS.get('returns') || [];
   savedCustomers = LS.get('customers') || [];
   dailyReports = LS.get('dailyReports') || {};
   monthlyReports = LS.get('monthlyReports') || {};
@@ -5186,9 +4668,6 @@ function doLogin(){
         showToast('⚠️ Default password chal raha hai! Settings se badlein.', 'warn');
       }, 1500);
     }
-    // Login hote hi sync: pehli baar poora data bootstrap hota hai, uske baad
-    // sirf naya/badla data (delta) fetch hokar purane local data ke saath
-    // automatically merge ho jaata hai (applyPulledData / applyDeltaItems).
     if(SYNC_KEY) setTimeout(pullCloud, 1000); // Both admin and staff sync Firebase
   } else {
     err.style.display = 'block';
@@ -5482,36 +4961,32 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
   if(page==='invreport') renderInvReport();
   if(page==='dashboard') renderDashboard();
-  // History screens ab hamesha poora local data dikhate hain (delta-sync ki wajah se complete rehta hai).
   if(page==='history') renderHistory();
-  if(page==='returns') renderReturns();
-  // Financial Dashboards/Reports/Ledgers: agar is device par pehli baar bootstrap
-  // abhi baaki hai to ek baar sync ho jaaye (ensureFullDataLoaded ab sirf ek safe shim hai).
-  if(page==='payments') ensureFullDataLoaded(renderPayments);
+  if(page==='payments') renderPayments();
   if(page==='inventory') renderInventory();
   if(page==='lowlist'){ if(!staffCanAccess('lowlist')){showToast('⛔ Access Denied');navTo('invoice',null);return;} renderLowList(); }
   if(page==='costing') calcCost();
-  if(page==='salesreport') ensureFullDataLoaded(renderSalesReport);
-  if(page==='profitreport'){ if(!staffCanAccess('profitreport')){showToast('⛔ Access Denied — Item Profit sirf Admin ke liye hai');navTo('invoice',null);return;} ensureFullDataLoaded(renderProfitReport); }
-  if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); updateDataWindowLabel(); }, 100); }
+  if(page==='salesreport') renderSalesReport();
+  if(page==='profitreport'){ if(!staffCanAccess('profitreport')){showToast('⛔ Access Denied — Item Profit sirf Admin ke liye hai');navTo('invoice',null);return;} renderProfitReport(); }
+  if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); }, 100); }
 
-  if(page==='purchases') ensureFullDataLoaded(renderPurchaseDashboard);
-  if(page==='purchaselist') ensureFullDataLoaded(renderPurchases);
-  if(page==='supplierpay'){ initSupplierPayForm(); ensureFullDataLoaded(renderSupplierPayPage); }
-  if(page==='pending') ensureFullDataLoaded(renderPendingDashboard);
-  if(page==='expenses') ensureFullDataLoaded(renderExpenseDashboard);
-  if(page==='expenselist') ensureFullDataLoaded(renderExpenses);
+  if(page==='purchases') renderPurchaseDashboard();
+  if(page==='purchaselist') renderPurchases();
+  if(page==='supplierpay'){ initSupplierPayForm(); renderSupplierPayPage(); }
+  if(page==='pending') renderPendingDashboard();
+  if(page==='expenses') renderExpenseDashboard();
+  if(page==='expenselist') renderExpenses();
   if(page==='expensenew'){ initExpenseForm(); buildExpCatSelect('exp-category'); }
-  if(page==='pendingreceipts') ensureFullDataLoaded(renderPendingReceipts);
+  if(page==='pendingreceipts') renderPendingReceipts();
   if(page==='pendingnew'){ initPendingForm(); }
   if(page==='pendingpreview'){}
-  if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} ensureFullDataLoaded(renderPnL); }
+  if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} renderPnL(); }
   if(page==='editlog'){ if(!staffCanAccess('editlog')){showToast('⛔ Access Denied — Edit Log sirf Admin ke liye hai');navTo('invoice',null);return;} renderEditLog(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
@@ -5526,10 +5001,6 @@ function closeSidebar(){ document.getElementById('sidebar').classList.remove('op
 document.addEventListener('click', function(e){
   var sb = document.getElementById('sidebar'), hb = document.getElementById('hamburger');
   if(window.innerWidth<=768 && sb && sb.classList.contains('open') && !sb.contains(e.target) && hb && !hb.contains(e.target)) closeSidebar();
-});
-document.addEventListener('click', function(e){
-  if(e.target.closest('#historyList')) return; // handled by historyList's own onclick
-  document.querySelectorAll('.inv-actions-menu').forEach(function(m){ m.style.display='none'; });
 });
 
 // ===== HELPERS =====
@@ -6659,11 +6130,9 @@ function renderHistory(){
         var pb2='<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(inv.payStatus)+'</span>';
         var si=inv.payMode==='Split'?'<div style="font-size:10px;margin-top:2px;"><span class="pay-split-badge">C:'+fmt(inv.cashAmt||0)+'</span> <span class="pay-split-badge">U:'+fmt(inv.upiAmt||0)+'</span></div>':'';
         var isToday = (inv.invDate === todayDate);
-        var editBtn = (CURRENT_ROLE==='admin' || isToday) ? '<div class="inv-menu-item" data-action="editinv" data-invid="'+inv.id+'">✏️ Edit</div>' : '';
-        var delBtn = isStaff ? '' : '<div class="inv-menu-item" data-action="del" data-invid="'+inv.id+'" style="color:#c0392b;">🗑️ Delete</div>';
-        var retexBtn = '<div class="inv-menu-item" data-action="retex" data-invid="'+inv.id+'">&#8617; Return/Exchange</div>';
-        var retexBadge = inv.hasReturn ? '<span class="pay-badge" style="background:#f0e6d2;color:#8a6d1a;">&#8617; Returned/Exchanged</span>' : '';
-        ihtml+='<div style="border-bottom:1px solid var(--bdr);background:#fff;border-left:4px solid '+statusBorder+';"><div style="padding:10px 12px 6px 12px;display:flex;justify-content:space-between;align-items:flex-start;"><div>'+(isStaff?'<div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">'+escH(inv.custName)+'</div>':'<div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;cursor:pointer;color:var(--g);text-decoration:underline;text-decoration-color:rgba(36,97,77,.3);text-underline-offset:2px;" onclick="openCustHist(\''+escH(inv.custName).replace(/'/g,"&#39;")+'\')">'+escH(inv.custName)+'</div>')+'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(inv.invNo)+'</div>'+(retexBadge?'<div style="margin-top:3px;">'+retexBadge+'</div>':'')+'</div><div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-size:17px;font-weight:700;color:var(--gd2);">'+fmt(inv.total)+'</div><div>'+pb1+' '+pb2+'</div>'+si+'</div></div><div style="display:flex;gap:6px;align-items:center;padding:0 12px 8px 12px;position:relative;"><button class="btn btn-outline" style="padding:4px 9px;font-size:9px;" data-action="view" data-invid="'+inv.id+'">View</button><button class="btn btn-outline" style="padding:3px 10px;font-size:14px;font-weight:700;line-height:1;" data-action="menu" data-invid="'+inv.id+'">&#8942;</button><div class="inv-actions-menu" id="invmenu-'+inv.id+'" style="display:none;position:absolute;top:100%;left:12px;margin-top:2px;background:#fff;border:1px solid var(--bdr);box-shadow:0 4px 14px rgba(0,0,0,.18);border-radius:6px;z-index:60;min-width:180px;overflow:hidden;"><div class="inv-menu-item" data-action="wa" data-invid="'+inv.id+'">📲 WhatsApp</div><div class="inv-menu-item" data-action="dlpdf" data-invid="'+inv.id+'">⬇ PDF</div>'+editBtn+retexBtn+delBtn+'</div></div></div>';
+        var editBtn = (CURRENT_ROLE==='admin' || isToday) ? '<button class="btn btn-gold" style="padding:4px 9px;font-size:9px;" data-action="editinv" data-invid="'+inv.id+'">✏️ Edit</button>' : '';
+        var delBtn = isStaff ? '' : '<button class="btn btn-red" style="padding:4px 9px;font-size:9px;" data-action="del" data-invid="'+inv.id+'">Delete</button>';
+        ihtml+='<div style="border-bottom:1px solid var(--bdr);background:#fff;border-left:4px solid '+statusBorder+';"><div style="padding:10px 12px 6px 12px;display:flex;justify-content:space-between;align-items:flex-start;"><div>'+(isStaff?'<div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">'+escH(inv.custName)+'</div>':'<div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;cursor:pointer;color:var(--g);text-decoration:underline;text-decoration-color:rgba(36,97,77,.3);text-underline-offset:2px;" onclick="openCustHist(\''+escH(inv.custName).replace(/'/g,"&#39;")+'\')">'+escH(inv.custName)+'</div>')+'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(inv.invNo)+'</div></div><div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-size:17px;font-weight:700;color:var(--gd2);">'+fmt(inv.total)+'</div><div>'+pb1+' '+pb2+'</div>'+si+'</div></div><div style="display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 8px 12px;"><button class="btn btn-outline" style="padding:4px 9px;font-size:9px;" data-action="view" data-invid="'+inv.id+'">View</button><button class="btn btn-wa" style="padding:4px 9px;font-size:9px;" data-action="wa" data-invid="'+inv.id+'">📲 WA</button><button class="btn btn-green" style="padding:4px 9px;font-size:9px;" data-action="dlpdf" data-invid="'+inv.id+'">⬇ PDF</button>'+editBtn+delBtn+'</div></div>';
       });
       var dateLabel = date;
       try { var dp=new Date(date); if(!isNaN(dp)) dateLabel=dp.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); } catch(ex){}
@@ -6688,25 +6157,8 @@ function renderHistory(){
   list.onclick = function(e){
     var fh=e.target.closest('.fold-head');
     if(fh){ toggleFolder(fh.getAttribute('data-fid')); return; }
-    var menuBtn=e.target.closest('button[data-action="menu"]');
-    if(menuBtn){
-      e.stopPropagation();
-      var mid=menuBtn.getAttribute('data-invid');
-      var menu=document.getElementById('invmenu-'+mid);
-      var wasOpen = menu && menu.style.display==='block';
-      document.querySelectorAll('.inv-actions-menu').forEach(function(m){ m.style.display='none'; });
-      if(menu) menu.style.display = wasOpen ? 'none' : 'block';
-      return;
-    }
-    var btn=e.target.closest('[data-action]');
-    if(btn){
-      var act=btn.getAttribute('data-action'), id=parseInt(btn.getAttribute('data-invid'));
-      document.querySelectorAll('.inv-actions-menu').forEach(function(m){ m.style.display='none'; });
-      if(act==='view')viewInv(id); else if(act==='wa')shareWAById(id); else if(act==='del')deleteInv(id); else if(act==='dlpdf')downloadInvPDFById(id); else if(act==='editinv')editInv(id); else if(act==='retex')startReturnForInvoice(id);
-      return;
-    }
-    // Clicked outside any menu/button — close open menus
-    document.querySelectorAll('.inv-actions-menu').forEach(function(m){ m.style.display='none'; });
+    var btn=e.target.closest('button[data-action]');
+    if(btn){ var act=btn.getAttribute('data-action'), id=parseInt(btn.getAttribute('data-invid')); if(act==='view')viewInv(id); else if(act==='wa')shareWAById(id); else if(act==='del')deleteInv(id); else if(act==='dlpdf')downloadInvPDFById(id); else if(act==='editinv')editInv(id); }
   };
 }
 
@@ -6802,664 +6254,12 @@ function editInv(id){
   }, 300);
 }
 
-// ===== RETURN / EXCHANGE MODULE =====
-// Customer kisi invoice ka item return karta hai (stock wapas add) ya exchange karta hai
-// (return + naya item stock se ghatai). Entry `returns` array mein save hoti hai aur
-// original invoice + stock dono update ho jaate hain.
-var returnSelectedInv = null;   // currently selected invoice for return/exchange
-var returnItemsSel = {};        // {itemIndex: qtyToReturn}
-var exchangeNewItems = [];      // [{id,name,qty,price}] — naye item jo exchange mein diye
-var exchangeMode = false;       // false = Return only, true = Exchange
-
-function renderReturns(){
-  var q = (document.getElementById('retex-search')?document.getElementById('retex-search').value:'').toLowerCase();
-  var resultsEl = document.getElementById('retex-searchResults');
-  var isStaff = (CURRENT_ROLE === 'staff');
-  if(resultsEl){
-    if(!q){ resultsEl.innerHTML=''; }
-    else {
-      var matches = invoices.filter(function(i){
-        return (i.custName||'').toLowerCase().indexOf(q)!==-1 || (i.invNo||'').toLowerCase().indexOf(q)!==-1 || (i.custPhone||'').indexOf(q)!==-1;
-      }).sort(function(a,b){ return (b.savedAt||b.id||0) > (a.savedAt||a.id||0) ? 1 : -1; });
-      // Staff privacy: sirf customer ke last 3 invoice dikhao (poori history nahi)
-      matches = matches.slice(0, isStaff ? 3 : 20);
-      resultsEl.innerHTML = matches.length ? matches.map(function(inv){
-        return '<div class="retex-search-row" data-invid="'+inv.id+'" style="padding:9px 12px;border-bottom:1px solid var(--bdr);cursor:pointer;display:flex;justify-content:space-between;font-family:Arial,sans-serif;font-size:12px;">'
-          +'<div><strong>'+escH(inv.custName)+'</strong><br><span style="color:var(--mu);font-size:10px;">'+escH(inv.invNo)+' &bull; '+escH(inv.invDate)+'</span></div>'
-          +'<div style="font-weight:700;color:var(--gd2);">'+fmt(inv.total)+'</div></div>';
-      }).join('') + (isStaff ? '<div style="text-align:center;padding:8px;font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">Sirf last 3 invoices dikhaye gaye hain</div>' : '') : emptyState('🔍','Koi invoice nahi mila','Naam, invoice number ya phone se search karein');
-      resultsEl.onclick = function(e){
-        var row = e.target.closest('.retex-search-row');
-        if(row) selectInvoiceForReturn(parseInt(row.getAttribute('data-invid')));
-      };
-    }
-  }
-  renderReturnsHistoryList();
-}
-
-function onRetexReasonChange(){
-  var r = document.getElementById('retex-reason');
-  var noteEl = document.getElementById('retex-note');
-  if(r && noteEl && r.value==='Other') noteEl.focus();
-}
-
-function selectInvoiceForReturn(invId){
-  var inv = invoices.find(function(i){ return i.id===invId; });
-  if(!inv){ showToast('Invoice not found'); return; }
-  returnSelectedInv = inv;
-  returnItemsSel = {};
-  exchangeNewItems = [];
-  exchangeMode = false;
-  var sw=document.getElementById('retex-searchWrap'); if(sw) sw.style.display='none';
-  var fw=document.getElementById('retex-formWrap'); if(fw) fw.style.display='block';
-  var reasonEl=document.getElementById('retex-reason'); if(reasonEl) reasonEl.value='';
-  var noteEl=document.getElementById('retex-note'); if(noteEl) noteEl.value='';
-  renderReturnForm();
-}
-
-// Called from Invoice History "Return/Exchange" button — jumps straight to the form
-function startReturnForInvoice(invId){
-  navTo('returns', null);
-  selectInvoiceForReturn(invId);
-}
-
-function backToRetexSearch(){
-  returnSelectedInv=null; returnItemsSel={}; exchangeNewItems=[]; exchangeMode=false;
-  var fw=document.getElementById('retex-formWrap'); if(fw) fw.style.display='none';
-  var sw=document.getElementById('retex-searchWrap'); if(sw) sw.style.display='block';
-  var s=document.getElementById('retex-search'); if(s) s.value='';
-  var rEl=document.getElementById('retex-reason'); if(rEl) rEl.value='';
-  var nEl=document.getElementById('retex-note'); if(nEl) nEl.value='';
-  renderReturns();
-}
-
-function renderReturnForm(){
-  var inv = returnSelectedInv; if(!inv) return;
-  var head = document.getElementById('retex-invHead');
-  if(head) head.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;font-family:Arial,sans-serif;">'
-    +'<div><div style="font-weight:800;font-size:15px;color:var(--gd);">'+escH(inv.custName)+'</div>'
-    +'<div style="font-size:11px;color:var(--mu);margin-top:3px;">'+escH(inv.invNo)+' &bull; '+escH(inv.invDate)+' &bull; '+escH(inv.custPhone||'-')+'</div></div>'
-    +'<div style="text-align:right;"><div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);font-weight:700;">Invoice Total</div><div style="font-size:19px;font-weight:800;color:var(--gd2);">'+fmt(inv.total)+'</div></div>'
-    +'</div>';
-
-  // Is invoice se pehle kitna already return ho chuka hai (per item name) — max cap ke liye
-  var alreadyReturned = {};
-  returns.forEach(function(r){
-    if(r.invId!==inv.id) return;
-    (r.returnedItems||[]).forEach(function(ri){
-      var k = (ri.name||'').toLowerCase();
-      alreadyReturned[k] = (alreadyReturned[k]||0) + ri.qty;
-    });
-  });
-
-  var itemsEl = document.getElementById('retex-itemsList');
-  if(itemsEl){
-    var rows = (inv.items||[]).map(function(it, idx){ return {it:it, idx:idx}; }).filter(function(x){ return x.it && x.it.name; });
-    itemsEl.innerHTML = rows.length ? rows.map(function(x){
-      var it=x.it, idx=x.idx;
-      var already = alreadyReturned[it.name.toLowerCase()]||0;
-      var maxQty = Math.max(0, (it.qty||0) - already);
-      var sel = returnItemsSel[idx]||0;
-      var rate = it.origPrice||it.price||0;
-      var cardCls = 'retex-item-card' + (sel>0?' sel':'') + (maxQty<=0?' disabled':'');
-      return '<div class="'+cardCls+'" data-cardidx="'+idx+'" data-max="'+maxQty+'" data-rate="'+rate+'" onclick="onRetexCardTap(event,'+idx+')">'
-        +'<div class="retex-chkbox" id="retex-chk-'+idx+'" style="width:22px;height:22px;flex-shrink:0;border-radius:6px;border:2px solid '+(sel>0?'var(--gold)':'var(--bdr)')+';background:'+(sel>0?'var(--gold)':'#fff')+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800;">'+(sel>0?'&#10003;':'')+'</div>'
-        +'<div style="flex:1;min-width:0;">'
-          +'<div class="retex-item-name">'+escH(it.name)+'</div>'
-          +'<div class="retex-item-sub">In invoice: <strong>'+it.qty+' pcs</strong> &bull; Rate: '+fmt(rate)+(already?' &bull; Already returned: '+already:'')+(maxQty<=0?' &bull; Fully returned':'')+'</div>'
-          +'<div class="retex-item-linetotal" id="retex-lt-'+idx+'" style="display:'+(sel>0?'block':'none')+';">Return Amount: '+fmt(rate*sel)+'</div>'
-        +'</div>'
-        +'<div class="retex-stepper" onclick="event.stopPropagation();">'
-          +'<button type="button" class="retex-step-btn" onclick="stepRetexQty('+idx+',-1)" '+(sel<=0?'disabled':'')+'>&minus;</button>'
-          +'<span class="retex-step-val" id="retex-qtyval-'+idx+'">'+sel+'</span>'
-          +'<button type="button" class="retex-step-btn" onclick="stepRetexQty('+idx+',1)" '+(sel>=maxQty?'disabled':'')+'>+</button>'
-        +'</div>'
-        +'</div>';
-    }).join('') : emptyState('📦','Is invoice mein koi item nahi','');
-  }
-
-  var btnR=document.getElementById('retex-modeReturn'), btnE=document.getElementById('retex-modeExchange');
-  if(btnR) btnR.classList.toggle('active', !exchangeMode);
-  if(btnE) btnE.classList.toggle('active', exchangeMode);
-  var es=document.getElementById('retex-exchangeSection'); if(es) es.style.display = exchangeMode ? 'block' : 'none';
-  renderExchangeItemRows();
-  calcRetexSummary();
-}
-
-function updateRetexItemUI(idx){
-  var card = document.querySelector('.retex-item-card[data-cardidx="'+idx+'"]');
-  if(!card) return;
-  var maxQty = parseInt(card.getAttribute('data-max'))||0;
-  var rate = parseFloat(card.getAttribute('data-rate'))||0;
-  var sel = returnItemsSel[idx]||0;
-  card.classList.toggle('sel', sel>0);
-  var chkBox = document.getElementById('retex-chk-'+idx);
-  if(chkBox){
-    chkBox.style.borderColor = sel>0 ? 'var(--gold)' : 'var(--bdr)';
-    chkBox.style.background = sel>0 ? 'var(--gold)' : '#fff';
-    chkBox.innerHTML = sel>0 ? '&#10003;' : '';
-  }
-  var qv = document.getElementById('retex-qtyval-'+idx); if(qv) qv.textContent = sel;
-  var lt = document.getElementById('retex-lt-'+idx);
-  if(lt){ lt.style.display = sel>0 ? 'block' : 'none'; lt.textContent = 'Return Amount: '+fmt(rate*sel); }
-  var minusBtn = card.querySelector('.retex-step-btn:first-child');
-  var plusBtn = card.querySelector('.retex-step-btn:last-child');
-  if(minusBtn) minusBtn.disabled = sel<=0;
-  if(plusBtn) plusBtn.disabled = sel>=maxQty;
-}
-
-// Tapping anywhere on the card (except the +/- stepper) toggles selection on/off
-function onRetexCardTap(evt, idx){
-  var card = document.querySelector('.retex-item-card[data-cardidx="'+idx+'"]');
-  if(!card || card.classList.contains('disabled')) return;
-  var maxQty = parseInt(card.getAttribute('data-max'))||0;
-  if(maxQty<=0) return;
-  if(returnItemsSel[idx]>0){ delete returnItemsSel[idx]; }
-  else { returnItemsSel[idx] = 1; }
-  updateRetexItemUI(idx);
-  calcRetexSummary();
-}
-
-// +/- stepper to fine-tune quantity once an item is selected
-function stepRetexQty(idx, delta){
-  var card = document.querySelector('.retex-item-card[data-cardidx="'+idx+'"]');
-  if(!card) return;
-  var maxQty = parseInt(card.getAttribute('data-max'))||0;
-  var cur = returnItemsSel[idx]||0;
-  var next = Math.max(0, Math.min(maxQty, cur+delta));
-  if(next>0) returnItemsSel[idx]=next; else delete returnItemsSel[idx];
-  updateRetexItemUI(idx);
-  calcRetexSummary();
-}
-
-function setRetexMode(mode){
-  exchangeMode = (mode==='exchange');
-  var btnR=document.getElementById('retex-modeReturn'), btnE=document.getElementById('retex-modeExchange');
-  if(btnR) btnR.classList.toggle('active', !exchangeMode);
-  if(btnE) btnE.classList.toggle('active', exchangeMode);
-  var es=document.getElementById('retex-exchangeSection'); if(es) es.style.display = exchangeMode ? 'block' : 'none';
-  calcRetexSummary();
-}
-
-function addExchangeItemRow(){
-  exchangeNewItems.push({id:Date.now()+Math.random(), name:'', qty:1, price:0});
-  renderExchangeItemRows();
-}
-function removeExchangeItemRow(id){
-  exchangeNewItems = exchangeNewItems.filter(function(x){return x.id!==id;});
-  renderExchangeItemRows();
-  calcRetexSummary();
-}
-function renderExchangeItemRows(){
-  var wrap = document.getElementById('retex-exchangeItems'); if(!wrap) return;
-  wrap.innerHTML = exchangeNewItems.map(function(row){
-    return '<div class="retex-item-card" style="flex-direction:column;align-items:stretch;cursor:default;">'
-      +'<div style="position:relative;">'
-        +'<input type="text" placeholder="Item name type karein..." value="'+escH(row.name)+'" data-eid="'+row.id+'" autocomplete="off" class="retex-ex-name" oninput="onExItemName('+row.id+',this.value)" onfocus="onExItemName('+row.id+',this.value)" onblur="setTimeout(function(){var b=document.getElementById(\'retex-ex-sugg-'+row.id+'\');if(b)b.style.display=\'none\';},200)" style="width:100%;padding:9px 10px;border:1px solid var(--bdr);border-radius:6px;font-size:13px;font-family:Arial,sans-serif;box-sizing:border-box;">'
-        +'<div id="retex-ex-sugg-'+row.id+'" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--bdr);border-top:none;max-height:170px;overflow-y:auto;z-index:200;box-shadow:0 4px 10px rgba(0,0,0,.1);"></div>'
-      +'</div>'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-top:9px;flex-wrap:wrap;">'
-        +'<div style="display:flex;align-items:center;gap:6px;">'
-          +'<span style="font-size:9.5px;color:var(--mu);font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:.5px;">Qty</span>'
-          +'<div class="retex-stepper">'
-            +'<button type="button" class="retex-step-btn" onclick="stepExQty('+row.id+',-1)" '+(row.qty<=1?'disabled':'')+'>&minus;</button>'
-            +'<span class="retex-step-val" id="retex-exqty-'+row.id+'">'+row.qty+'</span>'
-            +'<button type="button" class="retex-step-btn" onclick="stepExQty('+row.id+',1)">+</button>'
-          +'</div>'
-        +'</div>'
-        +'<div style="display:flex;align-items:center;gap:4px;">'
-          +'<span style="font-size:9.5px;color:var(--mu);font-family:Arial,sans-serif;">₹ Rate</span>'
-          +'<input type="number" min="0" value="'+row.price+'" data-eid="'+row.id+'" class="retex-ex-price retex-qty-input" style="width:75px;" oninput="onExItemField('+row.id+',\'price\',this.value)">'
-        +'</div>'
-        +'<div id="retex-exlt-'+row.id+'" style="margin-left:auto;font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:var(--gd2);">= '+fmt(row.qty*row.price)+'</div>'
-        +'<button class="btn btn-red" style="padding:8px 12px;font-size:11px;border-radius:6px;" onclick="removeExchangeItemRow('+row.id+')">✕</button>'
-      +'</div>'
-      +'</div>';
-  }).join('');
-}
-function stepExQty(id, delta){
-  var row = exchangeNewItems.find(function(x){return x.id===id;}); if(!row) return;
-  row.qty = Math.max(1, (row.qty||1)+delta);
-  var qv=document.getElementById('retex-exqty-'+id); if(qv) qv.textContent=row.qty;
-  var minusBtn = qv ? qv.parentElement.querySelector('.retex-step-btn:first-child') : null;
-  if(minusBtn) minusBtn.disabled = row.qty<=1;
-  var lt=document.getElementById('retex-exlt-'+id); if(lt) lt.textContent='= '+fmt(row.qty*row.price);
-  calcRetexSummary();
-}
-function onExItemName(id, val){
-  var row = exchangeNewItems.find(function(x){return x.id===id;}); if(!row) return;
-  row.name = val;
-  calcRetexSummary();
-
-  var box = document.getElementById('retex-ex-sugg-'+id);
-  if(!box) return;
-  var q = (val||'').toLowerCase();
-  var found = stockItems.filter(function(s){
-    return s.name && (q ? s.name.toLowerCase().indexOf(q)!==-1 : true);
-  }).slice(0,8);
-  if(!found.length){ box.style.display='none'; return; }
-  box.innerHTML = found.map(function(s){
-    return '<div class="pur-ac-item" data-n="'+escH(s.name)+'" data-r="'+(s.mrp||0)+'" style="display:flex;justify-content:space-between;padding:8px 10px;cursor:pointer;font-family:Arial,sans-serif;font-size:12.5px;border-bottom:1px solid var(--bdr);">'
-      +'<span>'+escH(s.name)+'</span><span style="color:var(--mu);font-size:11px;">Stock: '+(s.qty||0)+' &bull; '+fmt(s.mrp||0)+'</span></div>';
-  }).join('');
-  box.style.display = 'block';
-  box.onclick = function(e){
-    var item = e.target.closest('.pur-ac-item');
-    if(item) pickExItem(id, item.getAttribute('data-n'), item.getAttribute('data-r'));
-  };
-}
-function pickExItem(id, name, rate){
-  var row = exchangeNewItems.find(function(x){return x.id===id;}); if(!row) return;
-  row.name = name;
-  row.price = parseFloat(rate)||0;
-  var nI=document.querySelector('.retex-ex-name[data-eid="'+id+'"]'); if(nI) nI.value=name;
-  var pI=document.querySelector('.retex-ex-price[data-eid="'+id+'"]'); if(pI) pI.value=row.price;
-  var box=document.getElementById('retex-ex-sugg-'+id); if(box) box.style.display='none';
-  var lt=document.getElementById('retex-exlt-'+id); if(lt) lt.textContent='= '+fmt(row.qty*row.price);
-  calcRetexSummary();
-}
-function onExItemField(id, field, val){
-  var row = exchangeNewItems.find(function(x){return x.id===id;}); if(!row) return;
-  row[field] = field==='qty' ? (parseInt(val)||1) : (parseFloat(val)||0);
-  var lt=document.getElementById('retex-exlt-'+id); if(lt) lt.textContent='= '+fmt(row.qty*row.price);
-  calcRetexSummary();
-}
-
-function calcRetexSummary(){
-  var inv = returnSelectedInv;
-  if(!inv) return {returnedValue:0,newValue:0,diff:0};
-  var returnedValue = 0;
-  Object.keys(returnItemsSel).forEach(function(idx){
-    var it = inv.items[idx]; if(!it) return;
-    returnedValue += (it.origPrice||it.price||0) * returnItemsSel[idx];
-  });
-  var newValue = 0;
-  if(exchangeMode){
-    exchangeNewItems.forEach(function(r){ if(r.name) newValue += (r.price||0)*(r.qty||0); });
-  }
-  var diff = newValue - returnedValue;
-  var el = document.getElementById('retex-summary');
-  if(el){
-    var strip = '<div class="retex-summary-strip">'
-      +'<div class="cc-result-card"><div class="cc-result-icon">↩️</div><div class="cc-result-label">Returned Value</div><div class="cc-result-value">'+fmt(returnedValue)+'</div></div>'
-      +(exchangeMode ? '<div class="cc-result-card gold"><div class="cc-result-icon">🆕</div><div class="cc-result-label">New Item(s) Value</div><div class="cc-result-value">'+fmt(newValue)+'</div></div>' : '')
-      +'</div>';
-    var bannerCls = diff>0 ? 'pay' : diff<0 ? 'refund' : 'none';
-    var bannerTxt = diff>0 ? ('💸 Customer ko extra pay karna hoga: <strong>'+fmt(diff)+'</strong>') : diff<0 ? ('💰 Customer ko refund dena hoga: <strong>'+fmt(Math.abs(diff))+'</strong>') : '✅ No extra payment / refund needed';
-    el.innerHTML = strip + '<div class="retex-diff-banner '+bannerCls+'">'+bannerTxt+'</div>';
-  }
-  var payWrap = document.getElementById('retex-payModeWrap');
-  if(payWrap) payWrap.style.display = diff!==0 ? 'block' : 'none';
-  return {returnedValue:returnedValue, newValue:newValue, diff:diff};
-}
-
-function genRetexNo(retDate){
-  // retDate: return/exchange ki actual date use karo (current date nahi)
-  var d = retDate ? new Date(retDate) : new Date();
-  if(isNaN(d.getTime())) d = new Date(); // fallback
-  var mon = d.toLocaleString('en-IN',{month:'short'}); // e.g. "Jul"
-  var yr = String(d.getFullYear()).slice(-2);
-  var prefix = 'TJC/'+mon+yr+'/RE-EX/';
-  // Use max existing serial for this month prefix (not count) — prevents duplicates after edit/delete
-  var maxSerial = 0;
-  returns.forEach(function(r){
-    if(r.retNo && r.retNo.indexOf(prefix)===0){
-      var serial = parseInt(r.retNo.slice(prefix.length),10);
-      if(!isNaN(serial) && serial>maxSerial) maxSerial = serial;
-    }
-  });
-  return prefix+(maxSerial+1);
-}
-
-function saveReturnExchange(){
-  var inv = returnSelectedInv;
-  if(!inv){ showToast('Pehle invoice select karein'); return; }
-  var selIdxs = Object.keys(returnItemsSel).filter(function(idx){ return returnItemsSel[idx]>0; });
-  if(!selIdxs.length){ showToast('Kam se kam 1 item return ke liye select karein'); return; }
-  if(exchangeMode){
-    var validEx = exchangeNewItems.filter(function(r){ return r.name && r.qty>0; });
-    if(!validEx.length){ showToast('Exchange item(s) sahi se bharein'); return; }
-  }
-  var totals = calcRetexSummary();
-
-  var returnedItems = selIdxs.map(function(idx){
-    var it = inv.items[idx];
-    var incGstPrice = it.origPrice||it.price||0;
-    return {name:it.name, qty:returnItemsSel[idx], price:incGstPrice, amount:incGstPrice*returnItemsSel[idx]};
-  });
-  var newItems = exchangeMode ? exchangeNewItems.filter(function(r){return r.name && r.qty>0;}).map(function(r){
-    return {name:r.name, qty:r.qty, price:r.price, amount:r.qty*r.price};
-  }) : [];
-
-  var payModeEl = document.getElementById('retex-payMode');
-  var payMode = payModeEl ? payModeEl.value : 'Cash';
-  var reasonEl = document.getElementById('retex-reason');
-  var reason = reasonEl ? reasonEl.value : '';
-  if(!reason){ showToast('⚠️ Return/Exchange ka reason select karein'); return; }
-  var noteEl = document.getElementById('retex-note');
-  var note = noteEl ? noteEl.value : '';
-
-  var retNo = genRetexNo(nowDate());
-  var rec = {
-    id: Date.now(), retNo: retNo, date: nowDate(), invId: inv.id, invNo: inv.invNo,
-    custName: inv.custName, custPhone: inv.custPhone||'',
-    type: exchangeMode ? 'Exchange' : 'Return',
-    returnedItems: returnedItems, newItems: newItems,
-    returnedValue: totals.returnedValue, newValue: totals.newValue,
-    diffAmount: Math.abs(totals.diff),
-    diffType: totals.diff>0 ? 'Extra Payment' : totals.diff<0 ? 'Refund' : 'None',
-    payMode: payMode, reason: reason, note: note, createdAt: new Date().toISOString(),
-    user: (typeof CURRENT_ROLE!=='undefined'?CURRENT_ROLE:'admin')
-  };
-
-  // ── STOCK UPDATE — restore returned items, deduct new exchanged items.
-  // Wrapped so one bad row can never silently block the rest. ──
-  try{
-    returnedItems.forEach(function(ri){
-      var si = stockItems.find(function(s){return s.name.toLowerCase()===ri.name.toLowerCase();});
-      if(si) si.qty += ri.qty;
-      else stockItems.unshift({id:Date.now()+Math.random(), name:ri.name, category:'', size:'', qty:ri.qty, cost:0, mrp:ri.price, addedOn:nowDate()});
-      stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:ri.name, qty:ri.qty,
-        ref:retNo+' Return ('+inv.invNo+')', note:'Customer se return hua item stock mein wapas jodi gayi (Customer: '+inv.custName+')'});
-    });
-    newItems.forEach(function(ni){
-      var si = stockItems.find(function(s){return s.name.toLowerCase()===ni.name.toLowerCase();});
-      if(si) si.qty = Math.max(0, si.qty-ni.qty);
-      stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'OUT', item:ni.name, qty:ni.qty,
-        ref:retNo+' Exchange ('+inv.invNo+')', note:'Exchange mein customer ko naya item diya gaya, stock se ghatai gayi (Customer: '+inv.custName+')'});
-    });
-  }catch(stockErr){
-    console.error('[saveReturnExchange] Stock adjustment error:', stockErr);
-    showToast('⚠️ Stock update mein issue aaya — Inventory check karein!');
-  }
-  LS.sync('stock', stockItems);
-  LS.sync('stockMovLog', stockMovLog);
-
-  // ── INVOICE UPDATE — reduce returned qty, add exchanged item lines, recompute total ──
-  try{
-    returnedItems.forEach(function(ri){
-      var it = inv.items.find(function(x){return x.name.toLowerCase()===ri.name.toLowerCase();});
-      if(it) it.qty = Math.max(0, (it.qty||0)-ri.qty);
-    });
-    if(exchangeMode){
-      newItems.forEach(function(ni){
-        var existingLine = inv.items.find(function(x){return x.name.toLowerCase()===ni.name.toLowerCase();});
-        if(existingLine) existingLine.qty = (existingLine.qty||0)+ni.qty;
-        else inv.items.push({name:ni.name, qty:ni.qty, price:ni.price, origPrice:ni.price, gstPct:0, matched:false});
-      });
-    }
-    inv.sub = (inv.items||[]).reduce(function(s,it){return s+(it.qty||0)*(it.price||0);},0);
-    var invTotalGst = (inv.items||[]).reduce(function(s,it){ return s + (it.gstPct>0 ? (it.qty||0)*((it.origPrice||it.price)-it.price) : 0); }, 0);
-    inv.total = Math.max(0, inv.sub - (inv.disc||0) + invTotalGst);
-    inv.hasReturn = true;
-    inv.returnRefs = inv.returnRefs || [];
-    inv.returnRefs.push(retNo);
-    LS.sync('invoices', invoices);
-  }catch(invErr){
-    console.error('[saveReturnExchange] Invoice update error:', invErr);
-    showToast('⚠️ Invoice update mein issue aaya — dobara check karein!');
-  }
-
-  returns.unshift(rec);
-  LS.sync('returns', returns);
-
-  try{
-    logEdit('Return/Exchange', retNo, [{field:'Type', from:'-', to:rec.type},{field:'Amount', from:'-', to:fmt(rec.diffAmount)+' ('+rec.diffType+')'}], 'Return/Exchange record saved for Invoice '+inv.invNo);
-  }catch(logErr){ console.error('[saveReturnExchange] Audit log error:', logErr); }
-
-  showToast('✓ '+rec.type+' saved — stock aur invoice dono update ho gaye');
-  returnSelectedInv=null; returnItemsSel={}; exchangeNewItems=[]; exchangeMode=false;
-  var fw=document.getElementById('retex-formWrap'); if(fw) fw.style.display='none';
-  var sw=document.getElementById('retex-searchWrap'); if(sw) sw.style.display='block';
-  var s=document.getElementById('retex-search'); if(s) s.value='';
-  var rEl2=document.getElementById('retex-reason'); if(rEl2) rEl2.value='';
-  var nEl2=document.getElementById('retex-note'); if(nEl2) nEl2.value='';
-  currentRetexReceipt = rec;
-  buildRetexPreview(rec);
-  navTo('retexpreview', null);
-}
-
-function renderReturnsHistoryList(){
-  var el = document.getElementById('retex-historyList'); if(!el) return;
-  var isAdmin = (CURRENT_ROLE === 'admin');
-  var isStaff = (CURRENT_ROLE === 'staff');
-  var list = returns;
-  if(isStaff){
-    // Staff privacy: sirf pichle 7 dinon (aaj samet) ka return/exchange history dikhao
-    var cutoff = new Date(); cutoff.setDate(cutoff.getDate()-6);
-    var cutoffStr = cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
-    list = returns.filter(function(r){ return (r.date||'') >= cutoffStr; });
-  }
-  if(!list.length){ el.innerHTML = emptyState('↩️','Koi return/exchange nahi hua', isStaff?'Pichle 7 dinon ka koi record nahi mila':'Yahan sab return/exchange entries dikhengi'); return; }
-
-  // Group by month -> date, folder-wise (same style as Invoice History)
-  var mg={};
-  list.forEach(function(r){
-    var mk=monthKey(r.date)||'Unknown', dk=r.date||'Unknown';
-    if(!mg[mk]) mg[mk]={};
-    if(!mg[mk][dk]) mg[mk][dk]=[];
-    mg[mk][dk].push(r);
-  });
-  var html='';
-  var sortedMonths = Object.keys(mg).sort(function(a,b){
-    var da = new Date(a), db = new Date(b);
-    if(!isNaN(da) && !isNaN(db)) return db - da;
-    return b.localeCompare(a);
-  });
-  sortedMonths.forEach(function(month){
-    var dg=mg[month], mi=[];
-    Object.keys(dg).forEach(function(k){dg[k].forEach(function(r){mi.push(r);});});
-    var mid='rmf'+month.replace(/[^a-zA-Z0-9]/g,'');
-    var dhtml='';
-    Object.keys(dg).sort(function(a,b){return b.localeCompare(a);}).forEach(function(date){
-      var recs=dg[date].slice().sort(function(a,b){ return (b.id||0) > (a.id||0) ? 1 : -1; });
-      var did='rdf'+date.replace(/[^a-zA-Z0-9]/g,'');
-      var ihtml = recs.map(function(r){
-        var badgeColor = r.type==='Exchange' ? '#a34700' : '#c0392b';
-        var pillBg = r.type==='Exchange' ? '#fff3e0' : '#fdeaea';
-        var typePill = '<span class="retex-type-pill" style="background:'+pillBg+';color:'+badgeColor+';">'+(r.type==='Exchange'?'🔁 Exchange':'↩️ Return')+'</span>';
-        var itemsStr = (r.returnedItems||[]).map(function(i){return escH(i.name)+' x'+i.qty;}).join(', ');
-        var newStr = (r.newItems||[]).length ? (r.newItems||[]).map(function(i){return escH(i.name)+' x'+i.qty;}).join(', ') : '';
-        return '<div class="retex-hist-card" style="border-left:4px solid '+badgeColor+';">'
-          +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><strong>'+escH(r.custName)+'</strong><span style="color:var(--mu);font-size:10px;white-space:nowrap;">'+escH(r.date)+'</span></div>'
-          +'<div style="font-size:10px;color:var(--mu);margin:4px 0 6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">Invoice: '+escH(r.invNo)+' &bull; '+escH(r.retNo)+' '+typePill+'</div>'
-          +'<div>Returned: '+itemsStr+'</div>'
-          +(newStr ? '<div>Given: '+newStr+'</div>' : '')
-          +(r.reason ? '<div style="margin-top:4px;"><span style="background:#eef3ee;color:var(--gd2);border:1px solid var(--bdrg);padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;">📋 '+escH(r.reason)+'</span></div>' : '')
-          +'<div style="margin-top:6px;font-weight:700;">'+(r.diffType==='None'?'No refund/extra payment':escH(r.diffType)+': '+fmt(r.diffAmount)+' ('+escH(r.payMode)+')')+'</div>'
-          +(r.note?'<div style="color:var(--mu);margin-top:2px;">Note: '+escH(r.note)+'</div>':'')
-          +'<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">'
-          +'<button class="btn btn-outline" style="padding:6px 12px;font-size:10.5px;border-radius:16px;" onclick="viewRetexReceipt('+r.id+')">&#128196; Receipt</button>'
-          +(isAdmin ? '<button class="btn btn-outline" style="padding:6px 12px;font-size:10.5px;border-radius:16px;color:#c0392b;border-color:#c0392b;" onclick="deleteReturnRecord('+r.id+')">&#128465; Delete</button>' : '')
-          +'</div>'
-          +'</div>';
-      }).join('');
-      var dateLabel = date;
-      try { var dp=new Date(date); if(!isNaN(dp)) dateLabel=dp.toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); } catch(ex){}
-      dhtml+='<div><div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 24px;cursor:pointer;background:var(--w);border-bottom:1px solid var(--bdr);">'
-        +'<span style="font-weight:600;font-size:12px;font-family:Arial,sans-serif;flex:1;color:#333;">'+dateLabel+'</span>'
-        +'<span style="font-size:10px;color:var(--mu);">'+recs.length+' record'+(recs.length>1?'s':'')+'</span>'
-        +'<span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div>'
-        +'<div id="'+did+'" style="display:none;padding:8px;background:var(--ow);">'+ihtml+'</div></div>';
-    });
-    var monthLabel = month;
-    try { var mp=new Date(month+'-01'); if(!isNaN(mp)) monthLabel=mp.toLocaleDateString('en-IN',{month:'long',year:'numeric'}); } catch(ex){}
-    html+='<div style="margin-bottom:8px;">'
-      +'<div class="fold-head" data-fid="'+mid+'" style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;">'
-      +'<span style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;color:var(--gd);flex:1;">'+monthLabel+'</span>'
-      +'<span style="font-size:10px;color:var(--mu);">'+mi.length+' record'+(mi.length>1?'s':'')+'</span>'
-      +'<span class="arrow" style="font-size:10px;margin-left:6px;">▶</span></div>'
-      +'<div id="'+mid+'" style="display:none;border:1px solid var(--bdr);border-top:none;">'+dhtml+'</div></div>';
-  });
-  var windowNote = isStaff ? '<div style="text-align:center;padding:10px;font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">Sirf pichle 7 dinon ke records dikhaye gaye hain</div>' : '';
-  el.innerHTML = html + windowNote;
-  el.onclick = function(e){
-    var fh=e.target.closest('.fold-head');
-    if(fh){ toggleFolder(fh.getAttribute('data-fid')); }
-  };
-}
-
-function deleteReturnRecord(id){
-  if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Sirf Admin hi return/exchange record delete kar sakte hain'); return; }
-  if(!confirm('Is return/exchange record ko delete karna chahte ho? Yeh wapas nahi aayega.')) return;
-  returns = returns.filter(function(r){ return r.id !== id; });
-  LS.sync('returns', returns);
-  renderReturnsHistoryList();
-  showToast('Return/Exchange record deleted');
-}
-
-var currentRetexReceipt = null;
-
-function viewRetexReceipt(id){
-  var r = returns.find(function(x){ return x.id===id; });
-  if(!r){ showToast('Record not found'); return; }
-  currentRetexReceipt = r;
-  buildRetexPreview(r);
-  navTo('retexpreview', null);
-}
-
-function buildRetexPreview(r){
-  var biz = SETTINGS.biz||'The Jeans Club';
-  var dateStr = r.date ? new Date(r.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
-  var isExchange = (r.type === 'Exchange');
-  var rcptColor = isExchange ? '#a34700' : '#c0392b';
-  var typeBadge = '<span style="display:inline-block;padding:4px 12px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:1px;background:'+(isExchange?'#fff3e0':'#fdeaea')+';color:'+rcptColor+';">'+(isExchange?'&#128260; EXCHANGE':'&#8617;&#65039; RETURN')+'</span>';
-  var returnedRows = (r.returnedItems||[]).map(function(i){
-    return '<tr><td style="padding:8px 14px;font-family:Arial,sans-serif;font-size:11px;color:#333;">'+escH(i.name)+'</td>'
-      +'<td style="padding:8px 14px;text-align:center;font-family:Arial,sans-serif;font-size:11px;">'+i.qty+'</td>'
-      +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;">'+fmt(i.price)+'</td>'
-      +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;font-weight:700;">'+fmt(i.amount)+'</td></tr>';
-  }).join('');
-  var newRows = (r.newItems||[]).map(function(i){
-    return '<tr><td style="padding:8px 14px;font-family:Arial,sans-serif;font-size:11px;color:#333;">'+escH(i.name)+'</td>'
-      +'<td style="padding:8px 14px;text-align:center;font-family:Arial,sans-serif;font-size:11px;">'+i.qty+'</td>'
-      +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;">'+fmt(i.price)+'</td>'
-      +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;font-weight:700;">'+fmt(i.amount)+'</td></tr>';
-  }).join('');
-  var diffLabel = r.diffType==='Refund' ? 'Refund to Customer' : (r.diffType==='Extra Payment' ? 'Extra Payment Received' : 'No Refund / Extra Payment');
-  var diffColor = r.diffType==='Refund' ? '#c0392b' : (r.diffType==='Extra Payment' ? '#2e7d32' : '#555');
-  document.getElementById('retexPreviewBox').innerHTML =
-    '<div class="inv-prev" id="retexPrint" style="border:1px solid '+rcptColor+';box-shadow:0 0 0 1px rgba(0,0,0,.06),0 4px 24px rgba(0,0,0,.10);">'
-    +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+' 0%,'+rcptColor+'cc 50%,'+rcptColor+'88 100%);"></div>'
-    +'<div class="inv-hdr">'
-    +'<div class="inv-brand-row">'
-    +'<img class="inv-brand-logo" src="'+LOGO_URL+'" alt="Logo" style="image-rendering:crisp-edges;"/>'
-    +'<div><div class="inv-brand-name" style="color:#1c2b33;">'+escH(biz)+'</div>'
-    +'<div class="inv-brand-tag" style="color:#546e7a;">Trendy Articles Ka Adda</div>'
-    +(SETTINGS.firmName?'<div style="font-size:9px;color:#555;margin-top:1px;">'+escH(SETTINGS.firmName)+'</div>':'')
-    +(SETTINGS.ph?'<div class="inv-brand-gst">&#128222; <strong style="font-weight:700;color:#666;">'+escH(SETTINGS.ph)+'</strong></div>':'')
-    +(SETTINGS.gst?'<div class="inv-brand-gst">GST: <strong style="font-weight:700;color:#666;">'+escH(SETTINGS.gst)+'</strong></div>':'')
-    +'</div></div>'
-    +'<div class="inv-title-block">'
-    +'<div class="inv-title" style="color:#37474f;font-size:15px;letter-spacing:2px;">RETURN / EXCHANGE</div>'
-    +'<div class="inv-num" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;font-size:12px;">'+escH(r.retNo)+'</div>'
-    +'<div class="inv-num" style="font-family:Arial,sans-serif;">'+dateStr+'</div>'
-    +'<div style="margin-top:6px;">'+typeBadge+'</div>'
-    +'</div></div>'
-    +'<div class="inv-meta-band"><div class="inv-meta">'
-    +'<div><div class="iml">Customer</div>'
-    +'<div class="imv"><strong style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:#1c2b33;">'+escH(r.custName)+'</strong>'
-    +(r.custPhone?'<br><span style="font-family:Arial,sans-serif;color:#555;">'+escH(r.custPhone)+'</span>':'')
-    +'</div></div>'
-    +'<div style="text-align:right;"><div class="iml">Against Invoice</div>'
-    +'<div class="imv" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;font-size:14px;">'+escH(r.invNo)+'</div>'
-    +'</div></div></div>'
-    +'<div style="padding:14px 24px 4px;font-family:Arial,sans-serif;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#546e7a;font-weight:700;">Items Returned</div>'
-    +'<table style="width:100%;border-collapse:collapse;margin:0;">'
-    +'<tr style="background:#f5f5f0;"><th style="padding:6px 14px;text-align:left;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#546e7a;">Item</th>'
-    +'<th style="padding:6px 14px;text-align:center;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#546e7a;">Qty</th>'
-    +'<th style="padding:6px 14px;text-align:right;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#546e7a;">Price</th>'
-    +'<th style="padding:6px 14px;text-align:right;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#546e7a;">Amount</th></tr>'
-    +returnedRows
-    +'<tr style="border-top:1px solid #e0ddd8;"><td colspan="3" style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:#333;">Total Returned Value</td>'
-    +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#c0392b;">'+fmt(r.returnedValue)+'</td></tr>'
-    +'</table>'
-    +(isExchange && (r.newItems||[]).length ? (
-      '<div style="padding:14px 24px 4px;font-family:Arial,sans-serif;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#546e7a;font-weight:700;">New Item(s) Given</div>'
-      +'<table style="width:100%;border-collapse:collapse;margin:0;">'
-      +'<tr style="background:#fff3e0;"><th style="padding:6px 14px;text-align:left;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#a34700;">Item</th>'
-      +'<th style="padding:6px 14px;text-align:center;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#a34700;">Qty</th>'
-      +'<th style="padding:6px 14px;text-align:right;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#a34700;">Price</th>'
-      +'<th style="padding:6px 14px;text-align:right;font-family:Arial,sans-serif;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#a34700;">Amount</th></tr>'
-      +newRows
-      +'<tr style="border-top:1px solid #e0ddd8;"><td colspan="3" style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:11px;font-weight:700;color:#333;">Total New Item Value</td>'
-      +'<td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#a34700;">'+fmt(r.newValue)+'</td></tr>'
-      +'</table>'
-    ) : '')
-    +'<div style="margin:0;padding:20px 24px;background:#f5f5f0;border-top:2px solid #b0bec5;border-bottom:2px solid #b0bec5;text-align:center;">'
-    +'<div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#546e7a;font-family:Arial,sans-serif;font-weight:700;margin-bottom:8px;">'+escH(diffLabel)+'</div>'
-    +'<div style="font-family:Arial,sans-serif;font-size:36px;font-weight:700;color:'+diffColor+';line-height:1;">'+(r.diffType==='None'?'&mdash;':fmt(r.diffAmount))+'</div>'
-    +(r.diffType!=='None' ? '<div style="font-size:10px;color:#546e7a;font-family:Arial,sans-serif;margin-top:5px;letter-spacing:1px;">via '+escH(r.payMode)+'</div>' : '')
-    +'</div>'
-    +(r.reason?'<div style="padding:8px 14px;background:#f5f5f0;font-family:Arial,sans-serif;font-size:11px;color:#546e7a;"><strong>Reason:</strong> '+escH(r.reason)+'</div>':'')
-    +(r.note?'<div style="padding:10px 14px;background:#faf8f3;border-top:1px solid #e8e0cc;font-family:Arial,sans-serif;font-size:11px;color:#555;font-style:italic;">Note: '+escH(r.note)+'</div>':'')
-    +'<div class="inv-foot">'
-    +'<div class="inv-thanks">Thank you for shopping with us!</div>'
-    +'<div class="inv-stamp">'+escH(biz)+'<br>Authorised Signature</div>'
-    +'</div>'
-    +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+'88,'+rcptColor+'cc,'+rcptColor+');"></div>'
-    +'</div>';
-}
-
-async function downloadRetexPDF(){
-  var el=document.getElementById('retexPrint');
-  if(!el){showToast('No receipt');return;}
-  showToast('Generating PDF...');
-  try{
-    var pdf = await _captureElToPDF(el);
-    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-    var nm=(currentRetexReceipt?currentRetexReceipt.retNo:'return').replace(/\//g,'_');
-    pdf.save('The Jeans Club_ReturnExchange_'+nm+'.pdf');
-    showToast('PDF downloaded!');
-  }catch(e){showToast('PDF error: '+e.message);}
-}
-
-async function shareRetexWA(id){
-  var r = returns.find(function(x){ return x.id===id; });
-  if(!r){ showToast('Record not found'); return; }
-
-  currentRetexReceipt = r;
-  buildRetexPreview(r);
-  await new Promise(function(res){setTimeout(res,400);});
-
-  var pdfFile=null, fname='return.pdf';
-  var el=document.getElementById('retexPrint');
-  if(el){
-    try{
-      showToast('Preparing PDF receipt...');
-      var pdf = await _captureElToPDF(el);
-      addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-      var custSafe=(r.custName||'Customer').replace(/[^a-zA-Z0-9 ]/g,'').trim();
-      var retSafe=(r.retNo||'Return').replace(/\//g,'-');
-      fname=custSafe+' - '+retSafe+'.pdf';
-      var pdfBlob=pdf.output('blob');
-      pdfFile=new File([pdfBlob],fname,{type:'application/pdf'});
-    }catch(e){ console.log('Retex PDF build error:',e); }
-  }
-
-  if(pdfFile){
-    showSendPdfButton(pdfFile, fname, (r.type||'Return')+' - '+r.custName, r.retNo+' | '+r.custName+' | '+(r.type||'Return'));
-  }
-
-  var phone=(r.custPhone||'').replace(/\D/g,'');
-  var slT=socialLinksText();
-  var itemsStr = (r.returnedItems||[]).map(function(i){return i.name+' x'+i.qty;}).join(', ');
-  var newStr = (r.newItems||[]).length ? (r.newItems||[]).map(function(i){return i.name+' x'+i.qty;}).join(', ') : '';
-  var diffStr = r.diffType==='None' ? 'No refund/extra payment' : r.diffType+': Rs.'+Math.round(r.diffAmount).toLocaleString('en-IN')+' ('+r.payMode+')';
-  var msg='*'+(r.type==='Exchange'?'EXCHANGE':'RETURN')+' RECEIPT - The Jeans Club*\n\nRef: *'+r.retNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Returned:* '+itemsStr+(newStr?'\n*Given:* '+newStr:'')+(r.reason?'\n*Reason:* '+r.reason:'')+'\n\n*'+diffStr+'*'+(r.note?'\nNote: '+r.note:'')+'\n\n_Thank you for shopping with us! - The Jeans Club_'+(slT?'\n'+slT:'');
-  var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
-  window.open(url,'_blank','noopener,noreferrer');
-}
-
-// ===== PAYMENTS =====
-
 // ===== PAYMENTS =====
 function renderPayments(){
   expenses = LS.get('expenses')||[];
   purchases = LS.get('purchases')||[];
   pendingPayments = LS.get('pendingPayments')||[];
   supplierPayments = LS.get('supplierPayments')||[];
-  returns = LS.get('returns')||returns||[];
   var filter = document.getElementById('pay-filter') ? document.getElementById('pay-filter').value : '';
   var selMonth = document.getElementById('pay-month') ? document.getElementById('pay-month').value : '';
   var selPeriod = document.getElementById('pay-period') ? document.getElementById('pay-period').value : '';
@@ -7486,7 +6286,6 @@ function renderPayments(){
   purchases.forEach(function(p){ addMonth(p.date); });
   expenses.forEach(function(e){ addMonth(e.date); });
   pendingPayments.forEach(function(r){ addMonth(r.date); });
-  returns.forEach(function(r){ addMonth(r.date); });
   allMonths.sort().reverse();
   var mSel = document.getElementById('pay-month');
   if(mSel){
@@ -7506,7 +6305,6 @@ function renderPayments(){
   var filtPurchases = purchases.filter(function(p){ return (!selMonth || monthKey(p.date)===selMonth) && inPeriod(p.date||''); });
   var filtExpenses  = expenses.filter(function(e){ return (!selMonth || monthKey(e.date)===selMonth) && inPeriod(e.date||''); });
   var filtReceipts  = pendingPayments.filter(function(r){ return (!selMonth || monthKey(r.date)===selMonth) && inPeriod(r.date||''); });
-  var filtReturns   = returns.filter(function(r){ return (!selMonth || monthKey(r.date)===selMonth) && inPeriod(r.date||''); });
 
   // ============ CALCULATE TOTALS ============
   // FORMULA (aap ke hisab se):
@@ -7573,18 +6371,6 @@ function renderPayments(){
     else if(r.payMode === 'Split'){ totalCashIn += (r.cashAmt||0); totalUpiIn += (r.upiAmt||0); }
   });
 
-  // ── Return / Exchange cash effect ──
-  // Refund  = money paid back to customer (OUT). Extra Payment = extra money collected from customer (IN).
-  var retExtraIn = filtReturns.reduce(function(s,r){ return s + (r.diffType==='Extra Payment' ? (r.diffAmount||0) : 0); }, 0);
-  var retRefundOut = filtReturns.reduce(function(s,r){ return s + (r.diffType==='Refund' ? (r.diffAmount||0) : 0); }, 0);
-  if(filtReturns.some(function(r){return r.diffType==='Extra Payment';})){
-    filtReturns.forEach(function(r){
-      if(r.diffType!=='Extra Payment') return;
-      if(r.payMode==='UPI'||r.payMode==='Bank') totalUpiIn += (r.diffAmount||0);
-      else totalCashIn += (r.diffAmount||0);
-    });
-  }
-
   // ── Pending = jo abhi collect nahi hua ──
   var pendAmt = filtInvoices.reduce(function(s,i){
     if(i.payStatus==='Paid') return s;
@@ -7592,8 +6378,8 @@ function renderPayments(){
   },0);
   pendAmt = Math.max(0, pendAmt);
 
-  // ── Collected = Revenue - Pending + Return/Exchange extra payments ──
-  var totalIn = Math.max(0, totalRevenue - pendAmt) + retExtraIn;
+  // ── Collected = Revenue - Pending (simple formula) ──
+  var totalIn = Math.max(0, totalRevenue - pendAmt);
 
   // Purchase OUT = only DIRECTLY paid at purchase time (directPaidAmount)
   // Supplier payments (supplierPayments) handle karte hain baaki OUT — double count avoid karne ke liye
@@ -7611,7 +6397,7 @@ function renderPayments(){
   },0);
   var supPayTotal = filtSupPay.reduce(function(s,r){ return s+(r.amount||0); },0);
   var expTotal  = filtExpenses.reduce(function(s,e){return s+e.amount;},0);
-  var totalOut  = purTotal + expTotal + supPayTotal + retRefundOut;
+  var totalOut  = purTotal + expTotal + supPayTotal;
   var netTotal  = totalIn - totalOut;
 
   // Box labels
@@ -7648,14 +6434,13 @@ function renderPayments(){
 
   // ============ BUILD DATE-WISE MAP ============
   var dg = {};
-  function getDay(d){ if(!dg[d]) dg[d]={sales:[],purchases:[],expenses:[],receipts:[],suppayments:[],returns:[]}; return dg[d]; }
+  function getDay(d){ if(!dg[d]) dg[d]={sales:[],purchases:[],expenses:[],receipts:[],suppayments:[]}; return dg[d]; }
 
   // Apply filter
   var showInvoices  = !filter || filter==='Invoice' || filter==='Cash' || filter==='UPI' || filter==='Pending';
   var showReceipts  = !filter || filter==='Receipt';
   var showPurchases = !filter || filter==='Purchase';
   var showExpenses  = !filter || filter==='Expense';
-  var showReturns   = !filter || filter==='Return';
 
   var filtInvs = filtInvoices;
   if(filter==='Cash')    filtInvs = filtInvoices.filter(function(i){return i.payMode==='Cash';});
@@ -7667,7 +6452,6 @@ function renderPayments(){
   if(showPurchases) filtPurchases.forEach(function(p){ getDay(p.date||'Unknown').purchases.push(p); });
   if(showExpenses)  filtExpenses.forEach(function(e){ getDay(e.date||'Unknown').expenses.push(e); });
   if(showReceipts)  filtReceipts.forEach(function(r){ getDay(r.date||'Unknown').receipts.push(r); });
-  if(showReturns)   filtReturns.forEach(function(r){ getDay(r.date||'Unknown').returns.push(r); });
   // Supplier payments as OUT entries
   if(showPurchases || !filter) filtSupPay.forEach(function(r){ getDay(r.date||'Unknown').suppayments.push(r); });
 
@@ -7692,7 +6476,7 @@ function renderPayments(){
   var h = '';
   sortedMonths.forEach(function(month){
     var monthDates = mg[month];
-    var mIn=0, mRec=0, mPur=0, mExp=0, mRetIn=0, mRetOut=0;
+    var mIn=0, mRec=0, mPur=0, mExp=0;
 
     Object.keys(monthDates).forEach(function(d){
       var day=monthDates[d];
@@ -7716,10 +6500,8 @@ function renderPayments(){
       },0);
       mPur += (day.suppayments||[]).reduce(function(s,r){ return s+(r.amount||0); },0);
       mExp += (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
-      mRetIn  += (day.returns||[]).reduce(function(s,r){ return s + (r.diffType==='Extra Payment' ? (r.diffAmount||0) : 0); },0);
-      mRetOut += (day.returns||[]).reduce(function(s,r){ return s + (r.diffType==='Refund' ? (r.diffAmount||0) : 0); },0);
     });
-    var mNet = mIn+mRec+mRetIn-mPur-mExp-mRetOut;
+    var mNet = mIn+mRec-mPur-mExp;
     var mNetCol = mNet>=0?'#1b5e20':'#b71c1c';
     var mid = 'pmf'+month.replace(/[^a-zA-Z0-9]/g,'');
     var monthLabel = month;
@@ -7737,9 +6519,7 @@ function renderPayments(){
         return s+Math.max(0, invPaid - recTotal);
       },0);
       var dRecIn  = (day.receipts||[]).reduce(function(s,r){return s+(r.paidAmt||0);},0);
-      var dRetIn  = (day.returns||[]).reduce(function(s,r){ return s + (r.diffType==='Extra Payment' ? (r.diffAmount||0) : 0); },0);
-      var dRetOut = (day.returns||[]).reduce(function(s,r){ return s + (r.diffType==='Refund' ? (r.diffAmount||0) : 0); },0);
-      var dTotalIn = dSaleIn + dRecIn + dRetIn;
+      var dTotalIn = dSaleIn + dRecIn;
       var dPur    = (day.purchases||[]).reduce(function(s,p){
         if(p.directPaidAmount != null) return s + p.directPaidAmount;
         if(p.payStatus==='Paid') return s+p.totalCost;
@@ -7748,7 +6528,7 @@ function renderPayments(){
       },0);
       var dSupPay = (day.suppayments||[]).reduce(function(s,r){ return s+(r.amount||0); },0);
       var dExp    = (day.expenses||[]).reduce(function(s,e){return s+e.amount;},0);
-      var dNet    = dTotalIn-dPur-dSupPay-dExp-dRetOut;
+      var dNet    = dTotalIn-dPur-dSupPay-dExp;
       var dNetCol = dNet>=0?'#1b5e20':'#b71c1c';
       var did     = 'pf'+date.replace(/[^a-zA-Z0-9]/g,'');
       var dateLabel = date;
@@ -7778,21 +6558,6 @@ function renderPayments(){
           +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(r.custName)+'<br><span style="font-size:10px;color:#555;font-weight:400;">'+escH(r.receiptNo||'-')+'  '+escH(r.invNo||'')+'</span></td>'
           +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(r.payMode||'Cash')+'<br>'+(r.notes?'<span style="color:#555;font-size:10px;">'+escH(r.notes.substring(0,20))+'</span>':'')+'</td>'
           +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;color:#1553a0;white-space:nowrap;">+'+fmt(r.paidAmt||0)+'</td>'
-          +'</tr>';
-      });
-
-      // Return / Exchange rows
-      (day.returns||[]).forEach(function(r){
-        var isRefund = r.diffType==='Refund';
-        var isExtra = r.diffType==='Extra Payment';
-        var amtCell = isRefund ? '<span style="color:#c0392b;">-'+fmt(r.diffAmount||0)+'</span>'
-          : isExtra ? '<span style="color:#2e7d32;">+'+fmt(r.diffAmount||0)+'</span>'
-          : '<span style="color:#555;font-size:10px;">No cash effect</span>';
-        rows+='<tr style="border-bottom:1px solid #fdeaea;background:#fff8f5;">'
-          +'<td style="padding:7px 8px;"><span style="font-size:9px;font-weight:700;background:'+(r.type==='Exchange'?'#a34700':'#c0392b')+';color:#fff;padding:2px 6px;border-radius:2px;">'+(r.type==='Exchange'?'EXCHANGE':'RETURN')+'</span></td>'
-          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;font-size:12px;">'+escH(r.custName)+'<br><span style="font-size:10px;color:#555;font-weight:400;">'+escH(r.retNo||'-')+'  '+escH(r.invNo||'')+'</span></td>'
-          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-size:11px;">'+escH(r.payMode||'-')+'</td>'
-          +'<td style="padding:7px 8px;font-family:Arial,sans-serif;font-weight:700;text-align:right;font-size:13px;white-space:nowrap;">'+amtCell+'</td>'
           +'</tr>';
       });
 
@@ -7859,7 +6624,7 @@ function renderPayments(){
         +'<div class="fold-head" data-fid="'+did+'" style="display:flex;align-items:center;gap:4px;padding:8px 12px 8px 20px;cursor:pointer;background:#fafafa;border-bottom:1px solid var(--bdr);">'
         +'<span style="font-weight:700;font-size:11px;font-family:Arial,sans-serif;flex:1;color:#333;">📅 '+dateLabel+'</span>'
         +(dTotalIn?'<span style="font-size:10px;background:#e8f5e9;color:#1b5e20;padding:2px 6px;border-radius:10px;font-weight:700;">↑'+fmt(dTotalIn)+'</span>':'')
-        +((dPur+dSupPay+dExp+dRetOut)?'<span style="font-size:10px;background:#ffeaea;color:#c0392b;padding:2px 6px;border-radius:10px;font-weight:700;">↓'+fmt(dPur+dSupPay+dExp+dRetOut)+'</span>':'')
+        +((dPur+dSupPay+dExp)?'<span style="font-size:10px;background:#ffeaea;color:#c0392b;padding:2px 6px;border-radius:10px;font-weight:700;">↓'+fmt(dPur+dSupPay+dExp)+'</span>':'')
         +'<span style="font-size:10px;background:'+(dNet>=0?'#e3f2fd':'#fce4ec')+';color:'+dNetCol+';padding:2px 6px;border-radius:10px;font-weight:700;">'+fmt(dNet)+'</span>'
         +'<span class="arrow" style="font-size:9px;color:#555;margin-left:2px;">▶</span></div>'
         +'<div id="'+did+'" style="display:none;">'
@@ -7871,7 +6636,7 @@ function renderPayments(){
         +'<td colspan="3" style="padding:6px 8px;font-size:11px;font-weight:700;font-family:Arial,sans-serif;color:#333;">Day Total</td>'
         +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;">'
         +(dTotalIn?'<span style="font-size:11px;font-weight:700;color:#1b5e20;">+'+fmt(dTotalIn)+'</span> ':'')
-        +((dPur+dExp+dRetOut)?'<span style="font-size:11px;font-weight:700;color:#c0392b;margin-left:6px;">-'+fmt(dPur+dExp+dRetOut)+'</span>':'')
+        +((dPur+dExp)?'<span style="font-size:11px;font-weight:700;color:#c0392b;margin-left:6px;">-'+fmt(dPur+dExp)+'</span>':'')
         +'<br><span style="font-size:12px;font-weight:700;color:'+dNetCol+';">Net: '+fmt(dNet)+'</span>'
         +'</td></tr></tfoot>'
         +'</table></div></div>';
@@ -7881,8 +6646,8 @@ function renderPayments(){
     h+='<div style="margin-bottom:10px;">'
       +'<div class="fold-head" data-fid="'+mid+'" style="display:flex;align-items:center;gap:6px;padding:10px 12px;background:var(--ow);border:1px solid var(--bdr);cursor:pointer;">'
       +'<span style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;color:var(--gd);flex:1;">📆 '+monthLabel+'</span>'
-      +((mIn+mRec+mRetIn)?'<span style="font-size:11px;background:#e8f5e9;color:#1b5e20;padding:3px 8px;border-radius:10px;font-weight:700;">↑ IN '+fmt(mIn+mRec+mRetIn)+'</span>':'')
-      +((mPur+mExp+mRetOut)?'<span style="font-size:11px;background:#ffeaea;color:#c0392b;padding:3px 8px;border-radius:10px;font-weight:700;">↓ OUT '+fmt(mPur+mExp+mRetOut)+'</span>':'')
+      +((mIn+mRec)?'<span style="font-size:11px;background:#e8f5e9;color:#1b5e20;padding:3px 8px;border-radius:10px;font-weight:700;">↑ IN '+fmt(mIn+mRec)+'</span>':'')
+      +((mPur+mExp)?'<span style="font-size:11px;background:#ffeaea;color:#c0392b;padding:3px 8px;border-radius:10px;font-weight:700;">↓ OUT '+fmt(mPur+mExp)+'</span>':'')
       +'<span style="font-size:11px;background:'+(mNet>=0?'#e3f2fd':'#fce4ec')+';color:'+mNetCol+';padding:3px 8px;border-radius:10px;font-weight:700;">NET '+fmt(mNet)+'</span>'
       +'<span class="arrow" style="font-size:10px;margin-left:4px;">▶</span></div>'
       +'<div id="'+mid+'" style="display:none;border:1px solid var(--bdr);border-top:none;">'+dhtml+'</div>'
@@ -10066,41 +8831,25 @@ async function silentPull(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl) return;
   try{
-    // ── LIGHTWEIGHT META CHECK ──
-    // PEHLE: poora data.json (saare invoices/stock/purchases/reports sahit —
-    // jo bahut bada ho sakta hai) har 5 min mein download hota tha SIRF
-    // auth/telegram jaise chhote fields check karne ke liye. Yeh Firebase
-    // download quota bahut zyada use karta tha (2 devices x 8hrs x har 5 min
-    // = poora DB baar baar download).
-    // AB: sirf woh chhote fields hi alag-alag lightweight paths se fetch
-    // karte hain (kuch sau bytes total) — same data, same staleness, bas
-    // bandwidth bahut kam. Poora data.json TABHI fetch hota hai jab cloud
-    // ka `ts` sach mein badla ho (jo real content change ko dikhata hai).
-    var base = fbUrl + '/thejeans/' + SYNC_KEY + '/data';
-    var _t = Date.now();
-    var _metaFields = ['ts','auth','staffAuth','telegramConfig','tgLastBackupAt','tgLastBackupDate','tgLastAutoBackupDate'];
-    var _metaResults = await Promise.all(_metaFields.map(function(f){
-      return fetch(base + '/' + f + '.json?t=' + _t).then(function(r){
-        return r.ok ? r.json() : null;
-      }).catch(function(){ return null; });
-    }));
-    var meta = {};
-    _metaFields.forEach(function(f, i){ meta[f] = _metaResults[i]; });
-    if(meta.ts === null || meta.ts === undefined) return; // sync key galat ya data hi nahi hai
+    // Step 1: Full data fetch (auth sync ke liye timestamp guard bypass kiya gaya)
+    var res = await fetch(getSyncPath() + '?t=' + Date.now()); // cache-bust
+    if(!res.ok) return;
+    var d = await res.json();
+    if(!d || d.syncKey !== SYNC_KEY) return;
 
     // Auth (password) sync — HAMESHA check karo, timestamp guard se pehle
-    if(meta.auth && meta.auth.pass){
+    if(d.auth && d.auth.pass){
       var localAuth = LS.get('auth') || {user:'thejeans', pass:'alpha@123'};
-      if(meta.auth.pass !== localAuth.pass || meta.auth.user !== localAuth.user){
-        AUTH = meta.auth;
+      if(d.auth.pass !== localAuth.pass || d.auth.user !== localAuth.user){
+        AUTH = d.auth;
         LS.setL('auth', AUTH);
         console.log('[silentPull] Password cloud se update hua:', AUTH.user);
       }
     }
-    if(meta.staffAuth && meta.staffAuth.pass){
+    if(d.staffAuth && d.staffAuth.pass){
       var localStaffAuth = LS.get('staffAuth') || {user:'staff', pass:'staff@123'};
-      if(meta.staffAuth.pass !== localStaffAuth.pass || meta.staffAuth.user !== localStaffAuth.user){
-        LS.setL('staffAuth', meta.staffAuth);
+      if(d.staffAuth.pass !== localStaffAuth.pass || d.staffAuth.user !== localStaffAuth.user){
+        LS.setL('staffAuth', d.staffAuth);
         console.log('[silentPull] Staff password cloud se update hua');
       }
     }
@@ -10108,46 +8857,37 @@ async function silentPull(){
     // Telegram auto-backup config + catch-up — checked on every poll (not
     // gated by the cloudTs optimization below) so a missed backup is caught
     // as soon as ANY device (admin or staff) is online, not just at boot.
-    if(meta.telegramConfig && typeof meta.telegramConfig === 'object' && (meta.telegramConfig.token || meta.telegramConfig.chatId)){
-      setTelegramConfig(meta.telegramConfig);
+    if(d.telegramConfig && typeof d.telegramConfig === 'object' && (d.telegramConfig.token || d.telegramConfig.chatId)){
+      setTelegramConfig(d.telegramConfig);
     }
-    if(meta.tgLastBackupAt){
+    if(d.tgLastBackupAt){
       var _spTgLast = localStorage.getItem('ac_tg_lastBackupAt');
-      if(!_spTgLast || new Date(meta.tgLastBackupAt).getTime() > new Date(_spTgLast).getTime()){
-        localStorage.setItem('ac_tg_lastBackupAt', meta.tgLastBackupAt);
+      if(!_spTgLast || new Date(d.tgLastBackupAt).getTime() > new Date(_spTgLast).getTime()){
+        localStorage.setItem('ac_tg_lastBackupAt', d.tgLastBackupAt);
       }
     }
-    if(meta.tgLastBackupDate){
+    if(d.tgLastBackupDate){
       var _spTgLastDate = localStorage.getItem('ac_tg_lastBackupDate') || '';
-      if(meta.tgLastBackupDate > _spTgLastDate){
-        localStorage.setItem('ac_tg_lastBackupDate', meta.tgLastBackupDate);
+      if(d.tgLastBackupDate > _spTgLastDate){
+        localStorage.setItem('ac_tg_lastBackupDate', d.tgLastBackupDate);
       }
     }
-    if(meta.tgLastAutoBackupDate){
+    if(d.tgLastAutoBackupDate){
       var _spTgLastAutoDate = localStorage.getItem('ac_tg_lastAutoBackupDate') || '';
-      if(meta.tgLastAutoBackupDate > _spTgLastAutoDate){
-        localStorage.setItem('ac_tg_lastAutoBackupDate', meta.tgLastAutoBackupDate);
+      if(d.tgLastAutoBackupDate > _spTgLastAutoDate){
+        localStorage.setItem('ac_tg_lastAutoBackupDate', d.tgLastAutoBackupDate);
       }
     }
     checkAutoTelegramBackup();
 
     // Baaki data ke liye timestamp check — unnecessary reads bachao
-    var cloudTs = meta.ts || 0;
+    var cloudTs = d.ts || 0;
     var localTs = parseInt(localStorage.getItem('ac_lastSync')||'0');
     if(cloudTs <= localTs){
-      // Sirf auth check ke liye aaye the — data same hai, poora data.json
-      // download hi nahi karna — yahi asli bandwidth saving hai
+      // Sirf auth check ke liye aaye the — data same hai, return
       setSyncDot('online');
       return;
     }
-
-    // ── Yahan tak pahunche matlab real content badla hai ──
-    // Ab hi (aur SIRF ab) poora data.json fetch karo — yeh case rare hai
-    // (data.json sirf occasional full-snapshot push par update hota hai).
-    var res = await fetch(getSyncPath() + '?t=' + Date.now());
-    if(!res.ok) return;
-    var d = await res.json();
-    if(!d || d.syncKey !== SYNC_KEY) return;
 
     var changed = false;
     var isStaffRole = (typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff');
@@ -14425,7 +13165,7 @@ function renderStaffPermsUI(){
   // Group by category
   var groups = [
     { title:'📊 Reports & Analytics', keys:['dashboard','salesreport','invreport','pnl','costing'] },
-    { title:'🧾 Invoicing',            keys:['invoice','history','returns','payments'] },
+    { title:'🧾 Invoicing',            keys:['invoice','history','payments'] },
     { title:'📦 Inventory & Purchase', keys:['inventory','purchases','purchaselist','lowlist'] },
     { title:'⏰ Pending & Receipts',   keys:['pending','pendingreceipts','pendingnew'] },
     { title:'💸 Expenses',             keys:['expenses','expensenew','expenselist'] },
