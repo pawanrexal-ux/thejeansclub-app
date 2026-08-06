@@ -10190,29 +10190,30 @@ async function silentPull(){
     }
 
     if(Array.isArray(d.stock)){
-      if(isStaffRole){
-        // FIX: Staff stock — cloud base leke POORE mergedInvArr ki deductions apply karo
-        // (sirf local-only nahi, kyunki cloud stock kabhi kabhi out-of-date hota hai)
-        var cloudInvIds2 = new Set(d.invoices ? d.invoices.map(function(i){ return i.id; }) : []);
-        var newStock = JSON.parse(JSON.stringify(d.stock)); // deep copy of cloud stock
+      // FIX: Pehle sirf staff role ke liye reconciliation hoti thi — admin ke liye
+      // seedha `stockItems = d.stock` overwrite ho jaata tha. Cloud ka `data.json`
+      // (jisse `d.stock` aata hai) sirf ~24hr mein ek baar likha jaata hai, isliye
+      // ye kabhi kabhi STALE hota hai. Blind overwrite karne se recent local
+      // sales ki deduction wipe ho jaati thi, jisse items galat tarike se
+      // out-of-stock dikhte the. Ab dono roles ke liye same safe reconciliation:
+      // cloud stock ko base leke, sirf un LOCAL invoices ki deduction wapas apply
+      // karo jo abhi tak cloud (d.invoices) mein khud sync nahi hui — jo invoices
+      // already cloud mein hain, unki deduction cloud stock mein pehle se hi hai,
+      // unhe dobara deduct karna double-counting hoga.
+      var cloudInvIds2 = new Set(d.invoices ? d.invoices.map(function(i){ return i.id; }) : []);
+      var newStock = JSON.parse(JSON.stringify(d.stock)); // deep copy of cloud stock
 
-        // Step 1: All invoices (merged — both local-only and cloud-synced) ki deductions
-        // re-apply karo cloud stock par, taaki correct total nikle
-        invoices.forEach(function(inv){
-          if(!Array.isArray(inv.items)) return;
-          inv.items.forEach(function(item){
-            var si = newStock.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
-            if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
-          });
+      invoices.forEach(function(inv){
+        if(cloudInvIds2.has(inv.id)) return; // already synced — cloud stock already accounts for this
+        if(!Array.isArray(inv.items)) return;
+        inv.items.forEach(function(item){
+          var si = newStock.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
+          if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
         });
+      });
 
-        if(JSON.stringify(newStock) !== JSON.stringify(stockItems)){
-          stockItems = newStock; LS.setL('stock', stockItems); changed = true;
-        }
-      } else {
-        if(JSON.stringify(d.stock) !== JSON.stringify(stockItems)){
-          stockItems = d.stock; LS.setL('stock', stockItems); changed = true;
-        }
+      if(JSON.stringify(newStock) !== JSON.stringify(stockItems)){
+        stockItems = newStock; LS.setL('stock', stockItems); changed = true;
       }
     }
 
