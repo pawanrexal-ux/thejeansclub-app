@@ -2447,12 +2447,6 @@ var LS = {
 
   // ── SYNC WRITE (local + Firebase push via schedulePush) ──
   sync: function(k, v) {
-    // FIX: 'stock' ke liye local-edit timestamp record karo. Isse silentPull()
-    // ko pata chalta hai ki is device par stock abhi PUSH hone ka wait kar
-    // raha hai — taaki 5-min background pull uss pending local edit ko kisi
-    // purani/stale cloud snapshot se overwrite na kar de (multi-device qty
-    // mismatch ka asli root-cause yehi tha).
-    if(k === 'stock') localStorage.setItem('ac_stockLocalEditAt', String(Date.now()));
     LS._write(k, v, true);
   },
 
@@ -3026,13 +3020,44 @@ function getSyncPath(){
 // baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog'];
+var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock'];
 var _hasFullData = (localStorage.getItem('ac_hasFullData') === '1'); // true jab is device par ek baar poora data aa chuka ho
 var _lastChangeTs = parseInt(localStorage.getItem('ac_lastChangeTs'), 10) || 0; // is device ne ab tak kaunse changes dekh liye hain
 
 function getChangesPath(){
   // Path in Firebase: /thejeans/SYNC_KEY/changes/{key}.json — chhoti, naye-data-only entries
   return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/changes';
+}
+
+// ── SHARED DELTA FETCH ──
+// _lastChangeTs ke baad wale naye/badle records fetch karke local data mein
+// merge karta hai. Ye ek chhota download hai (sirf naye records, poora
+// dataset nahi) — isliye ise pullCloud() (manual Sync Now) aur silentPull()
+// (5-min background) dono se baar-baar chalaya ja sakta hai bina bandwidth
+// zyada use kiye. Yehi mechanism hai jo stock qty ko bhi invoices/returns ki
+// tarah turant, sabhi devices par sync karta hai.
+async function _deltaSync(){
+  var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
+  var res = await fetch(q);
+  if(!res.ok) return 0;
+  var changes = await res.json(); // { key: {ts, items:[...]}, ... } ya null
+  var totalItems = 0;
+  if(changes && typeof changes === 'object'){
+    var allItems = [];
+    var maxTs = _lastChangeTs;
+    Object.keys(changes).forEach(function(k){
+      var entry = changes[k];
+      if(entry && Array.isArray(entry.items)){
+        allItems = allItems.concat(entry.items);
+        if(entry.ts > maxTs) maxTs = entry.ts;
+      }
+    });
+    totalItems = allItems.length;
+    if(totalItems) applyDeltaItems(allItems);
+    _lastChangeTs = maxTs;
+    localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
+  }
+  return totalItems;
 }
 
 // Chhota, tez string hash — record content compare karne ke liye (kya record badla hai ya nahi)
@@ -3182,29 +3207,26 @@ async function pushCloud(){
     // Naye device ke pehli-baar-login bootstrap ke liye aur changes-log ko
     // bahut lamba hone se rokne ke liye — HAR save par nahi, sirf kabhi-kabhi.
     //
-    // FIX: `stock` (qty) DELTA_TYPES ka hissa NAHI hai — matlab stock sirf
-    // ISI full-snapshot ke through hi doosre devices tak pahunchta hai. Pehle
-    // 24-ghante ka throttle stock ke liye bhi apply hota tha — matlab agar
-    // aaj ek full snapshot ho chuka hai, toh Stock Manager se koi bhi manual
-    // qty correction agle ~24 ghante tak doosre devices tak PAHUNCHTA HI NAHI
-    // THA (silently). Ab: agar stock cloud ko bheji gayi last copy se badla
-    // hai, toh throttle IGNORE karke turant full snapshot push karo.
-    var stockHash = _quickHash(JSON.stringify(stockItems));
-    var lastPushedStockHash = localStorage.getItem('ac_lastStockHash');
-    var stockChangedSinceLastPush = (String(stockHash) !== lastPushedStockHash);
-
+    // FIX: `stock` ab DELTA_TYPES ka hissa hai (upar dekho) — matlab stock
+    // qty changes ab turant, chhote delta record ke through instantly doosre
+    // devices tak pahunch jaate hain, bina poora data.json bhare-bhare
+    // snapshot ke. Pehle yahan stock badalne par HAR BAAR turant ek poora
+    // full-snapshot force hota tha (kyunki stock delta mein nahi tha) — aur
+    // har sale/return stock badalta hai, isliye yeh HAR INVOICE par chalta
+    // tha. Ye Firebase read/write bandwidth bahut zyada use karta tha (poora
+    // dataset — sab invoices/purchases/reports — baar baar likha/padha jaata
+    // tha sirf chhote stock qty change ke liye). Ab full snapshot sirf
+    // 24-ghante mein ek baar hota hai (naye device bootstrap + non-delta
+    // fields jaise settings/customers ke liye safety net) — stock ka asli
+    // sync ab hamesha lightweight delta se hota hai.
     var lastFullAt = parseInt(localStorage.getItem('ac_lastFullSnapshotAt'), 10) || 0;
     var FULL_SNAPSHOT_INTERVAL = 24 * 60 * 60 * 1000; // 24 ghante
-    if(stockChangedSinceLastPush || Date.now() - lastFullAt > FULL_SNAPSHOT_INTERVAL){
+    if(Date.now() - lastFullAt > FULL_SNAPSHOT_INTERVAL){
       fetch(getSyncPath(), {
         method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
       }).then(function(r){
         if(r.ok){
           localStorage.setItem('ac_lastFullSnapshotAt', String(Date.now()));
-          localStorage.setItem('ac_lastStockHash', String(stockHash));
-          // FIX: confirm ki local stock ab cloud tak safely pahunch gaya —
-          // silentPull() ka clobber-guard isi timestamp ko check karta hai.
-          localStorage.setItem('ac_stockPushedAt', String(Date.now()));
         }
       }).catch(function(e){ console.warn('[Sync] full snapshot skipped (non-fatal):', e); });
     }
@@ -3383,6 +3405,7 @@ function _getDeltaArrayRef(type){
     case 'pendingPayments': return pendingPayments;
     case 'expenses': return expenses;
     case 'stockMovLog': return stockMovLog;
+    case 'stock': return stockItems;
     default: return null;
   }
 }
@@ -3435,6 +3458,14 @@ function applyDeltaItems(items){
   if(touched.expenses){
     if(currentPage === 'expenselist') renderExpenses();
     if(currentPage === 'expenses') renderExpenseDashboard();
+  }
+  // Stock delta aane par turant screen refresh — instant multi-device qty
+  // sync, bina poora data.json download kiye (bandwidth-friendly).
+  if(touched.stock){
+    if(currentPage === 'inventory') renderInventory();
+    if(currentPage === 'lowlist') renderLowList();
+    if(currentPage === 'invreport') renderInvReport();
+    showToast('Stock updated from cloud!');
   }
   if(currentPage === 'pnl') renderPnL();
   if(currentPage === 'salesreport') renderSalesReport();
@@ -3503,50 +3534,22 @@ async function pullCloud(){
         showToast('Firebase error - check URL and permissions');
       }
     } else {
-      // ── DELTA PULL ── sirf _lastChangeTs ke baad wale naye/badle records fetch karo
-      var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
-      var res2 = await fetch(q);
-      if(res2.ok){
-        var changes = await res2.json(); // { key: {ts, items:[...]}, ... } ya null
-        var totalItems = 0;
-        if(changes && typeof changes === 'object'){
-          var allItems = [];
-          var maxTs = _lastChangeTs;
-          Object.keys(changes).forEach(function(k){
-            var entry = changes[k];
-            if(entry && Array.isArray(entry.items)){
-              allItems = allItems.concat(entry.items);
-              if(entry.ts > maxTs) maxTs = entry.ts;
-            }
-          });
-          totalItems = allItems.length;
-          if(totalItems) applyDeltaItems(allItems);
-          _lastChangeTs = maxTs;
-          localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
-        }
-        setSyncDot('online');
-        lastSync = Date.now();
-        updSS();
-        flushOfflineQueue();
-        // FIX: `stock` (aur kuch aur fields) DELTA_TYPES ka hissa nahi hain —
-        // pehle yahan sirf delta-pull hota tha, isliye manual "Sync Now"
-        // button dabane par bhi stock jaise fields kabhi refresh nahi hote
-        // the (sirf har 5-min ke background check se, aur wo bhi rarely).
-        // Ab manual sync bhi wahi lightweight full-data check chalata hai
-        // jo background sync karta hai — taaki turant-turant stock/settings
-        // bhi sync ho jayein jab manually Sync dabaya jaaye.
-        silentPull();
-        if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
-          pullAndMergeStaffData();
-        }
-        if(totalItems) showToast('✓ ' + totalItems + ' naye/updated record(s) merge ho gaye');
-        checkAutoTelegramBackup();
-      } else {
-        var err2 = await res2.text();
-        console.log('[Sync] Delta pull error:', err2);
-        setSyncDot('offline');
-        showToast('Firebase error - check URL and permissions');
+      // ── DELTA PULL ── shared helper (same one silentPull uses every 5 min)
+      var totalItems = await _deltaSync();
+      setSyncDot('online');
+      lastSync = Date.now();
+      updSS();
+      flushOfflineQueue();
+      // FIX: `settings`/`customers`/`staffPerms`/`editLog` jaise chhand fields
+      // DELTA_TYPES ka hissa nahi hain (bahut kam badalte hain) — unke liye
+      // silentPull() ka lightweight meta-check + rare full-fetch fallback
+      // chalao taaki manual "Sync Now" par bhi wo turant refresh ho jayein.
+      silentPull();
+      if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
+        pullAndMergeStaffData();
       }
+      if(totalItems) showToast('✓ ' + totalItems + ' naye/updated record(s) merge ho gaye');
+      checkAutoTelegramBackup();
     }
   }catch(e){
     setSyncDot('offline');
@@ -10176,7 +10179,16 @@ async function silentPull(){
     }
     checkAutoTelegramBackup();
 
-    // Baaki data ke liye timestamp check — unnecessary reads bachao
+    // ── LIGHTWEIGHT DELTA SYNC (runs every cycle — cheap, small download) ──
+    // Stock (aur invoices/returns/purchases/etc) ka asli turant multi-device
+    // sync yahin se hota hai — sirf naye/badle records fetch hote hain, poora
+    // dataset nahi. Isse Stock Manager, Low Item List, Inventory Report jaisi
+    // screens bhi invoice/receipt jitni hi "instantly" update hoti hain, aur
+    // Firebase download bahut kam hota hai (purane tareeke mein har 5 min
+    // mein poora data.json download hota tha).
+    await _deltaSync();
+
+    // Baaki (non-delta) data ke liye timestamp check — unnecessary reads bachao
     var cloudTs = meta.ts || 0;
     var localTs = parseInt(localStorage.getItem('ac_lastSync')||'0');
     if(cloudTs <= localTs){
@@ -10231,52 +10243,23 @@ async function silentPull(){
     }
 
     if(Array.isArray(d.stock)){
-      // FIX: Pehle sirf staff role ke liye reconciliation hoti thi — admin ke liye
-      // seedha `stockItems = d.stock` overwrite ho jaata tha. Cloud ka `data.json`
-      // (jisse `d.stock` aata hai) sirf ~24hr mein ek baar likha jaata hai, isliye
-      // ye kabhi kabhi STALE hota hai. Blind overwrite karne se recent local
-      // sales ki deduction wipe ho jaati thi, jisse items galat tarike se
-      // out-of-stock dikhte the. Ab dono roles ke liye same safe reconciliation:
-      // cloud stock ko base leke, sirf un LOCAL invoices ki deduction wapas apply
-      // karo jo abhi tak cloud (d.invoices) mein khud sync nahi hui — jo invoices
-      // already cloud mein hain, unki deduction cloud stock mein pehle se hi hai,
-      // unhe dobara deduct karna double-counting hoga.
-      // FIX: MULTI-DEVICE QTY MISMATCH ROOT CAUSE —
-      // Cloud ka full-snapshot `d.stock` sirf jab bhi koi device apna stock
-      // push karta hai tab update hota hai. Agar ISI device par abhi hi (last
-      // push ke baad) koi local stock edit hua hai jo abhi tak cloud tak
-      // successfully push NAHI hua (network delay, debounce ka 1.2-3s window,
-      // ya offline), toh purana blind-overwrite is fresh local edit ko ek
-      // STALE cloud snapshot se clobber kar deta tha — jisse doosre device
-      // (jisne edit kiya) par sahi qty dikhti thi lekin is device ke agle
-      // silentPull ke baad galat/purani qty aa jaati thi (jaise saare items
-      // 0/OUT dikhna jab asal mein stock available tha).
-      // Ab: agar is device par khud ka pending unpushed stock edit hai
-      // (localEditAt > pushedAt), toh is round mein stock overwrite SKIP
-      // karo — pending push khud debounce ke baad ho jayega, aur agla
-      // silentPull cycle tab sahi/fresh cloud value uthayega.
-      var _stockLocalEditAt = parseInt(localStorage.getItem('ac_stockLocalEditAt')||'0');
-      var _stockPushedAt = parseInt(localStorage.getItem('ac_stockPushedAt')||'0');
-      var _hasPendingLocalStockEdit = _stockLocalEditAt > _stockPushedAt;
-
-      if(!_hasPendingLocalStockEdit){
-        var cloudInvIds2 = new Set(d.invoices ? d.invoices.map(function(i){ return i.id; }) : []);
-        var newStock = JSON.parse(JSON.stringify(d.stock)); // deep copy of cloud stock
-
-        invoices.forEach(function(inv){
-          if(cloudInvIds2.has(inv.id)) return; // already synced — cloud stock already accounts for this
-          if(!Array.isArray(inv.items)) return;
-          inv.items.forEach(function(item){
-            var si = newStock.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
-            if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
-          });
-        });
-
-        if(JSON.stringify(newStock) !== JSON.stringify(stockItems)){
-          stockItems = newStock; LS.setL('stock', stockItems); changed = true;
-        }
-      } else {
-        console.log('[silentPull] Stock overwrite skipped — local edit pending push');
+      // FIX: Stock ka asli real-time multi-device sync ab lightweight DELTA
+      // system se hota hai (upar dekho DELTA_TYPES) — har qty change turant
+      // ek chhote record ke roop mein push/pull hota hai, poore data.json ki
+      // zaroorat nahi. Yeh block sirf ek RARE fallback hai (24-ghante ka
+      // occasional full snapshot, ya naye device ka pehli-baar bootstrap).
+      // Pehle yahan naam (name string) se match karke qty reconcile hoti thi,
+      // jo alag-size/duplicate-naam items ke case mein galat item ko deduct
+      // kar sakti thi. Ab simple id-based safe merge (jaisa purchases/
+      // supplierPayments ke liye already hota hai): cloud ka item id-wise
+      // authoritative hai, aur jo item sirf is device par hai (abhi tak
+      // cloud ko kabhi push nahi hua) use bhi list mein rakha jaata hai
+      // taaki wo gaayab na ho.
+      var cloudStockIds = new Set(d.stock.map(function(s){ return String(s.id); }));
+      var localOnlyStock = stockItems.filter(function(s){ return !cloudStockIds.has(String(s.id)); });
+      var mergedStock = d.stock.concat(localOnlyStock);
+      if(JSON.stringify(mergedStock) !== JSON.stringify(stockItems)){
+        stockItems = mergedStock; LS.setL('stock', stockItems); changed = true;
       }
     }
 
