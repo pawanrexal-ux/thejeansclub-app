@@ -9176,7 +9176,20 @@ function initApp(){
       return;
     }
     setSyncDot('syncing');
-    pullCloud();
+    pullCloud().then(function(){
+      // ── STARTUP STOCK CATCH-UP ──
+      // Agar local stock us hash se alag hai jo last baar cloud ko successfully
+      // push hui thi (jaise koi manual qty correction jo is fix se PEHLE save
+      // hui thi aur us waqt 24hr throttle ki wajah se cloud tak nahi pahunchi),
+      // toh use ab turant push karo — taaki naya code load karte hi purani
+      // atki hui correction bhi apne aap cloud tak pahunch jaaye, bina kisi
+      // naye manual edit ka wait kiye.
+      try{
+        var _curStockHash = String(_quickHash(JSON.stringify(stockItems)));
+        var _lastPushedStockHash = localStorage.getItem('ac_lastStockHash');
+        if(_curStockHash !== _lastPushedStockHash) pushCloud();
+      }catch(e){}
+    });
   }, 2500);
   else if(SYNC_KEY) setSyncDot('offline');
   // Auto Telegram backup — now runs at 8:30 AM (not midnight) so invoices/
