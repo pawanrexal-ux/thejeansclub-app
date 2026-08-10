@@ -10359,6 +10359,15 @@ async function silentPull(){
       else if(currentPage==='supplierpay'){ initSupplierPayForm(); renderSupplierPayPage(); }
       else if(currentPage==='purchases') renderPurchaseDashboard();
       else if(currentPage==='purchaselist') renderPurchases();
+      // FIX: Stock qty wale screens (Stock Manager, Low Item List, Inventory
+      // Report) pehle is list mein nahi the — isliye jab background 5-min
+      // silentPull se stockItems update hota tha, agar user in screens par
+      // khula baitha tha to UI purani qty dikhata rehta tha jab tak wo page
+      // navigate karke wapas na aata. Ab yeh teeno screens bhi auto-refresh
+      // ho jaate hain jaise hi cloud se naya stock data aata hai.
+      else if(currentPage==='inventory') renderInventory();
+      else if(currentPage==='lowlist') renderLowList();
+      else if(currentPage==='invreport') renderInvReport();
       var invNoEl = document.getElementById('invNo');
       if(invNoEl && currentPage==='invoice') invNoEl.value = genInvNo();
       showToast('Data updated from cloud!');
