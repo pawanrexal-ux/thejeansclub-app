@@ -3175,13 +3175,28 @@ async function pushCloud(){
     // ── Occasional FULL snapshot (throttled, best-effort) ──
     // Naye device ke pehli-baar-login bootstrap ke liye aur changes-log ko
     // bahut lamba hone se rokne ke liye — HAR save par nahi, sirf kabhi-kabhi.
+    //
+    // FIX: `stock` (qty) DELTA_TYPES ka hissa NAHI hai — matlab stock sirf
+    // ISI full-snapshot ke through hi doosre devices tak pahunchta hai. Pehle
+    // 24-ghante ka throttle stock ke liye bhi apply hota tha — matlab agar
+    // aaj ek full snapshot ho chuka hai, toh Stock Manager se koi bhi manual
+    // qty correction agle ~24 ghante tak doosre devices tak PAHUNCHTA HI NAHI
+    // THA (silently). Ab: agar stock cloud ko bheji gayi last copy se badla
+    // hai, toh throttle IGNORE karke turant full snapshot push karo.
+    var stockHash = _quickHash(JSON.stringify(stockItems));
+    var lastPushedStockHash = localStorage.getItem('ac_lastStockHash');
+    var stockChangedSinceLastPush = (String(stockHash) !== lastPushedStockHash);
+
     var lastFullAt = parseInt(localStorage.getItem('ac_lastFullSnapshotAt'), 10) || 0;
     var FULL_SNAPSHOT_INTERVAL = 24 * 60 * 60 * 1000; // 24 ghante
-    if(Date.now() - lastFullAt > FULL_SNAPSHOT_INTERVAL){
+    if(stockChangedSinceLastPush || Date.now() - lastFullAt > FULL_SNAPSHOT_INTERVAL){
       fetch(getSyncPath(), {
         method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
       }).then(function(r){
-        if(r.ok) localStorage.setItem('ac_lastFullSnapshotAt', String(Date.now()));
+        if(r.ok){
+          localStorage.setItem('ac_lastFullSnapshotAt', String(Date.now()));
+          localStorage.setItem('ac_lastStockHash', String(stockHash));
+        }
       }).catch(function(e){ console.warn('[Sync] full snapshot skipped (non-fatal):', e); });
     }
 
@@ -3504,6 +3519,14 @@ async function pullCloud(){
         lastSync = Date.now();
         updSS();
         flushOfflineQueue();
+        // FIX: `stock` (aur kuch aur fields) DELTA_TYPES ka hissa nahi hain —
+        // pehle yahan sirf delta-pull hota tha, isliye manual "Sync Now"
+        // button dabane par bhi stock jaise fields kabhi refresh nahi hote
+        // the (sirf har 5-min ke background check se, aur wo bhi rarely).
+        // Ab manual sync bhi wahi lightweight full-data check chalata hai
+        // jo background sync karta hai — taaki turant-turant stock/settings
+        // bhi sync ho jayein jab manually Sync dabaya jaaye.
+        silentPull();
         if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
           pullAndMergeStaffData();
         }
@@ -10153,39 +10176,35 @@ async function silentPull(){
     var isStaffRole = (typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff');
 
     if(Array.isArray(d.invoices)){
-      if(isStaffRole){
-        // Staff: cloud + local merge — new records add, edited records ka newer version use karo
-        var cloudInvIdMap = {};
-        d.invoices.forEach(function(i){ cloudInvIdMap[i.id] = i; });
-        var localInvIdMap = {};
-        invoices.forEach(function(i){ localInvIdMap[i.id] = i; });
+      // FIX: Pehle sirf staff role ke liye safe merge tha — admin ke liye
+      // seedha `invoices = d.invoices` overwrite ho jaata tha, jisse admin ke
+      // LOCAL-ONLY (abhi cloud tak sync nahi hui) invoices poori tarah GAAYAB
+      // ho sakte the jab ek stale cloud snapshot pull hoti thi. Ab dono roles
+      // ke liye same safe merge: cloud + local dono ka data combine karo,
+      // kisi bhi id ke liye jo bhi newer (savedAt se) hai wahi rakho, aur
+      // jo sirf local mein hai (cloud tak abhi pahuncha nahi) usko bhi rakho.
+      var cloudInvIdMap = {};
+      d.invoices.forEach(function(i){ cloudInvIdMap[i.id] = i; });
+      var localInvIdMap = {};
+      invoices.forEach(function(i){ localInvIdMap[i.id] = i; });
 
-        var mergedInvArr = [];
-        // Cloud invoices: compare with local, use newer version
-        d.invoices.forEach(function(cloudInv){
-          var localInv = localInvIdMap[cloudInv.id];
-          if(!localInv){
-            mergedInvArr.push(cloudInv); // only on cloud
-          } else {
-            // Both have it — use newer savedAt
-            var cloudTs = cloudInv.savedAt || '';
-            var localTs = localInv.savedAt || '';
-            mergedInvArr.push(localTs >= cloudTs ? localInv : cloudInv);
-          }
-        });
-        // Local-only invoices (not on cloud yet)
-        invoices.forEach(function(localInv){
-          if(!cloudInvIdMap[localInv.id]) mergedInvArr.push(localInv);
-        });
-        // FIX: Correct sort — newest first (descending)
-        mergedInvArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? 1 : -1; });
-        if(JSON.stringify(mergedInvArr) !== JSON.stringify(invoices)){
-          invoices = mergedInvArr; LS.setL('invoices', invoices); changed = true;
+      var mergedInvArr = [];
+      d.invoices.forEach(function(cloudInv){
+        var localInv = localInvIdMap[cloudInv.id];
+        if(!localInv){
+          mergedInvArr.push(cloudInv); // only on cloud
+        } else {
+          var cTs = cloudInv.savedAt || '';
+          var lTs = localInv.savedAt || '';
+          mergedInvArr.push(lTs >= cTs ? localInv : cloudInv);
         }
-      } else {
-        if(JSON.stringify(d.invoices) !== JSON.stringify(invoices)){
-          invoices = d.invoices; LS.setL('invoices', invoices); changed = true;
-        }
+      });
+      invoices.forEach(function(localInv){
+        if(!cloudInvIdMap[localInv.id]) mergedInvArr.push(localInv); // local-only, not lost
+      });
+      mergedInvArr.sort(function(a,b){ return (b.savedAt||'') > (a.savedAt||'') ? 1 : -1; });
+      if(JSON.stringify(mergedInvArr) !== JSON.stringify(invoices)){
+        invoices = mergedInvArr; LS.setL('invoices', invoices); changed = true;
       }
     }
 
@@ -10222,22 +10241,41 @@ async function silentPull(){
     }
 
     if(Array.isArray(d.customers)){
-      if(isStaffRole){
-        var cloudCustNames = new Set(d.customers.map(function(c){ return (c.name||'').toLowerCase(); }));
-        var localOnlyCusts = savedCustomers.filter(function(c){ return !cloudCustNames.has((c.name||'').toLowerCase()); });
-        savedCustomers = d.customers.concat(localOnlyCusts);
-        LS.setL('customers', savedCustomers);
-      } else {
-        savedCustomers = d.customers; LS.setL('customers', savedCustomers);
+      // FIX: Admin ke liye pehle blind overwrite tha — local-only naye customers
+      // (jo abhi cloud tak sync nahi hue) gaayab ho sakte the. Ab dono roles ke
+      // liye same safe merge.
+      var cloudCustNames = new Set(d.customers.map(function(c){ return (c.name||'').toLowerCase(); }));
+      var localOnlyCusts = savedCustomers.filter(function(c){ return !cloudCustNames.has((c.name||'').toLowerCase()); });
+      var mergedCusts = d.customers.concat(localOnlyCusts);
+      if(JSON.stringify(mergedCusts) !== JSON.stringify(savedCustomers)){
+        savedCustomers = mergedCusts; LS.setL('customers', savedCustomers);
       }
     }
 
-    if(Array.isArray(d.purchases) && JSON.stringify(d.purchases) !== JSON.stringify(purchases)){
-      purchases = d.purchases; LS.setL('purchases', purchases); changed = true;
+    if(Array.isArray(d.purchases)){
+      // FIX: Pehle YE FIELD KISI BHI ROLE KE LIYE PROTECTED NAHI THA — seedha
+      // `purchases = d.purchases` overwrite hota tha. Agar koi local purchase
+      // record abhi cloud tak sync nahi hua tha, toh stale snapshot pull hone
+      // par woh POORI TARAH GAAYAB ho sakta tha (jaise stock ke saath hua).
+      var cloudPurIds = new Set(d.purchases.map(function(p){ return String(p.id); }));
+      var localOnlyPur = purchases.filter(function(p){ return !cloudPurIds.has(String(p.id)); });
+      var mergedPur = d.purchases.concat(localOnlyPur);
+      mergedPur.sort(function(a,b){ return (b.id||0)-(a.id||0); });
+      if(JSON.stringify(mergedPur) !== JSON.stringify(purchases)){
+        purchases = mergedPur; LS.setL('purchases', purchases); changed = true;
+      }
     }
 
-    if(Array.isArray(d.supplierPayments) && JSON.stringify(d.supplierPayments) !== JSON.stringify(supplierPayments)){
-      supplierPayments = d.supplierPayments; LS.setL('supplierPayments', supplierPayments); changed = true;
+    if(Array.isArray(d.supplierPayments)){
+      // FIX: Isi tarah supplierPayments bhi kisi role ke liye protected nahi
+      // tha — local-only payment records gaayab ho sakte the.
+      var cloudSPIds = new Set(d.supplierPayments.map(function(p){ return String(p.id); }));
+      var localOnlySP = supplierPayments.filter(function(p){ return !cloudSPIds.has(String(p.id)); });
+      var mergedSP = d.supplierPayments.concat(localOnlySP);
+      mergedSP.sort(function(a,b){ return (b.id||0)-(a.id||0); });
+      if(JSON.stringify(mergedSP) !== JSON.stringify(supplierPayments)){
+        supplierPayments = mergedSP; LS.setL('supplierPayments', supplierPayments); changed = true;
+      }
     }
 
     if(d.staffPerms && typeof d.staffPerms === 'object'){
@@ -10248,49 +10286,34 @@ async function silentPull(){
     }
 
     if(Array.isArray(d.pendingPayments)){
-      if(isStaffRole){
-        var cloudPPIds = new Set(d.pendingPayments.map(function(r){ return r.id; }));
-        var localOnlyPP2 = pendingPayments.filter(function(r){ return !cloudPPIds.has(r.id); });
-        var merged_pp = d.pendingPayments.concat(localOnlyPP2);
-        merged_pp.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-        if(JSON.stringify(merged_pp) !== JSON.stringify(pendingPayments)){
-          pendingPayments = merged_pp; LS.setL('pendingPayments', pendingPayments); changed = true;
-        }
-      } else {
-        if(JSON.stringify(d.pendingPayments) !== JSON.stringify(pendingPayments)){
-          pendingPayments = d.pendingPayments; LS.setL('pendingPayments', pendingPayments); changed = true;
-        }
+      // FIX: Admin ke liye pehle blind overwrite tha — ab sabke liye safe merge
+      var cloudPPIds = new Set(d.pendingPayments.map(function(r){ return r.id; }));
+      var localOnlyPP2 = pendingPayments.filter(function(r){ return !cloudPPIds.has(r.id); });
+      var merged_pp = d.pendingPayments.concat(localOnlyPP2);
+      merged_pp.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+      if(JSON.stringify(merged_pp) !== JSON.stringify(pendingPayments)){
+        pendingPayments = merged_pp; LS.setL('pendingPayments', pendingPayments); changed = true;
       }
     }
 
     if(Array.isArray(d.expenses)){
-      if(isStaffRole){
-        var cloudExpIds = new Set(d.expenses.map(function(e){ return e.id; }));
-        var localOnlyExp2 = expenses.filter(function(e){ return !cloudExpIds.has(e.id); });
-        var merged_exp = d.expenses.concat(localOnlyExp2);
-        merged_exp.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
-        if(JSON.stringify(merged_exp) !== JSON.stringify(expenses)){
-          expenses = merged_exp; LS.setL('expenses', expenses); changed = true;
-        }
-      } else {
-        if(JSON.stringify(d.expenses) !== JSON.stringify(expenses)){
-          expenses = d.expenses; LS.setL('expenses', expenses); changed = true;
-        }
+      // FIX: Admin ke liye pehle blind overwrite tha — ab sabke liye safe merge
+      var cloudExpIds = new Set(d.expenses.map(function(e){ return e.id; }));
+      var localOnlyExp2 = expenses.filter(function(e){ return !cloudExpIds.has(e.id); });
+      var merged_exp = d.expenses.concat(localOnlyExp2);
+      merged_exp.sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
+      if(JSON.stringify(merged_exp) !== JSON.stringify(expenses)){
+        expenses = merged_exp; LS.setL('expenses', expenses); changed = true;
       }
     }
 
     if(Array.isArray(d.stockMovLog)){
-      if(isStaffRole){
-        var cloudSmlIds = new Set(d.stockMovLog.map(function(m){ return String(m.id); }));
-        var localOnlySml = stockMovLog.filter(function(m){ return !cloudSmlIds.has(String(m.id)); });
-        var merged_sml = d.stockMovLog.concat(localOnlySml);
-        if(JSON.stringify(merged_sml) !== JSON.stringify(stockMovLog)){
-          stockMovLog = merged_sml; LS.setL('stockMovLog', stockMovLog);
-        }
-      } else {
-        if(JSON.stringify(d.stockMovLog) !== JSON.stringify(stockMovLog)){
-          stockMovLog = d.stockMovLog; LS.setL('stockMovLog', stockMovLog);
-        }
+      // FIX: Admin ke liye pehle blind overwrite tha — ab sabke liye safe merge
+      var cloudSmlIds = new Set(d.stockMovLog.map(function(m){ return String(m.id); }));
+      var localOnlySml = stockMovLog.filter(function(m){ return !cloudSmlIds.has(String(m.id)); });
+      var merged_sml = d.stockMovLog.concat(localOnlySml);
+      if(JSON.stringify(merged_sml) !== JSON.stringify(stockMovLog)){
+        stockMovLog = merged_sml; LS.setL('stockMovLog', stockMovLog);
       }
     }
     // editLog: cloud version hi final — delete sync ke liye merge nahi, direct replace
