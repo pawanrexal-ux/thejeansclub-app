@@ -2447,6 +2447,12 @@ var LS = {
 
   // ── SYNC WRITE (local + Firebase push via schedulePush) ──
   sync: function(k, v) {
+    // FIX: 'stock' ke liye local-edit timestamp record karo. Isse silentPull()
+    // ko pata chalta hai ki is device par stock abhi PUSH hone ka wait kar
+    // raha hai — taaki 5-min background pull uss pending local edit ko kisi
+    // purani/stale cloud snapshot se overwrite na kar de (multi-device qty
+    // mismatch ka asli root-cause yehi tha).
+    if(k === 'stock') localStorage.setItem('ac_stockLocalEditAt', String(Date.now()));
     LS._write(k, v, true);
   },
 
@@ -3196,6 +3202,9 @@ async function pushCloud(){
         if(r.ok){
           localStorage.setItem('ac_lastFullSnapshotAt', String(Date.now()));
           localStorage.setItem('ac_lastStockHash', String(stockHash));
+          // FIX: confirm ki local stock ab cloud tak safely pahunch gaya —
+          // silentPull() ka clobber-guard isi timestamp ko check karta hai.
+          localStorage.setItem('ac_stockPushedAt', String(Date.now()));
         }
       }).catch(function(e){ console.warn('[Sync] full snapshot skipped (non-fatal):', e); });
     }
@@ -10232,20 +10241,42 @@ async function silentPull(){
       // karo jo abhi tak cloud (d.invoices) mein khud sync nahi hui — jo invoices
       // already cloud mein hain, unki deduction cloud stock mein pehle se hi hai,
       // unhe dobara deduct karna double-counting hoga.
-      var cloudInvIds2 = new Set(d.invoices ? d.invoices.map(function(i){ return i.id; }) : []);
-      var newStock = JSON.parse(JSON.stringify(d.stock)); // deep copy of cloud stock
+      // FIX: MULTI-DEVICE QTY MISMATCH ROOT CAUSE —
+      // Cloud ka full-snapshot `d.stock` sirf jab bhi koi device apna stock
+      // push karta hai tab update hota hai. Agar ISI device par abhi hi (last
+      // push ke baad) koi local stock edit hua hai jo abhi tak cloud tak
+      // successfully push NAHI hua (network delay, debounce ka 1.2-3s window,
+      // ya offline), toh purana blind-overwrite is fresh local edit ko ek
+      // STALE cloud snapshot se clobber kar deta tha — jisse doosre device
+      // (jisne edit kiya) par sahi qty dikhti thi lekin is device ke agle
+      // silentPull ke baad galat/purani qty aa jaati thi (jaise saare items
+      // 0/OUT dikhna jab asal mein stock available tha).
+      // Ab: agar is device par khud ka pending unpushed stock edit hai
+      // (localEditAt > pushedAt), toh is round mein stock overwrite SKIP
+      // karo — pending push khud debounce ke baad ho jayega, aur agla
+      // silentPull cycle tab sahi/fresh cloud value uthayega.
+      var _stockLocalEditAt = parseInt(localStorage.getItem('ac_stockLocalEditAt')||'0');
+      var _stockPushedAt = parseInt(localStorage.getItem('ac_stockPushedAt')||'0');
+      var _hasPendingLocalStockEdit = _stockLocalEditAt > _stockPushedAt;
 
-      invoices.forEach(function(inv){
-        if(cloudInvIds2.has(inv.id)) return; // already synced — cloud stock already accounts for this
-        if(!Array.isArray(inv.items)) return;
-        inv.items.forEach(function(item){
-          var si = newStock.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
-          if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
+      if(!_hasPendingLocalStockEdit){
+        var cloudInvIds2 = new Set(d.invoices ? d.invoices.map(function(i){ return i.id; }) : []);
+        var newStock = JSON.parse(JSON.stringify(d.stock)); // deep copy of cloud stock
+
+        invoices.forEach(function(inv){
+          if(cloudInvIds2.has(inv.id)) return; // already synced — cloud stock already accounts for this
+          if(!Array.isArray(inv.items)) return;
+          inv.items.forEach(function(item){
+            var si = newStock.find(function(s){ return s.name.toLowerCase()===(item.name||'').toLowerCase(); });
+            if(si) si.qty = Math.max(0, si.qty - (item.qty||0));
+          });
         });
-      });
 
-      if(JSON.stringify(newStock) !== JSON.stringify(stockItems)){
-        stockItems = newStock; LS.setL('stock', stockItems); changed = true;
+        if(JSON.stringify(newStock) !== JSON.stringify(stockItems)){
+          stockItems = newStock; LS.setL('stock', stockItems); changed = true;
+        }
+      } else {
+        console.log('[silentPull] Stock overwrite skipped — local edit pending push');
       }
     }
 
