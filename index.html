@@ -838,6 +838,7 @@ input[type=tel], textarea, select {
       <div class="nav-sec">System</div>
       <div class="nav-item" onclick="navTo('settings',this)"><span class="nav-icon">&#9881;</span>Settings</div>
       <div class="nav-item" onclick="navTo('editlog',this)"><span class="nav-icon">&#128221;</span>Edit Log</div>
+      <div class="nav-item" onclick="navTo('loginlog',this)"><span class="nav-icon">&#128273;</span>Login Log</div>
     </nav>
     <div class="sb-foot">
       <div id="syncStatus" style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:8px;text-align:center;font-family:Arial,sans-serif;"></div>
@@ -2034,6 +2035,36 @@ input[type=tel], textarea, select {
   </div>
 </div>
 
+<!-- ===== LOGIN LOG PAGE (admin-only) ===== -->
+<div class="page" id="page-loginlog">
+  <div style="background:var(--w);border:1px solid var(--bdr);padding:14px 16px;margin-bottom:14px;">
+    <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:10px;">&#128273; Login Log</div>
+    <div style="font-size:12px;color:var(--mu);font-family:Arial,sans-serif;margin-bottom:12px;">Jab bhi koi (Admin ya Staff) app mein login karta hai, uski date, time aur login ID yahan record hoti hai — sabhi devices se.</div>
+    <!-- Filters -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+      <div style="flex:1;min-width:120px;">
+        <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);font-weight:700;display:block;margin-bottom:4px;">Role</label>
+        <select id="loginlog-filter-role" onchange="renderLoginLog()" style="width:100%;padding:8px 10px;border:1px solid var(--bdr);background:var(--w);font-family:Arial,sans-serif;font-size:12px;">
+          <option value="">All</option>
+          <option value="admin">Admin</option>
+          <option value="staff">Staff</option>
+        </select>
+      </div>
+      <div style="flex:1;min-width:140px;">
+        <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);font-weight:700;display:block;margin-bottom:4px;">Date</label>
+        <input type="date" id="loginlog-filter-date" onchange="renderLoginLog()" style="width:100%;padding:8px 10px;border:1px solid var(--bdr);background:var(--w);font-family:Arial,sans-serif;font-size:12px;box-sizing:border-box;"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-outline" onclick="document.getElementById('loginlog-filter-role').value='';document.getElementById('loginlog-filter-date').value='';renderLoginLog();" style="font-size:11px;padding:7px 12px;">&#10005; Clear Filters</button>
+      <button class="btn btn-red" onclick="clearLoginLog()" style="font-size:11px;padding:7px 12px;">&#128465; Clear Log</button>
+    </div>
+  </div>
+  <div id="loginlog-list" style="padding-bottom:20px;">
+    <div style="text-align:center;padding:40px 20px;color:var(--mu);font-family:Arial,sans-serif;font-size:13px;">Loading...</div>
+  </div>
+</div>
+
 <!-- ===== P&L DASHBOARD PAGE ===== -->
 <div class="page" id="page-pnl">
   <!-- Filter Bar -->
@@ -2574,6 +2605,25 @@ async function pushStaffInvoices(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl) return;
   if(!navigator.onLine){ console.log('[StaffSync] Offline — will retry'); return; }
+
+  // FIX: admin ke pushCloud() mein yeh 2 guards pehle se hain, staff ke
+  // alag push-path (yahan) mein missing the. LoginLog turant login ke baad
+  // hi push trigger karta hai — agar us waqt IDB cache load hi nahi hua
+  // (boot-time race), toh yeh full PUT staff ke `/tjc_staff_data` path ko
+  // khaali/adhoore data se overwrite kar deta, jisse pehle se pending
+  // (jo admin ne abhi tak merge nahi kiya) invoices/stock jaise records
+  // permanently gaayab ho sakte the.
+  if(!_IDB_ENGINE.isReady()){
+    console.warn('[StaffSync] IDB cache not ready yet — push cancelled to prevent data loss');
+    return;
+  }
+  var _idbKeyCount = Object.keys(_IDB_ENGINE.cache).length;
+  var _inMemoryEmpty = (!invoices.length && !stockItems.length);
+  if(_inMemoryEmpty && _idbKeyCount > 0){
+    console.warn('[StaffSync] In-memory arrays empty but IDB has ' + _idbKeyCount + ' keys — race condition, push cancelled');
+    return;
+  }
+
   try{
     var path = fbUrl + '/tjc_staff_data/' + SYNC_KEY + '.json';
     var payload = {
@@ -2586,6 +2636,7 @@ async function pushStaffInvoices(){
       customers: savedCustomers,
       dailyReports: dailyReports,
       monthlyReports: monthlyReports,
+      loginLog: loginLog,
       ts: Date.now(),
       pushedBy: 'staff'
     };
@@ -2715,6 +2766,21 @@ async function pullAndMergeStaffData(){
       }
     }
 
+    // LoginLog merge: staff device par hue logins ko admin ke login-log mein jodo
+    if(Array.isArray(sd.loginLog)){
+      var loginIds = new Set(loginLog.map(function(l){ return String(l.id); }));
+      var newLogins = sd.loginLog.filter(function(l){ return !loginIds.has(String(l.id)); });
+      if(newLogins.length > 0){
+        loginLog = loginLog.concat(newLogins);
+        loginLog.sort(function(a,b){ return (b.ts||'') > (a.ts||'') ? 1 : -1; });
+        if(loginLog.length > 1000) loginLog = loginLog.slice(0, 1000);
+        LS.sync('loginLog', loginLog); // admin ke paas ab yeh authoritative hai — cloud par bhi push karo
+        merged = true;
+        console.log('[StaffSync] Merged ' + newLogins.length + ' staff login entries');
+        if(currentPage === 'loginlog' && typeof renderLoginLog === 'function') renderLoginLog();
+      }
+    }
+
     // Stock qty update:
     // (a) New staff invoices ke items → deduct karo
     // (b) Edited staff invoices → old qty restore karo, new qty deduct karo (net diff)
@@ -2830,6 +2896,7 @@ var returns=[]; // return/exchange records: {id, retNo, date, invId, invNo, cust
 var editingInvId = null; // tracks which invoice is being edited (null = new invoice)
 var stockMovLog = []; // inventory movement log: {id, date, type:'IN'/'OUT', item, qty, ref, note}
 var editLog = []; // audit log: tracks all invoice & receipt edits {id, ts, type, ref, user, changes:[]}
+var loginLog = []; // login audit trail: {id, ts, date, time, user, role, device} — admin-only view
 var purchases=[];
 var supplierPayments=[];
 var AUTH={user:'thejeans',pass:'alpha@123'};
@@ -2994,6 +3061,67 @@ function clearEditLog(){
   showToast('✅ Edit Log clear ho gaya');
 }
 
+// ===== LOGIN LOG (admin-only) =====
+// Har successful login (Admin ya Staff) par ek entry record hoti hai — date,
+// time, user (login ID) aur role. 'loginLog' DELTA_TYPES ka hissa hai isliye
+// yeh entry chhote, turant push/pull hone wale record ke through sabhi
+// devices tak turant pahunch jaati hai (poora data.json download kiye bina).
+function logLogin(user, role){
+  var now = new Date();
+  var entry = {
+    id: Date.now() + Math.random(),
+    ts: now.toISOString(),
+    user: user,
+    role: role
+  };
+  loginLog.unshift(entry);
+  if(loginLog.length > 1000) loginLog = loginLog.slice(0, 1000); // keep last 1000
+  LS.sync('loginLog', loginLog); // admin: normal delta push; staff: apne alag path se (pushStaffInvoices) chala jaata hai
+}
+
+// Render the Login Log page (admin-only — see staffCanAccess)
+function renderLoginLog(){
+  loginLog = LS.get('loginLog') || [];
+  var filterRole = (document.getElementById('loginlog-filter-role') ? document.getElementById('loginlog-filter-role').value : '');
+  var filterDate = (document.getElementById('loginlog-filter-date') ? document.getElementById('loginlog-filter-date').value : '');
+  var container = document.getElementById('loginlog-list');
+  if(!container) return;
+
+  var filtered = loginLog.filter(function(e){
+    if(filterRole && e.role !== filterRole) return false;
+    if(filterDate && (e.ts||'').slice(0,10) !== filterDate) return false;
+    return true;
+  });
+
+  if(!filtered.length){
+    container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--mu);font-family:Arial,sans-serif;font-size:13px;">Koi login record nahi mila.</div>';
+    return;
+  }
+
+  var html = '';
+  filtered.forEach(function(e){
+    var d = new Date(e.ts);
+    var dateStr = d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+    var timeStr = d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true});
+    var roleColor = e.role==='admin' ? '#1a3a2a' : '#7b3f00';
+    var roleBg    = e.role==='admin' ? '#e8f5e9' : '#fff3e0';
+    html += '<div style="background:var(--w);border:1px solid var(--bdr);margin-bottom:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      +'<span style="background:'+roleBg+';color:'+roleColor+';font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 8px;border-radius:2px;">'+escH(e.role)+'</span>'
+      +'<span style="font-weight:700;font-size:13px;color:var(--dk);">'+escH(e.user)+'</span>'
+      +'<span style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;margin-left:auto;">'+dateStr+' · '+timeStr+'</span>'
+      +'</div>';
+  });
+  container.innerHTML = html;
+}
+
+function clearLoginLog(){
+  if(!confirm('Kya aap poora login log delete karna chahte hain? Yeh wapas nahi aayega.')) return;
+  loginLog = [];
+  LS.sync('loginLog', loginLog);
+  renderLoginLog();
+  showToast('✅ Login Log clear ho gaya');
+}
+
 // ===== FIREBASE SYNC =====
 // Uses Firebase Realtime Database REST API - no SDK needed
 // User sets their own Firebase DB URL in settings
@@ -3020,7 +3148,7 @@ function getSyncPath(){
 // baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock'];
+var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog'];
 var _hasFullData = (localStorage.getItem('ac_hasFullData') === '1'); // true jab is device par ek baar poora data aa chuka ho
 var _lastChangeTs = parseInt(localStorage.getItem('ac_lastChangeTs'), 10) || 0; // is device ne ab tak kaunse changes dekh liye hain
 
@@ -3134,6 +3262,7 @@ async function pushCloud(){
     dailyReports: dailyReports,       // ← was missing before!
     monthlyReports: monthlyReports,   // ← was missing before!
     editLog: editLog,                 // audit log of invoice/receipt edits
+    loginLog: loginLog,               // login audit trail (who logged in, when)
     telegramConfig: getTelegramConfig(),               // bot token/chatId/auto — so staff device also has it
     tgLastBackupAt: localStorage.getItem('ac_tg_lastBackupAt') || null, // shared across devices to avoid duplicate sends
     tgLastBackupDate: localStorage.getItem('ac_tg_lastBackupDate') || null, // which calendar date was last backed up (any send)
@@ -3361,6 +3490,12 @@ function applyPulledData(d){
     saveEditLog();
     if(currentPage === 'editlog') renderEditLog();
   }
+  // LoginLog (admin-only view) — cloud version hi final on bootstrap
+  if(Array.isArray(d.loginLog)){
+    loginLog = d.loginLog.slice(0, 1000);
+    LS.setL('loginLog', loginLog);
+    if(currentPage === 'loginlog' && typeof renderLoginLog === 'function') renderLoginLog();
+  }
 
   setSyncDot('online');
   lastSync = Date.now();
@@ -3406,6 +3541,7 @@ function _getDeltaArrayRef(type){
     case 'expenses': return expenses;
     case 'stockMovLog': return stockMovLog;
     case 'stock': return stockItems;
+    case 'loginLog': return loginLog;
     default: return null;
   }
 }
@@ -3466,6 +3602,9 @@ function applyDeltaItems(items){
     if(currentPage === 'lowlist') renderLowList();
     if(currentPage === 'invreport') renderInvReport();
     showToast('Stock updated from cloud!');
+  }
+  if(touched.loginLog){
+    if(currentPage === 'loginlog' && typeof renderLoginLog === 'function') renderLoginLog();
   }
   if(currentPage === 'pnl') renderPnL();
   if(currentPage === 'salesreport') renderSalesReport();
@@ -4614,9 +4753,19 @@ function saveTelegramConfig(){
   setTelegramConfig(cfg);
   if(msgEl) msgEl.textContent = '✓ Telegram settings saved';
   showToast('✓ Telegram settings saved!');
-  // Push right away so staff devices get the bot token/chatId/auto-flag without waiting for the next periodic sync
-  if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
+  // FIX: pushCloud() ka full-snapshot ab sirf 24-ghante mein ek baar chalta
+  // hai (bandwidth-saving fix) — sirf pushCloud() call karne se bot token/
+  // chatId/auto-flag doosre (staff) device tak 24hr tak nahi pahunchta tha.
+  // Ab telegramConfig ko bhi ek chhota DIRECT field-write se turant bhejo —
+  // poora data snapshot bheje bina.
+  var _fbUrl = getFirebaseUrl();
+  if(SYNC_KEY && _fbUrl){
+    fetch(_fbUrl + '/thejeans/' + SYNC_KEY + '/data/telegramConfig.json', {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cfg)
+    }).catch(function(){});
+  }
 }
+
 
 // Builds the same full-data JSON payload used by exportDataBackup()
 function buildBackupBlob(){
@@ -4731,10 +4880,20 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
               localStorage.setItem('ac_tg_lastAutoBackupDate', dateStr);
             }
             updateTgBackupLabel();
-            // Push the updated timestamp/date to Firebase right away so admin's
-            // and staff's devices both know a backup was just sent — prevents
-            // a second device from sending a duplicate for the same day.
-            if(SYNC_KEY && getFirebaseUrl()) pushCloud().catch(function(){});
+            // FIX: pushCloud() ka full-snapshot ab sirf 24-ghante mein ek baar
+            // chalta hai (bandwidth-saving fix) — isliye sirf pushCloud() ko
+            // call karna in 2 chhoti fields (tgLastBackupAt/tgLastBackupDate)
+            // ko turant doosre devices tak nahi pahunchata tha (24hr tak
+            // "Last Telegram backup" label doosre device par purana dikhta
+            // rehta). Ab isi tarah ka DIRECT lightweight field-write karo
+            // jaisa tgLastAutoBackupDate ke liye already hota hai — chhota,
+            // turant, aur poore data ka snapshot nahi.
+            var _fbUrl = getFirebaseUrl();
+            if(SYNC_KEY && _fbUrl){
+              var _base = _fbUrl + '/thejeans/' + SYNC_KEY + '/data';
+              fetch(_base + '/tgLastBackupAt.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(localStorage.getItem('ac_tg_lastBackupAt'))}).catch(function(){});
+              fetch(_base + '/tgLastBackupDate.json', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(dateStr)}).catch(function(){});
+            }
             if(!silent){
               if(totalFail > 0){
                 if(msgEl) msgEl.textContent = '⚠️ Bhej diya, lekin '+totalFail+' PDF nahi ban paye — Telegram caption mein naam dekhein';
@@ -5078,8 +5237,8 @@ function staffCanAccess(page){
   if(CURRENT_ROLE === 'admin') return true;
   // Settings always blocked for staff
   if(page === 'settings') return false;
-  // pnl, profitreport, editlog, supplierpay, suppaypreview always blocked for staff
-  if(page === 'pnl' || page === 'profitreport' || page === 'editlog') return false;
+  // pnl, profitreport, editlog, loginlog, supplierpay, suppaypreview always blocked for staff
+  if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog') return false;
   if(page === 'supplierpay' || page === 'suppaypreview') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
@@ -5114,6 +5273,7 @@ function checkLogin(){
   expenses = LS.get('expenses') || [];
   // Load edit audit log
   try { editLog = JSON.parse(localStorage.getItem('ac_editLog')||'[]'); } catch(e){ editLog=[]; }
+  loginLog = LS.get('loginLog') || [];
 
   // Restore offline write queue
   _offlineQueue = LS.get('offlineQueue') || [];
@@ -5209,6 +5369,8 @@ function doLogin(){
     showApp();
     var roleLabel = CURRENT_ROLE === 'admin' ? 'Admin' : 'Staff';
     showToast('Welcome, ' + u + '! (' + roleLabel + ')');
+    // Login Log — is device se ye login kab hua, kis ID se, kaunse role mein
+    logLogin(u, CURRENT_ROLE);
     // FIX #2: Default password check — agar change nahi kiya toh warning
     var _defAdm = {user:'thejeans', pass:'alpha@123'};
     var _defStf = {user:'staff', pass:'staff@123'};
@@ -5548,6 +5710,7 @@ function navTo(page, el, mi){
   if(page==='pendingpreview'){}
   if(page==='pnl'){ if(!staffCanAccess('pnl')){showToast('⛔ Access Denied — Admin ne yeh feature block kiya hai');navTo('invoice',null);return;} ensureFullDataLoaded(renderPnL); }
   if(page==='editlog'){ if(!staffCanAccess('editlog')){showToast('⛔ Access Denied — Edit Log sirf Admin ke liye hai');navTo('invoice',null);return;} renderEditLog(); }
+  if(page==='loginlog'){ if(!staffCanAccess('loginlog')){showToast('⛔ Access Denied — Login Log sirf Admin ke liye hai');navTo('invoice',null);return;} renderLoginLog(); }
   if(window.innerWidth <= 768) closeSidebar();
   var ca = document.getElementById('contentArea'); if(ca) ca.scrollTo(0, 0);
 }
@@ -10350,6 +10513,20 @@ async function silentPull(){
         editLog = newLog;
         saveEditLog();
         if(currentPage === 'editlog') renderEditLog();
+        changed = true;
+      }
+    }
+    if(Array.isArray(d.loginLog)){
+      // FIX: id-based safe merge (jaisa stock/purchases ke liye) — local-only
+      // (abhi tak cloud tak sync nahi hua) login entries gaayab na hon.
+      var cloudLoginIds = new Set(d.loginLog.map(function(l){ return String(l.id); }));
+      var localOnlyLogin = loginLog.filter(function(l){ return !cloudLoginIds.has(String(l.id)); });
+      var mergedLogin = d.loginLog.concat(localOnlyLogin);
+      mergedLogin.sort(function(a,b){ return (b.ts||'') > (a.ts||'') ? 1 : -1; });
+      if(mergedLogin.length > 1000) mergedLogin = mergedLogin.slice(0, 1000);
+      if(JSON.stringify(mergedLogin) !== JSON.stringify(loginLog)){
+        loginLog = mergedLogin; LS.setL('loginLog', loginLog);
+        if(currentPage === 'loginlog' && typeof renderLoginLog === 'function') renderLoginLog();
         changed = true;
       }
     }
