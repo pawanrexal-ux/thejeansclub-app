@@ -421,6 +421,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 @media print{
   .inv-prev{-webkit-print-color-adjust:exact;print-color-adjust:exact;border-width:4px!important;border-style:solid!important;}
   .inv-prev *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .no-print{display:none!important;}
 }
 
 /* ── BADGES ─────────────────────────────────────────── */
@@ -875,7 +876,9 @@ input[type=tel], textarea, select {
 
       <!-- INVOICE -->
       <div class="page" id="page-invoice">
-        <div class="card"><div class="card-head"><div class="card-icon">&#128196;</div><div class="card-title">Invoice Details</div></div>
+        <div class="card"><div class="card-head"><div class="card-icon">&#128196;</div><div class="card-title">Invoice Details</div>
+          <button class="btn btn-outline" id="heldInvBtn" onclick="openHeldInvoicesModal()" style="margin-left:auto;flex-shrink:0;padding:6px 10px;font-size:11px;display:none;">&#128190; Held (<span id="heldInvCount">0</span>)</button>
+          </div>
           <div class="card-body">
             <div class="row2">
               <div class="ig"><label>Invoice No.</label><input type="text" id="invNo" placeholder="TJC/APR25/001"/></div>
@@ -982,8 +985,22 @@ input[type=tel], textarea, select {
 
         <div class="bottom-bar" style="gap:6px;">
           <button class="btn btn-outline" onclick="clearInvoice()" style="flex-shrink:0;">Clear</button>
+          <button class="btn btn-outline" onclick="holdCurrentInvoice()" style="flex-shrink:0;white-space:nowrap;padding:9px 10px;" title="Is invoice ko park karke naya customer shuru karein">&#128190; Hold</button>
           <button class="btn btn-gold" onclick="saveAndNew()" style="flex-shrink:0;white-space:nowrap;padding:9px 12px;">&#10133; Save &amp; New</button>
           <button class="btn btn-green btn-full" onclick="previewAndSave()">Preview &amp; Save</button>
+        </div>
+      </div>
+
+      <!-- HELD INVOICES MODAL -->
+      <div class="modal-overlay" id="heldInvoicesModal">
+        <div class="modal-box" style="max-width:480px;">
+          <div class="modal-hdr">
+            <div class="modal-title">Held Invoices</div>
+            <button class="modal-close" onclick="closeHeldInvoicesModal()">&#10005;</button>
+          </div>
+          <div class="modal-body" style="padding:0;">
+            <div id="heldInvList" style="max-height:65vh;overflow-y:auto;"></div>
+          </div>
         </div>
       </div>
 
@@ -1269,6 +1286,7 @@ input[type=tel], textarea, select {
           <div class="card-body">
             <div class="ig"><label>Pending Amount (auto-filled)</label><input type="number" id="pp-pendingAmt" placeholder="0" inputmode="numeric" style="font-family:Arial,sans-serif;background:#fff3e0;font-weight:700;"/></div>
             <div class="ig"><label>Amount Paid Now (Rs.)</label><input type="number" id="pp-paidAmt" placeholder="Enter amount received" inputmode="numeric" oninput="onPPAmtChange()" style="font-family:Arial,sans-serif;font-weight:700;font-size:16px;border-color:var(--g);"/></div>
+            <div id="pp-alloc" style="display:none;background:#f1f8f2;border:1px solid #a5d6a7;padding:10px;margin-bottom:10px;border-radius:2px;"></div>
             <!-- Split fields - show only when Split selected -->
             <div id="pp-split-fields" style="display:none;">
               <div style="background:#f0f4ff;border:1px solid #90caf9;padding:10px;margin-bottom:10px;">
@@ -2831,8 +2849,8 @@ async function pullAndMergeStaffData(){
 
     // Customers merge
     if(Array.isArray(sd.customers)){
-      var custNames = new Set(savedCustomers.map(function(c){ return (c.name||'').toLowerCase(); }));
-      var newCusts = sd.customers.filter(function(c){ return !custNames.has((c.name||'').toLowerCase()); });
+      var custNames = new Set(savedCustomers.map(function(c){ return custKey(c.name, c.phone); }));
+      var newCusts = sd.customers.filter(function(c){ return !custNames.has(custKey(c.name, c.phone)); });
       if(newCusts.length > 0){
         savedCustomers = savedCustomers.concat(newCusts);
         LS.setL('customers', savedCustomers);
@@ -2894,6 +2912,7 @@ var SYNC_KEY='', syncTmr=null, lastSync=0;
 var invoices=[], stockItems=[], savedCustomers=[], items=[], currentInv=null;
 var returns=[]; // return/exchange records: {id, retNo, date, invId, invNo, custName, custPhone, type:'Return'/'Exchange', returnedItems, newItems, returnedValue, newValue, diffAmount, diffType, payMode, note}
 var editingInvId = null; // tracks which invoice is being edited (null = new invoice)
+var heldInvoices = []; // parked/on-hold invoice drafts: {heldId, heldAt, custName, custPhone, custAddr, invNote, invDate, discount, gstType, pm, ps, cashAmt, upiAmt, partialPaidAmt, partialCashAmt, partialUpiAmt, items:[...]}
 var stockMovLog = []; // inventory movement log: {id, date, type:'IN'/'OUT', item, qty, ref, note}
 var editLog = []; // audit log: tracks all invoice & receipt edits {id, ts, type, ref, user, changes:[]}
 var loginLog = []; // login audit trail: {id, ts, date, time, user, role, device} — admin-only view
@@ -5912,11 +5931,31 @@ function toggleFolder(id){
 }
 
 // ===== CUSTOMER SAVE/SEARCH =====
+// Customer identity = naam + phone (same naam ke alag-alag customers alag rahenge)
+function custPhoneKey(p){ return String(p||'').replace(/\D/g,'').slice(-10); }
+function custKey(name, phone){ return String(name||'').trim().toLowerCase()+'|'+custPhoneKey(phone); }
+
 function saveCustomer(name, phone, addr){
   if(!name) return;
-  var idx = savedCustomers.findIndex(function(c){ return c.name.toLowerCase()===name.toLowerCase(); });
+  var nm = String(name).trim().toLowerCase();
+  var pk = custPhoneKey(phone);
+  var sameName = [];
+  savedCustomers.forEach(function(c,i){ if(String(c.name||'').trim().toLowerCase()===nm) sameName.push(i); });
+  var idx = -1;
+  if(pk){
+    // 1) exact naam+phone match
+    for(var a=0;a<sameName.length;a++){ if(custPhoneKey(savedCustomers[sameName[a]].phone)===pk){ idx=sameName[a]; break; } }
+    // 2) same naam ka purana record jisme phone nahi tha -> usme phone bhar do
+    if(idx<0){ for(var b=0;b<sameName.length;b++){ if(!custPhoneKey(savedCustomers[sameName[b]].phone)){ idx=sameName[b]; break; } } }
+  } else {
+    // phone nahi diya: sirf tab update karo jab same naam ka phone-less record ho;
+    // agar same naam ke phone wale customers hain toh unhe overwrite mat karo
+    for(var c2=0;c2<sameName.length;c2++){ if(!custPhoneKey(savedCustomers[sameName[c2]].phone)){ idx=sameName[c2]; break; } }
+    if(idx<0 && sameName.length){ return; }
+  }
   if(idx >= 0){
-    savedCustomers[idx] = {name:name, phone:phone||savedCustomers[idx].phone, addr:addr||savedCustomers[idx].addr, updatedAt:new Date().toISOString()};
+    var old = savedCustomers[idx];
+    savedCustomers[idx] = Object.assign({}, old, {name:name, phone:phone||old.phone||'', addr:addr||old.addr||'', updatedAt:new Date().toISOString()});
   } else {
     savedCustomers.unshift({id:Date.now(), name:name, phone:phone||'', addr:addr||'', createdAt:new Date().toISOString()});
   }
@@ -5926,21 +5965,30 @@ function saveCustomer(name, phone, addr){
 function searchCust(val){
   var box = document.getElementById('custSugg');
   if(!val || val.length < 1){ box.style.display='none'; return; }
-  var q = val.toLowerCase(), seen={}, found=[];
-  savedCustomers.forEach(function(c){
-    if(c.name.toLowerCase().indexOf(q)===0 && !seen[c.name]){ seen[c.name]=true; found.push({name:c.name,phone:c.phone,addr:c.addr}); }
-  });
-  invoices.forEach(function(i){
-    if((i.custName||'').toLowerCase().indexOf(q)===0 && !seen[i.custName]){ seen[i.custName]=true; found.push({name:i.custName,phone:i.custPhone||'',addr:i.custAddr||''}); }
-  });
-  found = found.slice(0, 8);
+  var q = val.toLowerCase(), seen={}, namesWithPhone={}, found=[];
+  function add(name, phone, addr){
+    if(!name) return;
+    var k = custKey(name, phone), nm = String(name).trim().toLowerCase();
+    if(seen[k]) return;
+    // phone-less entry tab skip karo jab same naam ka phone wala already list me hai
+    if(!custPhoneKey(phone) && namesWithPhone[nm]) return;
+    seen[k]=true;
+    if(custPhoneKey(phone)) namesWithPhone[nm]=true;
+    found.push({name:name,phone:phone||'',addr:addr||''});
+  }
+  // pehle saved customers, phir invoices (phone wale pehle taaki phone-less duplicate na aaye)
+  savedCustomers.forEach(function(c){ if(String(c.name||'').toLowerCase().indexOf(q)===0 && custPhoneKey(c.phone)) add(c.name,c.phone,c.addr); });
+  invoices.forEach(function(i){ if(String(i.custName||'').toLowerCase().indexOf(q)===0 && custPhoneKey(i.custPhone)) add(i.custName,i.custPhone,i.custAddr); });
+  savedCustomers.forEach(function(c){ if(String(c.name||'').toLowerCase().indexOf(q)===0 && !custPhoneKey(c.phone)) add(c.name,c.phone,c.addr); });
+  invoices.forEach(function(i){ if(String(i.custName||'').toLowerCase().indexOf(q)===0 && !custPhoneKey(i.custPhone)) add(i.custName,i.custPhone,i.custAddr); });
+  found = found.slice(0, 15);
   if(!found.length){ box.style.display='none'; return; }
   var html = '';
   found.forEach(function(c){
     var n=escH(c.name), ph=escH(c.phone||''), ad=escH(c.addr||'');
-    html += '<div style="padding:9px 12px;cursor:pointer;font-size:14px;font-family:Arial,sans-serif;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;" data-n="'+n+'" data-ph="'+ph+'" data-ad="'+ad+'" onclick="pickCust(this)">';
+    html += '<div style="padding:9px 12px;cursor:pointer;font-size:14px;font-family:Arial,sans-serif;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;gap:8px;" data-n="'+n+'" data-ph="'+ph+'" data-ad="'+ad+'" onclick="pickCust(this)">';
     html += '<span style="font-weight:600;">'+n+'</span>';
-    if(ph) html += '<span style="color:var(--mu);font-size:12px;">'+ph+'</span>';
+    if(ph) html += '<span style="color:var(--mu);font-size:12px;white-space:nowrap;">'+ph+'</span>';
     html += '</div>';
   });
   box.innerHTML = html;
@@ -5981,6 +6029,150 @@ function initInvoice(){
 }
 
 function clearInvoice(){ initInvoice(); showToast('Cleared'); }
+
+// ═══════════════════════════ HELD / PARKED INVOICES ═══════════════════════════
+// Lets Sonu park an in-progress invoice (e.g. customer wants 2 more items that are
+// currently being purchased) and start a fresh invoice for another customer,
+// then later resume the parked one — the extra items just get added to it before saving.
+
+function isInvoiceFormBlank(){
+  var cn = (document.getElementById('custName')||{}).value || '';
+  if(cn.trim()!=='') return false;
+  var hasItem = items.some(function(i){ return (i.name||'').trim()!=='' || (i.price||0)>0; });
+  return !hasItem;
+}
+
+function snapshotCurrentInvoice(){
+  return {
+    heldId: 'H'+Date.now()+Math.floor(Math.random()*1000),
+    heldAt: new Date().toISOString(),
+    custName: document.getElementById('custName').value,
+    custPhone: document.getElementById('custPhone').value,
+    custAddr: document.getElementById('custAddr').value,
+    invNote: document.getElementById('invNote').value,
+    invDate: document.getElementById('invDate').value,
+    discount: document.getElementById('discount').value,
+    gstType: (document.getElementById('inv-gst-type')||{}).value || 'cgst',
+    pm: document.getElementById('invPayMode').value,
+    ps: document.getElementById('invPayStatus').value,
+    cashAmt: (document.getElementById('cashAmt')||{}).value || '',
+    upiAmt: (document.getElementById('upiAmt')||{}).value || '',
+    partialPaidAmt: (document.getElementById('partialPaidAmt')||{}).value || '',
+    partialCashAmt: (document.getElementById('partialCashAmt')||{}).value || '',
+    partialUpiAmt: (document.getElementById('partialUpiAmt')||{}).value || '',
+    items: JSON.parse(JSON.stringify(items))
+  };
+}
+
+function holdCurrentInvoice(){
+  if(isInvoiceFormBlank()){ showToast('Invoice khaali hai — hold karne ko kuch nahi'); return; }
+  var snap = snapshotCurrentInvoice();
+  heldInvoices.push(snap);
+  LS.set('heldInvoices', heldInvoices); // device-local draft, Firebase sync nahi chahiye
+  editingInvId = null;
+  items=[]; itemIdCounter=1;
+  initInvoice();
+  renderHeldBadge();
+  showToast('\ud83d\udcf0 '+(snap.custName||'Invoice')+' hold ho gaya. Naya invoice shuru karein.');
+}
+
+function renderHeldBadge(){
+  var btn = document.getElementById('heldInvBtn');
+  var cnt = document.getElementById('heldInvCount');
+  if(cnt) cnt.textContent = heldInvoices.length;
+  if(btn) btn.style.display = heldInvoices.length ? 'inline-flex' : 'none';
+}
+
+function openHeldInvoicesModal(){
+  renderHeldInvoicesList();
+  var m = document.getElementById('heldInvoicesModal');
+  if(m) m.classList.add('show');
+}
+
+function closeHeldInvoicesModal(){
+  var m = document.getElementById('heldInvoicesModal');
+  if(m) m.classList.remove('show');
+}
+
+function renderHeldInvoicesList(){
+  var box = document.getElementById('heldInvList');
+  if(!box) return;
+  if(!heldInvoices.length){
+    box.innerHTML = emptyState('\ud83d\udcf0','Koi held invoice nahi','Invoice screen par "Hold" dabakar yahan park karein');
+    return;
+  }
+  box.innerHTML = heldInvoices.slice().reverse().map(function(h){
+    var validItems = h.items.filter(function(i){ return (i.name||'').trim()!==''; });
+    var est = validItems.reduce(function(s,i){ return s+(i.qty*i.price); },0);
+    var timeStr = new Date(h.heldAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    return '<div style="border-bottom:1px solid var(--bdr);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;">'+
+      '<div style="min-width:0;">'+
+        '<div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">'+escH(h.custName||'(No name)')+'</div>'+
+        '<div style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;">'+validItems.length+' item(s) &middot; ~'+fmt(est)+' &middot; '+timeStr+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;flex-shrink:0;">'+
+        '<button class="btn btn-gold" style="padding:6px 10px;font-size:11px;" onclick="resumeHeldInvoice(\''+h.heldId+'\')">Resume</button>'+
+        '<button class="btn btn-outline" style="padding:6px 8px;font-size:11px;color:var(--red);" onclick="deleteHeldInvoice(\''+h.heldId+'\')">&#128465;</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function resumeHeldInvoice(heldId){
+  var h = heldInvoices.find(function(x){ return x.heldId===heldId; });
+  if(!h) return;
+  // Agar current form mein already kuch bhara hua hai, use bhi pehle apne-aap hold kar do — data loss nahi hoga
+  if(!isInvoiceFormBlank()){
+    heldInvoices.push(snapshotCurrentInvoice());
+  }
+  heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
+  LS.set('heldInvoices', heldInvoices);
+
+  editingInvId = null;
+  document.getElementById('invNo').value = genInvNo();
+  document.getElementById('invDate').value = h.invDate || nowDate();
+  document.getElementById('custName').value = h.custName || '';
+  document.getElementById('custPhone').value = h.custPhone || '';
+  document.getElementById('custAddr').value = h.custAddr || '';
+  document.getElementById('invNote').value = h.invNote || '';
+  document.getElementById('discount').value = h.discount || 0;
+  var gstEl = document.getElementById('inv-gst-type'); if(gstEl) gstEl.value = h.gstType || 'cgst';
+  document.getElementById('invPayMode').value = h.pm || 'Cash';
+  document.getElementById('invPayStatus').value = h.ps || 'Paid';
+
+  // Items: fresh ids taaki koi collision na ho
+  items = (h.items||[]).map(function(i){
+    return {id:itemIdCounter++, name:i.name||'', qty:i.qty||1, origPrice:i.origPrice||i.price||0, price:i.price||0, gstPct:i.gstPct||0, matched:i.matched||false};
+  });
+  if(!items.length){ items=[]; addItem(); addItem(); }
+  renderItems();
+
+  refreshPaymentSections();
+  document.getElementById('cashAmt').value = h.cashAmt || '';
+  document.getElementById('upiAmt').value = h.upiAmt || '';
+  var ppa=document.getElementById('partialPaidAmt'); if(ppa) ppa.value = h.partialPaidAmt || '';
+  var ppc=document.getElementById('partialCashAmt'); if(ppc) ppc.value = h.partialCashAmt || '';
+  var ppu=document.getElementById('partialUpiAmt'); if(ppu) ppu.value = h.partialUpiAmt || '';
+  if(typeof updateSplitHint==='function') updateSplitHint();
+  if(typeof onPartialAmtChange==='function') onPartialAmtChange();
+  if(typeof onPartialSplitChange==='function') onPartialSplitChange();
+
+  calcTotals();
+  renderHeldBadge();
+  closeHeldInvoicesModal();
+  // Note: no navTo('invoice') here — navTo always calls initInvoice() on that
+  // page and would instantly wipe the values just restored above.
+  showToast('\u25b6\ufe0f '+(h.custName||'Invoice')+' resume ho gaya — naye item add karein');
+}
+
+function deleteHeldInvoice(heldId){
+  if(!confirm('Ye held invoice delete karna hai? Wapas nahi milega.')) return;
+  heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
+  LS.set('heldInvoices', heldInvoices);
+  renderHeldBadge();
+  renderHeldInvoicesList();
+  showToast('Held invoice delete ho gaya');
+}
 
 // Helper: get current invoice total
 function getCurrentInvTotal(){
@@ -6711,6 +6903,52 @@ function buildPreview(inv){
   }
 
 
+  // ── Profit Analysis (ADMIN ONLY — never part of #invPrint, so it never shows in PDF/WhatsApp/print) ──
+  var profitPanelHtml = '';
+  if(CURRENT_ROLE === 'admin'){
+    var stockCostMap = {};
+    (stockItems||[]).forEach(function(s){ var k=(s.name||'').trim().toLowerCase(); if(k) stockCostMap[k]=parseFloat(s.cost)||0; });
+    var profRows = '', totalRev = 0, totalCost = 0;
+    (inv.items||[]).filter(function(i){return i.name||i.price>0;}).forEach(function(it){
+      var qty = parseFloat(it.qty)||0, price = parseFloat(it.price)||0;
+      var rev = qty*price;
+      var costEach = (it.cost!==undefined && it.cost!==null && it.cost!=='') ? (parseFloat(it.cost)||0) : (stockCostMap[(it.name||'').trim().toLowerCase()]||0);
+      var costTot = costEach*qty;
+      var prof = rev-costTot;
+      var marg = rev>0 ? (prof/rev*100) : 0;
+      totalRev += rev; totalCost += costTot;
+      var pColor = prof>=0 ? '#2e7d32' : '#c0392b';
+      profRows += '<tr>'
+        +'<td style="padding:6px 8px;font-family:Arial,sans-serif;font-size:11.5px;color:#1a1a1a;">'+escH(it.name||'-')+'</td>'
+        +'<td style="padding:6px 8px;text-align:center;font-family:Arial,sans-serif;font-size:11.5px;">'+qty+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;font-size:11.5px;color:#e65100;">'+fmt(costEach)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;font-size:11.5px;">'+fmt(rev)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;color:'+pColor+';">'+fmt(prof)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;color:'+pColor+';">'+marg.toFixed(1)+'%</td>'
+        +'</tr>';
+    });
+    var netRev = totalRev - (inv.disc||0); // discount reduces actual revenue received
+    var netProfit = netRev - totalCost;
+    var netMargin = netRev>0 ? (netProfit/netRev*100) : 0;
+    var npColor = netProfit>=0 ? '#2e7d32' : '#c0392b';
+    profitPanelHtml = '<div class="no-print" id="invProfitPanel" style="max-width:820px;margin:14px auto 0;border:1px dashed #c9a84c;background:#fffdf6;padding:12px 14px;font-family:Arial,sans-serif;">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><span style="font-size:9px;font-weight:800;letter-spacing:1.5px;color:#9a6a00;background:#fff3e0;padding:3px 8px;border-radius:2px;">🔒 ADMIN ONLY — PROFIT ANALYSIS</span></div>'
+      +'<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #d4c9a8;">'
+      +'<th style="text-align:left;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Item</th>'
+      +'<th style="text-align:center;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Qty</th>'
+      +'<th style="text-align:right;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Cost/pc</th>'
+      +'<th style="text-align:right;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Revenue</th>'
+      +'<th style="text-align:right;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Profit</th>'
+      +'<th style="text-align:right;padding:5px 8px;font-size:9.5px;color:#666;text-transform:uppercase;">Margin</th>'
+      +'</tr></thead><tbody>'+profRows+'</tbody></table>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px dashed #d4c9a8;">'
+      +'<span style="font-size:12px;font-weight:800;color:#333;">Invoice Total Profit</span>'
+      +'<span style="font-size:15px;font-weight:800;color:'+npColor+';">'+fmt(netProfit)+' <span style="font-size:11px;">('+netMargin.toFixed(1)+'%)</span></span>'
+      +'</div>'
+      +(inv.disc>0?'<div style="font-size:9.5px;color:#999;margin-top:3px;">*Discount of '+fmt(inv.disc)+' already adjusted in total profit</div>':'')
+      +'</div>';
+  }
+
   var statusColor = inv.payStatus==='Paid' ? '#2e7d32' : inv.payStatus==='Partial' ? '#c9a84c' : '#c0392b';
   var statusWatermark = inv.payStatus==='Paid'
     ? '<div style="position:absolute;bottom:90px;right:-18px;transform:rotate(-35deg);font-size:52px;font-weight:900;color:rgba(46,125,50,.16);letter-spacing:2px;pointer-events:none;font-family:Arial,sans-serif;z-index:0;">PAID</div>'
@@ -6797,7 +7035,8 @@ function buildPreview(inv){
     +'</div>'
     +'</div>'
     +'<div class="inv-prev-bottom-stripe" style="background:linear-gradient(90deg,'+statusColor+'88,'+statusColor+'cc,'+statusColor+');height:5px;"></div>'
-    +'</div>';
+    +'</div>'
+    +profitPanelHtml;
 
 }
 
@@ -9324,11 +9563,13 @@ function initApp(){
   monthlyReports=LS.get('monthlyReports')||{};
   lastCheckedDate=LS.get('lastDate')||nowDate();
   lastCheckedMonth=LS.get('lastMonth')||monthKey(nowDate());
+  heldInvoices=LS.get('heldInvoices')||[]; // parked invoice drafts (device-local, not synced)
   var catEl=document.getElementById('inv-cat'); if(catEl)catEl.innerHTML=buildCatOptions('Shirt');
   var sEl=document.getElementById('inv-size'); if(sEl)sEl.innerHTML=buildSizeOptions('M');
   var eCat=document.getElementById('edit-cat'); if(eCat)eCat.innerHTML=buildCatOptions('Shirt');
   var eSize=document.getElementById('edit-size'); if(eSize)eSize.innerHTML=buildSizeOptions('M');
   initInvoice();
+  renderHeldBadge();
   renderDashboard();
   loadSettings();
   var months=[];
@@ -9536,6 +9777,8 @@ function updatePPSteps(){
 }
 
 function initPendingForm(){
+  _ppBatch = null; _ppGroupInvNos = null; _ppBatchCands = [];
+  var _al = document.getElementById('pp-alloc'); if(_al){ _al.style.display='none'; _al.innerHTML=''; }
   document.getElementById('pp-date').value = nowDate();
   document.getElementById('pp-custName').value = '';
   document.getElementById('pp-custPhone').value = '';
@@ -9575,6 +9818,7 @@ function onPPAmtChange(){
     if(tc) tc.innerHTML = total>0 ? 'Total: <strong style="color:#1565c0;">Rs.'+Math.round(total).toLocaleString('en-IN')+'</strong> — Cash ya UPI fill karo, baaki auto-fill hoga.' : '';
   }
   updatePPSteps(); // Update step 4 highlight as user types amount
+  ppRenderAlloc();
 }
 
 function onPPSplitChange(changedField){
@@ -9615,43 +9859,50 @@ function onPPSplitChange(changedField){
 }
 
 
+var _ppSuggGroups = [];
+var _ppGroupInvNos = null;   // selected customer ke invoice numbers (naam+phone+address match)
+var _ppBatchCands = [];      // is customer ke pending invoices (purane pehle)
+var _ppBatch = null;         // ek-saath payment mode: {label, invNos}
+
 function searchPPCust(val){
   var box = document.getElementById('pp-custSugg');
   if(!box) return;
   if(!val || val.length < 1){ box.style.display='none'; return; }
   invoices = LS.get('invoices')||invoices||[];
-  var q = val.toLowerCase(), seen={}, found=[];
-  // Only show customers with pending invoices
-  invoices.forEach(function(i){
-    if((i.payStatus==='Pending'||i.payStatus==='Partial') &&
-       (i.custName||'').toLowerCase().indexOf(q)===0 && !seen[i.custName]){
-      seen[i.custName]=true;
-      var pendAmt = i.total - (i.paidAmount||0);
-      found.push({name:i.custName, phone:i.custPhone||'', pendAmt:pendAmt});
-    }
-  });
-  found = found.slice(0,8);
+  var q = val.toLowerCase();
+  // Only customers with pending invoices — same naam+phone+address matching jo Pending Dues me hai
+  var pend = invoices.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; });
+  var found = groupPendingByCustomer(pend).filter(function(g){
+    return (g.name||'').toLowerCase().indexOf(q)===0;
+  }).slice(0,8);
+  _ppSuggGroups = found;
   if(!found.length){ box.style.display='none'; return; }
   var h='';
-  found.forEach(function(c){
-    h+='<div class="pur-ac-item" data-n="'+escH(c.name)+'" data-ph="'+escH(c.phone)+'">'
-      +'<span style="font-weight:700;">'+escH(c.name)+'</span>'
-      +(c.phone?'<span style="color:var(--mu);font-size:11px;margin-left:8px;">'+escH(c.phone)+'</span>':'')
-      +'<span style="color:#e65100;font-size:11px;margin-left:8px;">Pending: '+fmt(c.pendAmt)+'</span>'
+  found.forEach(function(g,idx){
+    h+='<div class="pur-ac-item" data-gi="'+idx+'">'
+      +'<span style="font-weight:700;">'+escH(g.name)+'</span>'
+      +(g.phone?'<span style="color:var(--mu);font-size:11px;margin-left:8px;">'+escH(g.phone)+'</span>':'')
+      +(g.addr?'<span style="color:var(--mu);font-size:10px;margin-left:8px;">'+escH(g.addr)+'</span>':'')
+      +'<span style="color:#e65100;font-size:11px;margin-left:8px;">Pending: '+fmt(g.pend)+(g.invs.length>1?' ('+g.invs.length+' inv)':'')+'</span>'
       +'</div>';
   });
   box.innerHTML=h;
   box.style.display='block';
   box.onclick=function(e){
     var item=e.target.closest('.pur-ac-item');
-    if(item) fillPPCust(item.getAttribute('data-n'), item.getAttribute('data-ph'));
+    if(!item) return;
+    var g=_ppSuggGroups[parseInt(item.getAttribute('data-gi'),10)];
+    if(g) fillPPCust(g.name, g.phone||'', g);
   };
 }
 
-function fillPPCust(name, phone){
+function fillPPCust(name, phone, group){
   document.getElementById('pp-custName').value = name;
   document.getElementById('pp-custPhone').value = phone||'';
   var s=document.getElementById('pp-custSugg'); if(s) s.style.display='none';
+  _ppGroupInvNos = group ? group.invs.map(function(i){ return i.invNo; }) : null;
+  _ppBatch = null;
+  ppRenderAlloc();
   // Load pending invoices for this customer
   loadPPInvoices(name);
   updatePPSteps();
@@ -9660,12 +9911,23 @@ function fillPPCust(name, phone){
 function loadPPInvoices(custName){
   invoices = LS.get('invoices')||invoices||[];
   var pendInvs = invoices.filter(function(i){
-    return i.custName===custName && (i.payStatus==='Pending'||i.payStatus==='Partial');
+    if(!(i.payStatus==='Pending'||i.payStatus==='Partial')) return false;
+    if(_ppGroupInvNos) return _ppGroupInvNos.indexOf(i.invNo)!==-1;
+    return i.custName===custName;
   });
+  pendInvs.sort(function(a,b){ return String(a.invDate||'').localeCompare(String(b.invDate||'')); });
+  _ppBatchCands = pendInvs;
   var invListEl = document.getElementById('pp-invList');
   if(!invListEl) return;
   if(!pendInvs.length){ invListEl.style.display='none'; return; }
   var h='<div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);margin-bottom:6px;font-family:Arial,sans-serif;">Select Invoice:</div>';
+  if(pendInvs.length>1){
+    var dueAll = pendInvs.reduce(function(s,i){ return s+(i.total-(i.paidAmount||0)); },0);
+    h+='<div class="pur-ac-item" data-all="1" style="display:flex;justify-content:space-between;align-items:center;background:#e8f5e9;border:1px solid #a5d6a7;margin-bottom:6px;">'
+      +'<span style="font-weight:700;color:#2e7d32;">💰 Sabhi '+pendInvs.length+' invoices ek saath</span>'
+      +'<span style="color:#e65100;font-weight:700;">'+fmt(dueAll)+'</span>'
+      +'</div>';
+  }
   pendInvs.forEach(function(inv){
     var pendAmt = inv.total - (inv.paidAmount||0);
     h+='<div class="pur-ac-item" data-inv="'+inv.invNo+'" data-amt="'+pendAmt+'" style="display:flex;justify-content:space-between;">'
@@ -9678,16 +9940,165 @@ function loadPPInvoices(custName){
   invListEl.style.display='block';
   invListEl.onclick=function(e){
     var item=e.target.closest('.pur-ac-item');
-    if(item){
-      document.getElementById('pp-invNo').value=item.getAttribute('data-inv');
-      document.getElementById('pp-paidAmt').value=item.getAttribute('data-amt');
-      document.getElementById('pp-pendingAmt').value=item.getAttribute('data-amt');
-      updatePPSteps();
-    }
+    if(!item) return;
+    if(item.getAttribute('data-all')){ selectPPBatch(); return; }
+    _ppBatch = null; ppRenderAlloc();
+    document.getElementById('pp-invNo').value=item.getAttribute('data-inv');
+    document.getElementById('pp-paidAmt').value=item.getAttribute('data-amt');
+    document.getElementById('pp-pendingAmt').value=item.getAttribute('data-amt');
+    updatePPSteps();
   };
 }
 
+// ═════════ EK SAATH PAYMENT (multi-invoice) ═════════
+function selectPPBatch(){
+  var invs=_ppBatchCands||[];
+  if(invs.length<2) return;
+  var due=invs.reduce(function(s,i){ return s+Math.max(0,i.total-(i.paidAmount||0)); },0);
+  _ppBatch={label:invs.length+' invoices (ek saath)', invNos:invs.map(function(i){ return i.invNo; })};
+  document.getElementById('pp-invNo').value=_ppBatch.label;
+  document.getElementById('pp-pendingAmt').value=due;
+  document.getElementById('pp-paidAmt').value=due;
+  onPPAmtChange();
+}
+
+function ppBatchActive(){
+  var el=document.getElementById('pp-invNo');
+  return !!(_ppBatch && el && el.value.trim()===_ppBatch.label);
+}
+
+// Oldest invoice pehle — amount ko invoices me baantta hai
+function ppAllocate(paid){
+  var rows=[], rem=paid, due=0;
+  _ppBatch.invNos.forEach(function(no){
+    var inv=invoices.find(function(i){ return i.invNo===no; });
+    if(!inv) return;
+    var pend=Math.max(0,inv.total-(inv.paidAmount||0));
+    if(pend<=0) return;
+    due+=pend;
+    var a=Math.min(pend,Math.max(0,rem));
+    a=Math.round(a*100)/100;
+    rem=Math.round((rem-a)*100)/100;
+    if(a>0) rows.push({inv:inv,pend:pend,pay:a,left:Math.round((pend-a)*100)/100});
+  });
+  return {rows:rows,due:due,excess:Math.max(0,rem)};
+}
+
+function ppRenderAlloc(){
+  var box=document.getElementById('pp-alloc');
+  if(!box) return;
+  if(!ppBatchActive()){ box.style.display='none'; box.innerHTML=''; return; }
+  var paid=parseFloat(document.getElementById('pp-paidAmt').value)||0;
+  var al=ppAllocate(paid);
+  var h='<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#2e7d32;font-family:Arial,sans-serif;margin-bottom:6px;">Invoice-wise Allocation (purane invoice pehle)</div>';
+  if(!al.rows.length){ h+='<div style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;">Amount daalo — automatically invoices me baant jayega.</div>'; }
+  al.rows.forEach(function(r){
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #c8e6c9;font-family:Arial,sans-serif;font-size:11px;">'
+      +'<div><strong>'+escH(r.inv.invNo)+'</strong> <span style="color:var(--mu);">'+escH(r.inv.invDate||'')+'</span><div style="font-size:10px;color:var(--mu);">Baaki tha '+fmt(r.pend)+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-weight:700;color:#2e7d32;font-size:13px;">'+fmt(r.pay)+'</div>'
+      +'<div style="font-size:10px;color:'+(r.left>0?'#e65100':'#2e7d32')+';">'+(r.left>0?'Baaki '+fmt(r.left):'Paid in full')+'</div></div></div>';
+  });
+  if(al.excess>0){
+    h+='<div style="margin-top:6px;font-size:11px;font-weight:700;color:#c62828;font-family:Arial,sans-serif;">⚠️ Amount total due '+fmt(al.due)+' se zyada hai!</div>';
+  } else {
+    h+='<div style="margin-top:6px;font-size:11px;font-family:Arial,sans-serif;color:#555;text-align:right;">Total due '+fmt(al.due)+' &rarr; payment ke baad baaki: <strong style="color:'+((al.due-paid)>0?'#e65100':'#2e7d32')+';">'+fmt(Math.max(0,al.due-paid))+'</strong></div>';
+  }
+  box.innerHTML=h;
+  box.style.display='block';
+}
+
+// Batch ke kisi bhi receipt ko dekhte/share karte waqt ek combined receipt banao
+function _batchView(r){
+  if(!r || !r.batchId) return r;
+  var recs=pendingPayments.filter(function(x){ return x.batchId===r.batchId; }).sort(function(a,b){ return a.id-b.id; });
+  if(recs.length<2) return r;
+  var c={};
+  Object.keys(r).forEach(function(k){ c[k]=r[k]; });
+  c.invNo=recs.map(function(x){ return x.invNo; }).join(', ');
+  c.paidAmt=recs.reduce(function(s,x){ return s+(x.paidAmt||0); },0);
+  c.cashAmt=recs.reduce(function(s,x){ return s+(x.cashAmt||0); },0);
+  c.upiAmt=recs.reduce(function(s,x){ return s+(x.upiAmt||0); },0);
+  c.payMode=r.batchMode||r.payMode;
+  c.pendingAmt=r.batchDueBefore!=null?r.batchDueBefore:recs.reduce(function(s,x){ return s+(x.pendingAmt||0); },0);
+  c.remainingAmt=r.batchRemaining!=null?r.batchRemaining:0;
+  c._batch=recs.map(function(x){ return {invNo:x.invNo, paid:x.paidAmt||0, left:x.remainingAmt||0}; });
+  return c;
+}
+
+function saveBatchPayment(){
+  var custName=document.getElementById('pp-custName').value.trim();
+  var paidAmt=parseFloat(document.getElementById('pp-paidAmt').value)||0;
+  var payMode=document.getElementById('pp-payMode').value;
+  var cashAmt=0, upiAmt=0;
+  if(payMode==='Split'){
+    cashAmt=parseFloat(document.getElementById('pp-cashAmt').value)||0;
+    upiAmt=parseFloat(document.getElementById('pp-upiAmt').value)||0;
+    if(cashAmt<=0 && upiAmt<=0){ showToast('Split mein Cash ya UPI amount daalo!'); return; }
+    paidAmt=cashAmt+upiAmt;
+    document.getElementById('pp-paidAmt').value=paidAmt;
+  }
+  if(!custName){ showToast('Customer name required!'); return; }
+  if(paidAmt<=0){ showToast('Paid amount required!'); return; }
+  var al=ppAllocate(paidAmt);
+  if(!al.rows.length){ showToast('⚠️ In invoices ka koi balance baaki nahi hai!'); return; }
+  if(al.excess>0){ showToast('⚠️ Amount Rs.'+paidAmt+' total due Rs.'+al.due+' se zyada hai! Sahi amount daalo.'); return; }
+
+  var date=document.getElementById('pp-date').value||nowDate();
+  var rcptNo=genReceiptNo(date);
+  var base=Date.now(), batchId='B'+base;
+  var notes=document.getElementById('pp-notes').value;
+  var phone=document.getElementById('pp-custPhone').value;
+  var nowIso=new Date().toISOString();
+  var cashLeft=cashAmt;
+  var records=[];
+  al.rows.forEach(function(row,idx){
+    var inv=row.inv;
+    inv.paidAmount=(inv.paidAmount||0)+row.pay;
+    if(inv.total-inv.paidAmount<=0){ inv.payStatus='Paid'; inv.paidAmount=inv.total; }
+    else { inv.payStatus='Partial'; }
+    inv.savedAt=nowIso;   // dusre device pe merge me yeh version jite
+    var c=0,u=0,mode=payMode;
+    if(payMode==='Split'){
+      c=Math.round(Math.min(cashLeft,row.pay)*100)/100;
+      cashLeft=Math.round((cashLeft-c)*100)/100;
+      u=Math.round((row.pay-c)*100)/100;
+      mode=(c>0&&u>0)?'Split':(c>0?'Cash':'UPI');
+    }
+    records.push({
+      id: base+idx,
+      date: date,
+      receiptNo: rcptNo,
+      custName: custName,
+      custPhone: phone,
+      invNo: inv.invNo,
+      pendingAmt: row.pend,
+      paidAmt: row.pay,
+      remainingAmt: Math.max(0, inv.total-inv.paidAmount),
+      payMode: mode,
+      cashAmt: mode==='Split'?c:0,
+      upiAmt:  mode==='Split'?u:0,
+      notes: notes,
+      savedAt: nowIso,
+      batchId: batchId,
+      batchMode: payMode,
+      batchDueBefore: al.due,
+      batchRemaining: Math.max(0, al.due-paidAmt)
+    });
+  });
+  LS.sync('invoices', invoices);
+  for(var k=records.length-1;k>=0;k--){ pendingPayments.unshift(records[k]); }
+  LS.sync('pendingPayments', pendingPayments);
+
+  var view=_batchView(records[0]);
+  currentPendingReceipt=view;
+  buildPendingPreview(view);
+  navTo('pendingpreview', null);
+  setTimeout(function(){ initPendingForm(); }, 300);
+  showToast('Payment '+records.length+' invoices me baant di gayi! Receipt ready.');
+}
+
 function savePendingPayment(){
+  if(ppBatchActive()){ saveBatchPayment(); return; } // ek saath multi-invoice payment
   var custName=document.getElementById('pp-custName').value.trim();
   var invNo=document.getElementById('pp-invNo').value.trim();
   var paidAmt=parseFloat(document.getElementById('pp-paidAmt').value)||0;
@@ -9821,6 +10232,14 @@ function buildPendingPreview(r){
   var rcptWatermark = isFullyPaid
     ? '<div style="position:absolute;bottom:80px;right:-20px;transform:rotate(-35deg);font-size:52px;font-weight:900;color:rgba(46,125,50,.16);letter-spacing:2px;pointer-events:none;font-family:Arial,sans-serif;z-index:0;">RECEIVED</div>'
     : '<div style="position:absolute;bottom:80px;right:-20px;transform:rotate(-35deg);font-size:42px;font-weight:900;color:rgba(230,81,0,.16);letter-spacing:2px;pointer-events:none;font-family:Arial,sans-serif;z-index:0;">PARTIAL</div>';
+  var batchRows = '';
+  if(r._batch && r._batch.length>1){
+    batchRows = '<tr style="background:#eceff1;"><td colspan="2" style="padding:7px 14px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#37474f;">Invoice-wise Breakup</td></tr>'
+      + r._batch.map(function(b){
+          return '<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 14px;font-family:Arial,sans-serif;font-size:11px;color:#333;"><strong>'+escH(b.invNo)+'</strong>'+(b.left>0?'<div style="font-size:9px;color:#e65100;">Baaki: '+fmt(b.left)+'</div>':'<div style="font-size:9px;color:#2e7d32;">Paid in full</div>')+'</td>'
+            +'<td style="padding:7px 14px;text-align:right;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#2e7d32;">'+fmt(b.paid)+'</td></tr>';
+        }).join('');
+  }
   document.getElementById('ppPreviewBox').innerHTML =
     '<div class="inv-prev" id="ppPrint" style="border:1px solid '+rcptColor+';box-shadow:0 0 0 1px rgba(0,0,0,.06),0 4px 24px rgba(0,0,0,.10);">'
     +rcptWatermark
@@ -9846,7 +10265,7 @@ function buildPendingPreview(r){
     +(r.custPhone?'<br><span style="font-family:Arial,sans-serif;color:#555;">'+escH(r.custPhone)+'</span>':'')
     +'</div></div>'
     +'<div style="text-align:right;"><div class="iml">Against Invoice</div>'
-    +'<div class="imv" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;font-size:14px;">'+escH(r.invNo)+'</div>'
+    +'<div class="imv" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;font-size:14px;">'+escH((r._batch&&r._batch.length>1)?(r._batch.length+' Invoices'):r.invNo)+'</div>'
     +'</div></div></div>'
     +'<div style="margin:0;padding:22px 24px;background:#f5f5f0;border-top:2px solid #b0bec5;border-bottom:2px solid #b0bec5;text-align:center;">'
     +'<div style="font-size:9px;letter-spacing:3px;text-transform:uppercase;color:#546e7a;font-family:Arial,sans-serif;font-weight:700;margin-bottom:8px;">Amount Received</div>'
@@ -9864,6 +10283,7 @@ function buildPendingPreview(r){
     +'<td style="padding:10px 14px;text-align:right;font-family:Arial,sans-serif;font-size:17px;font-weight:700;color:#2e7d32;">'+fmt(r.paidAmt)+'</td>'
     +'</tr>'
     +splitRow
+    +batchRows
     +(isFullyPaid
       ? '<tr style="background:transparent;border-top:2px solid #2e7d32;">'
         +'<td colspan="2" style="padding:12px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#2e7d32;text-align:center;letter-spacing:2px;">&#10003; PAYMENT COMPLETE — PAID IN FULL</td>'
@@ -9897,6 +10317,43 @@ function buildPendingPreview(r){
     +'</div>'
     +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+'88,'+rcptColor+'cc,'+rcptColor+');"></div>'
     +'</div>';
+}
+
+function groupPendingByCustomer(pendInvs){
+  // Match rule: naam same + phone same + address same. Blank phone/address wildcard hai (purane invoice me
+  // agar phone/address nahi bhara to wo us naam ke ek hi matching customer se judega). Agar do alag
+  // customers (same naam, alag phone/address) ho aur invoice me detail blank ho, to andaza nahi lagate — alag card.
+  function _nName(v){ return String(v||'').replace(/\s+/g,' ').trim().toLowerCase(); }
+  function _nPhone(v){ var d=String(v||'').replace(/\D/g,''); return d.length>10 ? d.slice(-10) : d; }
+  function _nAddr(v){ return String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+  function _fits(g,n,ph,ad){
+    return g.n===n && (!g.ph || !ph || g.ph===ph) && (!g.ad || !ad || g.ad===ad);
+  }
+  var _groups = [];
+  var _ordered = pendInvs.map(function(inv){
+    return {inv:inv, n:_nName(inv.custName), ph:_nPhone(inv.custPhone), ad:_nAddr(inv.custAddr)};
+  });
+  // Pehle woh invoices jinme phone/address bhara hai (zyada detail), phir blank wale
+  _ordered.sort(function(x,y){
+    return ((y.ph?1:0)+(y.ad?1:0)) - ((x.ph?1:0)+(x.ad?1:0));
+  });
+  _ordered.forEach(function(o){
+    var inv=o.inv;
+    var cands = _groups.filter(function(g){ return _fits(g,o.n,o.ph,o.ad); });
+    var g;
+    if(cands.length===1){ g=cands[0]; }
+    else {
+      g = {n:o.n, ph:'', ad:'', name:(inv.custName||'').trim()||'(No name)', phone:'', addr:'', invs:[], pend:0, total:0};
+      _groups.push(g);
+    }
+    if(!g.ph && o.ph){ g.ph=o.ph; g.phone=inv.custPhone; }
+    if(!g.ad && o.ad){ g.ad=o.ad; g.addr=inv.custAddr; }
+    g.invs.push(inv);
+    g.pend += (inv.total-(inv.paidAmount||0));
+    g.total += inv.total;
+  });
+  _groups.sort(function(a,b){ return b.pend-a.pend; });
+  return _groups;
 }
 
 function renderPendingDashboard(){
@@ -9966,20 +10423,41 @@ function renderPendingDashboard(){
     pl.innerHTML='<div style="text-align:center;padding:40px;color:var(--mu);font-family:Arial,sans-serif;">No pending payments</div>';
     return;
   }
+  // Customer-wise grouping: ek customer ke saare pending invoices ek hi card me + customer total
+  var _groups = groupPendingByCustomer(pendInvs);
+  _groups.sort(function(a,b){ return b.pend-a.pend; });
+
   var h='';
-  pendInvs.forEach(function(inv){
-    var pendAmt = inv.total-(inv.paidAmount||0);
-    h+='<div style="padding:12px 14px;border-bottom:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;gap:10px;">'
-      +'<div><div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">'+escH(inv.custName)+'</div>'
-      +'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(inv.invNo)+' | '+inv.invDate+'</div>'
-      +(inv.custPhone?'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(inv.custPhone)+'</div>':'')
+  _groups.forEach(function(g){
+    g.invs.sort(function(a,b){ return String(a.invDate||'').localeCompare(String(b.invDate||'')); });
+    h+='<div style="border-bottom:2px solid var(--bdr);">'
+      // Customer header with total
+      +'<div style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:#faf8f3;">'
+      +'<div style="min-width:0;"><div style="font-weight:700;font-size:14px;font-family:Arial,sans-serif;">'+escH(g.name)+'</div>'
+      +(g.phone?'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(g.phone)+'</div>':'')
+      +(g.addr?'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(g.addr)+'</div>':'')
+      +'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+g.invs.length+' pending invoice'+(g.invs.length>1?'s':'')+'</div>'
       +'</div>'
       +'<div style="text-align:right;flex-shrink:0;">'
-      +'<div style="font-family:Arial,sans-serif;font-size:18px;font-weight:700;color:#e65100;">'+fmt(pendAmt)+'</div>'
-      +'<div style="font-size:10px;color:var(--mu);">of '+fmt(inv.total)+'</div>'
-      +'<span class="pay-badge pay-pending">'+escH(inv.payStatus)+'</span>'
+      +'<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);font-family:Arial,sans-serif;">Total Due</div>'
+      +'<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#e65100;">'+fmt(g.pend)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu);">of '+fmt(g.total)+'</div>'
       +'</div>'
       +'</div>';
+    // Invoice-wise rows under this customer
+    g.invs.forEach(function(inv){
+      var pendAmt = inv.total-(inv.paidAmount||0);
+      h+='<div style="padding:9px 14px 9px 22px;border-top:1px solid var(--bdr);display:flex;justify-content:space-between;align-items:center;gap:10px;">'
+        +'<div><div style="font-weight:600;font-size:12px;font-family:Arial,sans-serif;">'+escH(inv.invNo)+'</div>'
+        +'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+inv.invDate+'</div></div>'
+        +'<div style="text-align:right;flex-shrink:0;">'
+        +'<div style="font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#e65100;">'+fmt(pendAmt)+'</div>'
+        +'<div style="font-size:10px;color:var(--mu);">of '+fmt(inv.total)+(inv.paidAmount>0?' &middot; paid '+fmt(inv.paidAmount):'')+'</div>'
+        +'<span class="pay-badge pay-pending">'+escH(inv.payStatus)+'</span>'
+        +'</div>'
+        +'</div>';
+    });
+    h+='</div>';
   });
   pl.innerHTML=h;
 }
@@ -10140,6 +10618,7 @@ function scrollToReceiptMonth(dateOrMonth){
 function viewReceipt(id){
   var r=pendingPayments.find(function(p){return p.id===id;});
   if(!r) return;
+  r=_batchView(r);
   currentPendingReceipt=r;
   buildPendingPreview(r);
   navTo('pendingpreview',null);
@@ -10155,6 +10634,7 @@ function deleteReceipt(id){
 async function shareReceiptWA(id){
   var r=pendingPayments.find(function(p){return p.id===id;});
   if(!r){showToast('Receipt not found');return;}
+  r=_batchView(r);
 
   // Rebuild the receipt preview fresh (so #ppPrint always matches this exact
   // receipt, whether called right after Save or from the receipts list).
@@ -10221,6 +10701,7 @@ function exportPendingExcel(){
 function downloadReceiptPDFById(id){
   var r=pendingPayments.find(function(p){return p.id===id;});
   if(!r){showToast('Receipt not found');return;}
+  r=_batchView(r);
   currentPendingReceipt=r;
   buildPendingPreview(r);
   setTimeout(function(){ downloadReceiptPDF(); }, 400);
@@ -10434,8 +10915,8 @@ async function silentPull(){
       // FIX: Admin ke liye pehle blind overwrite tha — local-only naye customers
       // (jo abhi cloud tak sync nahi hue) gaayab ho sakte the. Ab dono roles ke
       // liye same safe merge.
-      var cloudCustNames = new Set(d.customers.map(function(c){ return (c.name||'').toLowerCase(); }));
-      var localOnlyCusts = savedCustomers.filter(function(c){ return !cloudCustNames.has((c.name||'').toLowerCase()); });
+      var cloudCustNames = new Set(d.customers.map(function(c){ return custKey(c.name, c.phone); }));
+      var localOnlyCusts = savedCustomers.filter(function(c){ return !cloudCustNames.has(custKey(c.name, c.phone)); });
       var mergedCusts = d.customers.concat(localOnlyCusts);
       if(JSON.stringify(mergedCusts) !== JSON.stringify(savedCustomers)){
         savedCustomers = mergedCusts; LS.setL('customers', savedCustomers);
