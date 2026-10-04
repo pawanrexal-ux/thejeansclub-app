@@ -1286,6 +1286,14 @@ input[type=tel], textarea, select {
           <div class="card-body">
             <div class="ig"><label>Pending Amount (auto-filled)</label><input type="number" id="pp-pendingAmt" placeholder="0" inputmode="numeric" style="font-family:Arial,sans-serif;background:#fff3e0;font-weight:700;"/></div>
             <div class="ig"><label>Amount Paid Now (Rs.)</label><input type="number" id="pp-paidAmt" placeholder="Enter amount received" inputmode="numeric" oninput="onPPAmtChange()" style="font-family:Arial,sans-serif;font-weight:700;font-size:16px;border-color:var(--g);"/></div>
+            <div class="ig" id="pp-disc-wrap">
+              <label>Discount / Chhoot (Optional) — baaki chhod kar Full Paid karne ke liye</label>
+              <div style="display:flex;gap:6px;align-items:stretch;">
+                <div class="iw" style="flex:1;"><span class="ip">Rs.</span><input type="number" id="pp-discAmt" placeholder="0" inputmode="numeric" min="0" oninput="onPPDiscChange()" style="font-family:Arial,sans-serif;font-weight:700;"/></div>
+                <button type="button" class="btn btn-gold" id="pp-discAuto" onclick="ppAutoDisc()" style="padding:6px 10px;font-size:10px;white-space:nowrap;">Baaki chhod do</button>
+              </div>
+              <div id="pp-disc-info" style="display:none;margin-top:6px;font-size:11px;font-family:Arial,sans-serif;"></div>
+            </div>
             <div id="pp-alloc" style="display:none;background:#f1f8f2;border:1px solid #a5d6a7;padding:10px;margin-bottom:10px;border-radius:2px;"></div>
             <!-- Split fields - show only when Split selected -->
             <div id="pp-split-fields" style="display:none;">
@@ -2970,6 +2978,7 @@ function diffReceipt(oldR, newR){
     {key:'invNo',      label:'Invoice No'},
     {key:'pendingAmt', label:'Pending Amount'},
     {key:'paidAmt',    label:'Paid Amount'},
+    {key:'discountAmt',label:'Discount (Chhoot)'},
     {key:'payMode',    label:'Payment Mode'},
     {key:'cashAmt',    label:'Cash Amount'},
     {key:'upiAmt',     label:'UPI Amount'},
@@ -6837,6 +6846,7 @@ function buildPreview(inv){
   var linkedReceipts = (pendingPayments||[]).filter(function(r){ return r.invNo === inv.invNo; })
     .sort(function(a,b){ return (a.savedAt||a.date||'').localeCompare(b.savedAt||b.date||''); });
   var totalReceiptPaid = linkedReceipts.reduce(function(s,r){ return s+(r.paidAmt||0); }, 0);
+  var totalReceiptDisc = linkedReceipts.reduce(function(s,r){ return s+(r.discountAmt||0); }, 0);
 
   // ── Build payment rows for the invoice PDF ──
   var splitRows = '';
@@ -6845,7 +6855,7 @@ function buildPreview(inv){
 
   // Original invoice payment (the amount paid AT the time of invoice creation)
   // = inv.paidAmount (total ever paid) − all subsequent receipts
-  var origInvPaid = Math.max(0, (inv.paidAmount||0) - totalReceiptPaid);
+  var origInvPaid = Math.max(0, (inv.paidAmount||0) - totalReceiptPaid - totalReceiptDisc);
 
   if(isPartialInv || isPaidFull){
     // ── Show original invoice payment ──
@@ -6887,9 +6897,12 @@ function buildPreview(inv){
     if(linkedReceipts.length > 0 || origInvPaid > 0){
       splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 4px;border-top:1px dashed #d4c9a8;"><span style="font-family:Arial,sans-serif;color:#2e7d32;font-weight:800;">&#10003; Total Received</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#2e7d32;">'+fmt(totalPaidAll)+'</span></div>';
     }
+    if(totalReceiptDisc > 0){
+      splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:5px 4px;"><span style="font-family:Arial,sans-serif;color:#e65100;font-weight:800;">Discount / Chhoot</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#e65100;">'+fmt(totalReceiptDisc)+'</span></div>';
+    }
 
     // ── Balance due ──
-    var remAmt = Math.max(0, inv.total - totalPaidAll);
+    var remAmt = Math.max(0, inv.total - totalPaidAll - totalReceiptDisc);
     if(isPartialInv){
       splitRows += '<div class="inv-tot-row" style="font-size:12px;padding:7px 4px;border-bottom:none;background:#fff3e0;"><span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;">&#9203; Balance Due</span><span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;">'+fmt(remAmt)+'</span></div>';
     } else if(isPaidFull && linkedReceipts.length > 0){
@@ -6927,7 +6940,7 @@ function buildPreview(inv){
         +'<td style="padding:6px 8px;text-align:right;font-family:Arial,sans-serif;font-size:11.5px;font-weight:700;color:'+pColor+';">'+marg.toFixed(1)+'%</td>'
         +'</tr>';
     });
-    var netRev = totalRev - (inv.disc||0); // discount reduces actual revenue received
+    var netRev = totalRev - (inv.disc||0) - (totalReceiptDisc||0); // discount (invoice + payment-receipt chhoot) reduces actual revenue received
     var netProfit = netRev - totalCost;
     var netMargin = netRev>0 ? (netProfit/netRev*100) : 0;
     var npColor = netProfit>=0 ? '#2e7d32' : '#c0392b';
@@ -9785,6 +9798,8 @@ function initPendingForm(){
   document.getElementById('pp-invNo').value = '';
   document.getElementById('pp-pendingAmt').value = '';
   document.getElementById('pp-paidAmt').value = '';
+  var _dsc = document.getElementById('pp-discAmt'); if(_dsc) _dsc.value = '';
+  var _dsi = document.getElementById('pp-disc-info'); if(_dsi){ _dsi.style.display='none'; _dsi.innerHTML=''; }
   document.getElementById('pp-payMode').value = 'Cash';
   document.getElementById('pp-notes').value = '';
   var s = document.getElementById('pp-custSugg'); if(s) s.style.display='none';
@@ -9819,6 +9834,7 @@ function onPPAmtChange(){
   }
   updatePPSteps(); // Update step 4 highlight as user types amount
   ppRenderAlloc();
+  ppRenderDisc();
 }
 
 function onPPSplitChange(changedField){
@@ -9946,6 +9962,8 @@ function loadPPInvoices(custName){
     document.getElementById('pp-invNo').value=item.getAttribute('data-inv');
     document.getElementById('pp-paidAmt').value=item.getAttribute('data-amt');
     document.getElementById('pp-pendingAmt').value=item.getAttribute('data-amt');
+    var _d1=document.getElementById('pp-discAmt'); if(_d1) _d1.value='';
+    ppRenderDisc();
     updatePPSteps();
   };
 }
@@ -9959,6 +9977,7 @@ function selectPPBatch(){
   document.getElementById('pp-invNo').value=_ppBatch.label;
   document.getElementById('pp-pendingAmt').value=due;
   document.getElementById('pp-paidAmt').value=due;
+  var _d2=document.getElementById('pp-discAmt'); if(_d2) _d2.value='';
   onPPAmtChange();
 }
 
@@ -9968,8 +9987,9 @@ function ppBatchActive(){
 }
 
 // Oldest invoice pehle — amount ko invoices me baantta hai
-function ppAllocate(paid){
-  var rows=[], rem=paid, due=0;
+// disc (optional): Discount/Chhoot — paid amount baantne ke BAAD bacha hua due oldest-first isse clear hota hai
+function ppAllocate(paid, disc){
+  var rows=[], rem=paid, remD=Math.max(0,disc||0), due=0;
   _ppBatch.invNos.forEach(function(no){
     var inv=invoices.find(function(i){ return i.invNo===no; });
     if(!inv) return;
@@ -9979,9 +9999,73 @@ function ppAllocate(paid){
     var a=Math.min(pend,Math.max(0,rem));
     a=Math.round(a*100)/100;
     rem=Math.round((rem-a)*100)/100;
-    if(a>0) rows.push({inv:inv,pend:pend,pay:a,left:Math.round((pend-a)*100)/100});
+    rows.push({inv:inv,pend:pend,pay:a,disc:0,left:Math.round((pend-a)*100)/100});
   });
-  return {rows:rows,due:due,excess:Math.max(0,rem)};
+  rows.forEach(function(r){
+    if(remD<=0 || r.left<=0) return;
+    var d=Math.min(r.left,remD);
+    d=Math.round(d*100)/100;
+    r.disc=d; r.left=Math.round((r.left-d)*100)/100;
+    remD=Math.round((remD-d)*100)/100;
+  });
+  rows=rows.filter(function(r){ return r.pay>0 || r.disc>0; });
+  return {rows:rows,due:due,excess:Math.max(0,rem),discExcess:Math.max(0,remD)};
+}
+
+// ═════════ DISCOUNT / CHHOOT (Full Paid receipt ke liye) ═════════
+function ppGetDisc(){
+  var el=document.getElementById('pp-discAmt');
+  var v=el?(parseFloat(el.value)||0):0;
+  return v>0?Math.round(v*100)/100:0;
+}
+// Abhi selected invoice(ya batch) ka total baaki due
+function ppDueNow(){
+  if(ppBatchActive()){
+    return _ppBatch.invNos.reduce(function(sum,no){
+      var inv=invoices.find(function(i){ return i.invNo===no; });
+      return sum+(inv?Math.max(0,inv.total-(inv.paidAmount||0)):0);
+    },0);
+  }
+  var invNo=(document.getElementById('pp-invNo')||{}).value;
+  var inv=invNo?invoices.find(function(i){ return i.invNo===String(invNo).trim(); }):null;
+  if(inv) return Math.max(0,inv.total-(inv.paidAmount||0));
+  // Edit mode me invoice reverse ho chuka hota hai, fallback: form ka pending amount
+  return parseFloat((document.getElementById('pp-pendingAmt')||{}).value)||0;
+}
+function ppRenderDisc(){
+  var box=document.getElementById('pp-disc-info');
+  if(!box) return;
+  var paid=parseFloat(document.getElementById('pp-paidAmt').value)||0;
+  var disc=ppGetDisc();
+  var due=ppDueNow();
+  if(!due || paid<=0){ box.style.display='none'; box.innerHTML=''; return; }
+  var left=Math.round((due-paid-disc)*100)/100;
+  var h='';
+  if(left>0 && disc<=0){
+    h='Baaki <strong style="color:#e65100;">'+fmt(left)+'</strong> rahega — receipt <strong>Partial</strong> banegi. Agar customer ko chhoot deni hai to "Baaki chhod do" dabao.';
+  } else if(left>0){
+    h='Chhoot '+fmt(disc)+' ke baad bhi baaki <strong style="color:#e65100;">'+fmt(left)+'</strong> rahega (Partial).';
+  } else if(left<0){
+    h='<strong style="color:#c62828;">⚠️ Paid + Chhoot ('+fmt(paid+disc)+') due '+fmt(due)+' se zyada hai!</strong>';
+  } else if(disc>0){
+    h='<strong style="color:#2e7d32;">✅ '+fmt(paid)+' received + '+fmt(disc)+' chhoot = '+fmt(due)+' — receipt "Paid in Full" banegi.</strong>';
+  } else { h=''; }
+  box.innerHTML=h;
+  box.style.display=h?'block':'none';
+}
+function onPPDiscChange(){
+  ppRenderAlloc();
+  ppRenderDisc();
+}
+function ppAutoDisc(){
+  var paid=parseFloat(document.getElementById('pp-paidAmt').value)||0;
+  if(paid<=0){ showToast('Pehle Amount Paid Now daalo!'); return; }
+  var due=ppDueNow();
+  if(!due){ showToast('Pehle customer/invoice select karo!'); return; }
+  var left=Math.round((due-paid)*100)/100;
+  if(left<=0){ showToast('Koi baaki amount nahi hai — chhoot ki zaroorat nahi.'); return; }
+  document.getElementById('pp-discAmt').value=left;
+  onPPDiscChange();
 }
 
 function ppRenderAlloc(){
@@ -9989,12 +10073,12 @@ function ppRenderAlloc(){
   if(!box) return;
   if(!ppBatchActive()){ box.style.display='none'; box.innerHTML=''; return; }
   var paid=parseFloat(document.getElementById('pp-paidAmt').value)||0;
-  var al=ppAllocate(paid);
+  var al=ppAllocate(paid, ppGetDisc());
   var h='<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#2e7d32;font-family:Arial,sans-serif;margin-bottom:6px;">Invoice-wise Allocation (purane invoice pehle)</div>';
   if(!al.rows.length){ h+='<div style="font-size:11px;color:var(--mu);font-family:Arial,sans-serif;">Amount daalo — automatically invoices me baant jayega.</div>'; }
   al.rows.forEach(function(r){
     h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px dashed #c8e6c9;font-family:Arial,sans-serif;font-size:11px;">'
-      +'<div><strong>'+escH(r.inv.invNo)+'</strong> <span style="color:var(--mu);">'+escH(r.inv.invDate||'')+'</span><div style="font-size:10px;color:var(--mu);">Baaki tha '+fmt(r.pend)+'</div></div>'
+      +'<div><strong>'+escH(r.inv.invNo)+'</strong> <span style="color:var(--mu);">'+escH(r.inv.invDate||'')+'</span><div style="font-size:10px;color:var(--mu);">Baaki tha '+fmt(r.pend)+(r.disc>0?' · Chhoot '+fmt(r.disc):'')+'</div></div>'
       +'<div style="text-align:right;"><div style="font-weight:700;color:#2e7d32;font-size:13px;">'+fmt(r.pay)+'</div>'
       +'<div style="font-size:10px;color:'+(r.left>0?'#e65100':'#2e7d32')+';">'+(r.left>0?'Baaki '+fmt(r.left):'Paid in full')+'</div></div></div>';
   });
@@ -10016,12 +10100,13 @@ function _batchView(r){
   Object.keys(r).forEach(function(k){ c[k]=r[k]; });
   c.invNo=recs.map(function(x){ return x.invNo; }).join(', ');
   c.paidAmt=recs.reduce(function(s,x){ return s+(x.paidAmt||0); },0);
+  c.discountAmt=recs.reduce(function(s,x){ return s+(x.discountAmt||0); },0);
   c.cashAmt=recs.reduce(function(s,x){ return s+(x.cashAmt||0); },0);
   c.upiAmt=recs.reduce(function(s,x){ return s+(x.upiAmt||0); },0);
   c.payMode=r.batchMode||r.payMode;
   c.pendingAmt=r.batchDueBefore!=null?r.batchDueBefore:recs.reduce(function(s,x){ return s+(x.pendingAmt||0); },0);
   c.remainingAmt=r.batchRemaining!=null?r.batchRemaining:0;
-  c._batch=recs.map(function(x){ return {invNo:x.invNo, paid:x.paidAmt||0, left:x.remainingAmt||0}; });
+  c._batch=recs.map(function(x){ return {invNo:x.invNo, paid:x.paidAmt||0, disc:x.discountAmt||0, left:x.remainingAmt||0}; });
   return c;
 }
 
@@ -10039,9 +10124,12 @@ function saveBatchPayment(){
   }
   if(!custName){ showToast('Customer name required!'); return; }
   if(paidAmt<=0){ showToast('Paid amount required!'); return; }
-  var al=ppAllocate(paidAmt);
+  var discAmt=ppGetDisc();
+  var al=ppAllocate(paidAmt, discAmt);
   if(!al.rows.length){ showToast('⚠️ In invoices ka koi balance baaki nahi hai!'); return; }
   if(al.excess>0){ showToast('⚠️ Amount Rs.'+paidAmt+' total due Rs.'+al.due+' se zyada hai! Sahi amount daalo.'); return; }
+  if(al.discExcess>0){ showToast('⚠️ Chhoot Rs.'+discAmt+' baaki balance se zyada hai! Paid + Chhoot total due Rs.'+al.due+' se zyada nahi ho sakta.'); return; }
+  if(discAmt>0 && !confirm('Rs.'+discAmt+' chhoot (discount) dekar receipt banegi.'+((al.due-paidAmt-discAmt)<=0?' Sabhi invoices "Paid in Full" ho jayenge.':'')+'\n\nConfirm?')) return;
 
   var date=document.getElementById('pp-date').value||nowDate();
   var rcptNo=genReceiptNo(date);
@@ -10053,7 +10141,7 @@ function saveBatchPayment(){
   var records=[];
   al.rows.forEach(function(row,idx){
     var inv=row.inv;
-    inv.paidAmount=(inv.paidAmount||0)+row.pay;
+    inv.paidAmount=(inv.paidAmount||0)+row.pay+(row.disc||0);
     if(inv.total-inv.paidAmount<=0){ inv.payStatus='Paid'; inv.paidAmount=inv.total; }
     else { inv.payStatus='Partial'; }
     inv.savedAt=nowIso;   // dusre device pe merge me yeh version jite
@@ -10073,6 +10161,7 @@ function saveBatchPayment(){
       invNo: inv.invNo,
       pendingAmt: row.pend,
       paidAmt: row.pay,
+      discountAmt: row.disc||0,
       remainingAmt: Math.max(0, inv.total-inv.paidAmount),
       payMode: mode,
       cashAmt: mode==='Split'?c:0,
@@ -10082,10 +10171,13 @@ function saveBatchPayment(){
       batchId: batchId,
       batchMode: payMode,
       batchDueBefore: al.due,
-      batchRemaining: Math.max(0, al.due-paidAmt)
+      batchRemaining: Math.max(0, al.due-paidAmt-discAmt)
     });
   });
   LS.sync('invoices', invoices);
+  if(discAmt>0){
+    logEdit('Receipt', rcptNo, [{field:'Discount (Chhoot)', from:'0', to:String(discAmt)}], 'Multi-invoice receipt me chhoot di gayi — '+custName);
+  }
   for(var k=records.length-1;k>=0;k--){ pendingPayments.unshift(records[k]); }
   LS.sync('pendingPayments', pendingPayments);
 
@@ -10120,6 +10212,7 @@ function savePendingPayment(){
   if(paidAmt<=0){showToast('Paid amount required!');return;}
 
   // Overpayment validation — paidAmt cannot exceed actual remaining balance
+  var discAmt1 = ppGetDisc();
   var inv = invoices.find(function(i){return i.invNo===invNo;});
   if(inv){
     var currentRemaining = Math.max(0, inv.total - (inv.paidAmount||0));
@@ -10131,11 +10224,16 @@ function savePendingPayment(){
       showToast('⚠️ Amount Rs.'+paidAmt+' baaki balance Rs.'+currentRemaining+' se zyada hai! Sahi amount daalo.');
       return;
     }
+    if(paidAmt + discAmt1 > currentRemaining + 0.001){
+      showToast('⚠️ Paid + Chhoot (Rs.'+(paidAmt+discAmt1)+') baaki balance Rs.'+currentRemaining+' se zyada hai!');
+      return;
+    }
+    if(discAmt1>0 && !confirm('Rs.'+discAmt1+' chhoot (discount) dekar receipt banegi.'+((currentRemaining-paidAmt-discAmt1)<=0?' Invoice "Paid in Full" ho jayegi.':'')+'\n\nConfirm?')) return;
   }
 
   // Update original invoice status
   if(inv){
-    inv.paidAmount = (inv.paidAmount||0) + paidAmt;
+    inv.paidAmount = (inv.paidAmount||0) + paidAmt + (discAmt1||0);
     var remaining = inv.total - inv.paidAmount;
     if(remaining <= 0){
       inv.payStatus = 'Paid';
@@ -10158,6 +10256,7 @@ function savePendingPayment(){
     invNo: invNo,
     pendingAmt: parseFloat(document.getElementById('pp-pendingAmt').value)||paidAmt,
     paidAmt: paidAmt,
+    discountAmt: inv ? (discAmt1||0) : 0,
     remainingAmt: inv ? Math.max(0, inv.total - inv.paidAmount) : 0,
     payMode: payMode,
     cashAmt: payMode==='Split' ? cashAmt : 0,
@@ -10236,7 +10335,7 @@ function buildPendingPreview(r){
   if(r._batch && r._batch.length>1){
     batchRows = '<tr style="background:#eceff1;"><td colspan="2" style="padding:7px 14px;font-family:Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#37474f;">Invoice-wise Breakup</td></tr>'
       + r._batch.map(function(b){
-          return '<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 14px;font-family:Arial,sans-serif;font-size:11px;color:#333;"><strong>'+escH(b.invNo)+'</strong>'+(b.left>0?'<div style="font-size:9px;color:#e65100;">Baaki: '+fmt(b.left)+'</div>':'<div style="font-size:9px;color:#2e7d32;">Paid in full</div>')+'</td>'
+          return '<tr style="border-bottom:1px solid #eee;"><td style="padding:7px 14px;font-family:Arial,sans-serif;font-size:11px;color:#333;"><strong>'+escH(b.invNo)+'</strong>'+(b.left>0?'<div style="font-size:9px;color:#e65100;">Baaki: '+fmt(b.left)+'</div>':'<div style="font-size:9px;color:#2e7d32;">Paid in full</div>')+(b.disc>0?'<div style="font-size:9px;color:#e65100;">Chhoot: '+fmt(b.disc)+'</div>':'')+'</td>'
             +'<td style="padding:7px 14px;text-align:right;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#2e7d32;">'+fmt(b.paid)+'</td></tr>';
         }).join('');
   }
@@ -10283,6 +10382,12 @@ function buildPendingPreview(r){
     +'<td style="padding:10px 14px;text-align:right;font-family:Arial,sans-serif;font-size:17px;font-weight:700;color:#2e7d32;">'+fmt(r.paidAmt)+'</td>'
     +'</tr>'
     +splitRow
+    +((r.discountAmt>0)
+      ? '<tr style="background:#fff8e1;border-bottom:1px solid #e0ddd8;">'
+        +'<td style="padding:10px 14px;font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#e65100;">Discount / Chhoot</td>'
+        +'<td style="padding:10px 14px;text-align:right;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#e65100;">'+fmt(r.discountAmt)+'</td>'
+        +'</tr>'
+      : '')
     +batchRows
     +(isFullyPaid
       ? '<tr style="background:transparent;border-top:2px solid #2e7d32;">'
@@ -10673,7 +10778,7 @@ async function shareReceiptWA(id){
     ? 'Split (Cash: Rs.'+Math.round(r.cashAmt||0).toLocaleString('en-IN')+' + UPI: Rs.'+Math.round(r.upiAmt||0).toLocaleString('en-IN')+')'
     : r.payMode;
   var slT=socialLinksText();
-  var msg='*PAYMENT RECEIPT - The Jeans Club*\n\nReceipt: *'+r.receiptNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Amount Paid: Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN')+'*\nPayment Mode: '+modeStr+(r.remainingAmt>0?'\nBalance Remaining: Rs.'+Math.round(r.remainingAmt).toLocaleString('en-IN'):'\nStatus: PAID IN FULL')+'\n\n_Thank you for your payment! - The Jeans Club_'+(slT?'\n'+slT:'');
+  var msg='*PAYMENT RECEIPT - The Jeans Club*\n\nReceipt: *'+r.receiptNo+'*\nDate: '+r.date+'\n\n*Customer:* '+r.custName+(phone?'\nPhone: +91'+phone:'')+'\n*Against Invoice:* '+r.invNo+'\n\n*Amount Paid: Rs.'+Math.round(r.paidAmt).toLocaleString('en-IN')+'*'+(r.discountAmt>0?'\nDiscount/Chhoot: Rs.'+Math.round(r.discountAmt).toLocaleString('en-IN'):'')+'\nPayment Mode: '+modeStr+(r.remainingAmt>0?'\nBalance Remaining: Rs.'+Math.round(r.remainingAmt).toLocaleString('en-IN'):'\nStatus: PAID IN FULL')+'\n\n_Thank you for your payment! - The Jeans Club_'+(slT?'\n'+slT:'');
   var url=phone?'https://wa.me/91'+phone+'?text='+encodeURIComponent(msg):'https://wa.me/?text='+encodeURIComponent(msg);
   window.open(url,'_blank','noopener,noreferrer');
 }
@@ -10717,7 +10822,7 @@ function editReceipt(id){
   // Reverse the invoice payment that was applied
   var inv = invoices.find(function(i){ return i.invNo===r.invNo; });
   if(inv){
-    inv.paidAmount = Math.max(0, (inv.paidAmount||0) - r.paidAmt);
+    inv.paidAmount = Math.max(0, (inv.paidAmount||0) - r.paidAmt - (r.discountAmt||0));
     var remaining = inv.total - inv.paidAmount;
     inv.payStatus = inv.paidAmount <= 0 ? 'Pending' : (remaining <= 0 ? 'Paid' : 'Partial');
     // CRITICAL FIX: savedAt update karo taaki dusre device pe merge mein yeh newer version jite
@@ -10737,6 +10842,7 @@ function editReceipt(id){
     document.getElementById('pp-invNo').value = r.invNo || '';
     document.getElementById('pp-pendingAmt').value = r.pendingAmt || '';
     document.getElementById('pp-paidAmt').value = r.paidAmt || '';
+    var _ed = document.getElementById('pp-discAmt'); if(_ed) _ed.value = r.discountAmt || '';
     document.getElementById('pp-payMode').value = r.payMode || 'Cash';
     document.getElementById('pp-notes').value = r.notes || '';
     // Split fields
@@ -10747,6 +10853,7 @@ function editReceipt(id){
       var ua = document.getElementById('pp-upiAmt'); if(ua) ua.value = r.upiAmt||'';
       onPPSplitChange('');
     }
+    ppRenderDisc();
     showToast('✏️ Edit mode — '+r.receiptNo+' — save karne par updated receipt banjayega');
     var ca2 = document.getElementById('contentArea'); if(ca2) ca2.scrollTo(0,0);
   }, 300);
@@ -14716,6 +14823,26 @@ function fmtDate(d){ if(!d) return ''; var parts=d.split('-'); return parts[2]+'
 function escHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtPct(n){ return (n||0).toFixed(1) + '%'; }
 
+// Payment-receipt Discount/Chhoot — P&L ke liye
+// byDate: receipt date range me aayi chhoot (Revenue se minus + Discount box)
+// byInv : in invoices pe di gayi chhoot (Invoices Collected se minus karne ke liye)
+function plReceiptDisc(from, to, filtInv){
+  var recs = (LS.get('pendingPayments') || []).filter(function(r){ return (r.discountAmt||0) > 0; });
+  var invSet = {};
+  (filtInv||[]).forEach(function(i){ invSet[i.invNo] = true; });
+  var out = {byDate:0, byInv:0, byMonth:{}};
+  recs.forEach(function(r){
+    var d = r.discountAmt||0;
+    if(dateInRange(r.date, from, to)){
+      out.byDate += d;
+      var mk = r.date ? String(r.date).substring(0,7) : '';
+      out.byMonth[mk] = (out.byMonth[mk]||0) + d;
+    }
+    if(invSet[r.invNo]) out.byInv += d;
+  });
+  return out;
+}
+
 function renderPnL(){
   // Admin check
   if(CURRENT_ROLE !== 'admin'){ showToast('⛔ Only Admin can view P&L Dashboard'); return; }
@@ -14738,6 +14865,10 @@ function renderPnL(){
   var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
 
   var totalSales = filtInv.reduce(function(s,i){ return s + (i.total||0); }, 0);
+  var _recD = plReceiptDisc(from, to, filtInv);
+  var recDisc = _recD.byDate;               // payment-receipt chhoot (is period me)
+  var invoicedSales = totalSales;
+  totalSales = totalSales - recDisc;        // chhoot se actual revenue kam hota hai
   var totalPurchases = filtPur.reduce(function(s,p){ return s + (p.totalCost||0); }, 0);
   var totalExpenses = filtExp.reduce(function(s,e){ return s + (e.amount||0); }, 0);
   var grossProfit = totalSales - totalPurchases;
@@ -14745,10 +14876,11 @@ function renderPnL(){
   var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100) : 0;
   var netMargin = totalSales > 0 ? (netProfit/totalSales*100) : 0;
   // totalPaid = sum of all paidAmounts (includes Paid, Partial direct payments, and receipt-updated invoices)
-  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
+  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0) - _recD.byInv; // chhoot cash collect nahi hua
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
   var totalGst = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
-  var totalDiscount = filtInv.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); }, 0);
+  var invDiscount = filtInv.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); }, 0);
+  var totalDiscount = invDiscount + recDisc;   // invoice discount + payment-receipt chhoot
 
   // KPI Cards
   var kpiGrid = document.getElementById('pl-kpi-grid');
@@ -14789,6 +14921,9 @@ function renderPnL(){
   filtInv.forEach(function(i){
     var mk = i.invDate ? i.invDate.substring(0,7) : '';
     if(monthsMap[mk]) monthsMap[mk].sales += (i.total||0);
+  });
+  Object.keys(_recD.byMonth).forEach(function(mk){
+    if(monthsMap[mk]) monthsMap[mk].sales -= _recD.byMonth[mk];   // receipt chhoot us mahine ki sales se minus
   });
   filtPur.forEach(function(p){
     var mk = p.date ? p.date.substring(0,7) : '';
@@ -14913,14 +15048,17 @@ function renderPnL(){
   if(stmt){
     var rows = [
       {label:'REVENUE', val:'', bold:true, color:'', bg:'#f0f4f8'},
-      {label:'Total Sales (Invoiced)', val:fmtNum(totalSales), bold:false, color:'#1b5e20', bg:''},
+      {label:'Total Sales (Invoiced)', val:fmtNum(invoicedSales), bold:false, color:'#1b5e20', bg:''},
+    ];
+    if(recDisc > 0) rows.push({label:'Less: Receipt Chhoot / Discount', val:'('+fmtNum(recDisc)+')', bold:false, color:'#6a1b9a', bg:''});
+    rows = rows.concat([
       {label:'COST OF GOODS', val:'', bold:true, color:'', bg:'#f0f4f8'},
       {label:'Purchase / COGS', val:'('+fmtNum(totalPurchases)+')', bold:false, color:'#e65100', bg:''},
       {label:'GROSS PROFIT', val:fmtNum(grossProfit), bold:true, color:grossProfit>=0?'#1565c0':'#c62828', bg:'#e8eaf6'},
       {label:'Gross Margin', val:fmtPct(grossMargin), bold:false, color:'#546e7a', bg:''},
       {label:'OPERATING EXPENSES', val:'', bold:true, color:'', bg:'#f0f4f8'},
       {label:'Total Expenses', val:'('+fmtNum(totalExpenses)+')', bold:true, color:'#c0392b', bg:''},
-    ];
+    ]);
     rows.push({label:'NET PROFIT / LOSS', val:fmtNum(netProfit), bold:true, color:netProfit>=0?'#2e7d32':'#c62828', bg:netProfit>=0?'#e8f5e9':'#ffeaea'});
     rows.push({label:'Net Profit Margin', val:fmtPct(netMargin), bold:false, color:'#546e7a', bg:''});
     rows.push({label:'Invoices Collected', val:fmtNum(totalPaid), bold:false, color:'#2e7d32', bg:''});
@@ -14929,6 +15067,10 @@ function renderPnL(){
     rows.push({label:'GST Collected', val:fmtNum(totalGst), bold:false, color:'#006064', bg:''});
     rows.push({label:'DISCOUNTS', val:'', bold:true, color:'', bg:'#f0f4f8'});
     rows.push({label:'Total Discount Given', val:'('+fmtNum(totalDiscount)+')', bold:false, color:'#6a1b9a', bg:''});
+    if(recDisc > 0){
+      rows.push({label:'↳ Invoice Discount', val:'('+fmtNum(invDiscount)+')', bold:false, color:'#8e24aa', bg:''});
+      rows.push({label:'↳ Receipt Chhoot', val:'('+fmtNum(recDisc)+')', bold:false, color:'#8e24aa', bg:''});
+    }
 
     stmt.innerHTML = rows.map(function(r){
           var isNetRow = r.label === 'NET PROFIT / LOSS';
@@ -14978,6 +15120,10 @@ function exportPnLExcel(){
   var filtPur = allPurchases.filter(function(p){ return dateInRange(p.date, from, to); });
   var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
   var totalSales = filtInv.reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var invoicedSalesX = totalSales;
+  var recDiscX = plReceiptDisc(from, to, filtInv).byDate;
+  var invDiscX = filtInv.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); }, 0);
+  totalSales = totalSales - recDiscX;
   var totalPurchases = filtPur.reduce(function(s,p){ return s+(p.totalCost||0); }, 0);
   var totalExpenses = filtExp.reduce(function(s,e){ return s+(e.amount||0); }, 0);
   var grossProfit = totalSales - totalPurchases;
@@ -14989,7 +15135,9 @@ function exportPnLExcel(){
     ['Period', from.toLocaleDateString('en-IN')+' to '+to.toLocaleDateString('en-IN')],
     [],
     ['Item','Amount (₹)'],
-    ['Total Sales', totalSales],
+    ['Total Sales (Invoiced)', invoicedSalesX],
+    ['Less: Receipt Chhoot / Discount', recDiscX],
+    ['Net Sales (Revenue)', totalSales],
     ['Purchase Cost', totalPurchases],
     ['Gross Profit', grossProfit],
     ['Total Expenses', totalExpenses],
@@ -14998,6 +15146,11 @@ function exportPnLExcel(){
     [],
     ['TAX'],
     ['GST Collected', totalGstExp],
+    [],
+    ['DISCOUNTS'],
+    ['Invoice Discount', invDiscX],
+    ['Receipt Chhoot', recDiscX],
+    ['Total Discount Given', invDiscX + recDiscX],
   ];
   var ws1 = XLSX.utils.aoa_to_sheet(summData);
   XLSX.utils.book_append_sheet(wb, ws1, 'P&L Summary');
@@ -15027,13 +15180,18 @@ function exportPnLPDF(){
   var filtPur = allPurchases.filter(function(p){ return dateInRange(p.date, from, to); });
   var filtExp = allExpenses.filter(function(e){ return dateInRange(e.date, from, to); });
   var totalSales = filtInv.reduce(function(s,i){ return s+(i.total||0); }, 0);
+  var _recDP = plReceiptDisc(from, to, filtInv);
+  var recDiscP = _recDP.byDate;
+  var invoicedSalesP = totalSales;
+  var invDiscP = filtInv.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); }, 0);
+  totalSales = totalSales - recDiscP;
   var totalPurchases = filtPur.reduce(function(s,p){ return s+(p.totalCost||0); }, 0);
   var totalExpenses = filtExp.reduce(function(s,e){ return s+(e.amount||0); }, 0);
   var grossProfit = totalSales - totalPurchases;
   var netProfit = grossProfit - totalExpenses;
   var grossMargin = totalSales > 0 ? (grossProfit/totalSales*100).toFixed(1) : '0.0';
   var netMargin = totalSales > 0 ? (netProfit/totalSales*100).toFixed(1) : '0.0';
-  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0);
+  var totalPaid = filtInv.reduce(function(s,i){ return s+(i.paidAmount||0); }, 0) - _recDP.byInv;
   var totalPending = filtInv.filter(function(i){ return i.payStatus==='Pending'||i.payStatus==='Partial'; }).reduce(function(s,i){ return s+((i.total||0)-(i.paidAmount||0)); }, 0);
   var totalGstPdf = filtInv.reduce(function(s,i){ return s+(i.totalGst||0); }, 0);
 
@@ -15097,7 +15255,8 @@ function exportPnLPDF(){
     +'<div class="section-title">Profit &amp; Loss Statement</div>'
     +'<table><thead><tr><th>Particulars</th><th class="r">Amount</th></tr></thead><tbody>'
     +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">REVENUE</td><td></td></tr>'
-    +'<tr><td style="padding-left:20px;">Total Sales (Invoiced)</td><td style="text-align:right;color:#1b5e20;font-weight:600;">'+fmtNum(totalSales)+'</td></tr>'
+    +'<tr><td style="padding-left:20px;">Total Sales (Invoiced)</td><td style="text-align:right;color:#1b5e20;font-weight:600;">'+fmtNum(invoicedSalesP)+'</td></tr>'
+    +(recDiscP>0?'<tr><td style="padding-left:20px;color:#6a1b9a;">Less: Receipt Chhoot / Discount</td><td style="text-align:right;color:#6a1b9a;">('+fmtNum(recDiscP)+')</td></tr>':'')
     +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">COST OF GOODS</td><td></td></tr>'
     +'<tr><td style="padding-left:20px;">Purchase / COGS</td><td style="text-align:right;color:#e65100;">('+fmtNum(totalPurchases)+')</td></tr>'
     +'<tr style="background:#e8eaf6;"><td style="font-weight:700;">GROSS PROFIT</td><td style="text-align:right;font-weight:700;color:'+gpColor+';font-size:14px;">'+fmtNum(grossProfit)+'</td></tr>'
@@ -15110,6 +15269,9 @@ function exportPnLPDF(){
     +'<tr><td style="padding-left:20px;color:#e65100;">Pending Receivables</td><td style="text-align:right;color:#e65100;">'+fmtNum(totalPending)+'</td></tr>'
     +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">TAX</td><td></td></tr>'
     +'<tr><td style="padding-left:20px;color:#006064;">GST Collected</td><td style="text-align:right;color:#006064;font-weight:600;">'+fmtNum(totalGstPdf)+'</td></tr>'
+    +'<tr style="background:#f0f4f8;"><td style="font-weight:700;letter-spacing:0.5px;">DISCOUNTS</td><td></td></tr>'
+    +'<tr><td style="padding-left:20px;color:#6a1b9a;">Total Discount Given</td><td style="text-align:right;color:#6a1b9a;font-weight:600;">('+fmtNum(invDiscP+recDiscP)+')</td></tr>'
+    +(recDiscP>0?'<tr><td style="padding-left:36px;color:#8e24aa;font-size:11px;">↳ Invoice Discount</td><td style="text-align:right;color:#8e24aa;font-size:11px;">('+fmtNum(invDiscP)+')</td></tr><tr><td style="padding-left:36px;color:#8e24aa;font-size:11px;">↳ Receipt Chhoot</td><td style="text-align:right;color:#8e24aa;font-size:11px;">('+fmtNum(recDiscP)+')</td></tr>':'')
     +'</tbody></table>'
 
     // Expense Category Breakdown
