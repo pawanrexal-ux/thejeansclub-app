@@ -1193,6 +1193,7 @@ input[type=tel], textarea, select {
               <div onclick="showDatePickerForPDF('daily');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">📅 Daily PDF</div>
               <div onclick="showDatePickerForPDF('weekly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f0f0;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">📆 Weekly PDF</div>
               <div onclick="showDatePickerForPDF('monthly');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">🗓️ Monthly PDF</div>
+              <div onclick="showDatePickerForPDF('custom');closePayDropdowns()" style="padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;cursor:pointer;border-top:1px solid #f0f0f0;" onmouseover="this.style.background='#e8f5e9'" onmouseout="this.style.background=''">🎯 Custom Date PDF</div>
             </div>
           </div>
         </div>
@@ -3192,10 +3193,12 @@ function getChangesPath(){
 // (5-min background) dono se baar-baar chalaya ja sakta hai bina bandwidth
 // zyada use kiye. Yehi mechanism hai jo stock qty ko bhi invoices/returns ki
 // tarah turant, sabhi devices par sync karta hai.
+var _lastDeltaSyncOK = true;   // Telegram backup ko pata chale ki fresh sync sach me hua ya nahi
 async function _deltaSync(){
   var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
   var res = await fetch(q);
-  if(!res.ok) return 0;
+  if(!res.ok){ _lastDeltaSyncOK = false; return 0; }
+  _lastDeltaSyncOK = true;
   var changes = await res.json(); // { key: {ts, items:[...]}, ... } ya null
   var totalItems = 0;
   if(changes && typeof changes === 'object'){
@@ -4336,14 +4339,22 @@ function buildDailyExcelWorkbook(dateStr){
   var supPayTotal = daySupPay.reduce(function(s,r){return s+(r.amount||0);},0);
   var expTotal = dayExps.reduce(function(s,e){return s+e.amount;},0);
   var recTotal = dayRecs.reduce(function(s,r){return s+(r.paidAmt||0);},0);
-  var totalIn = saleTotal + recTotal - dayInvs.filter(function(i){return i.payStatus==='Pending'||i.payStatus==='Partial';}).reduce(function(s,i){return s+(i.total-(i.paidAmount||0));},0);
+  var _recSettled = {};
+  (LS.get('pendingPayments')||[]).forEach(function(r){ if(!r.invNo) return; _recSettled[r.invNo] = (_recSettled[r.invNo]||0) + (r.paidAmt||0) + (r.discountAmt||0); });
+  var invOrigIn = dayInvs.reduce(function(s,i){
+    if(i.payStatus==='Pending') return s;
+    var ip = (i.payStatus==='Paid' && !i.paidAmount) ? i.total : (i.paidAmount||0);
+    return s + Math.max(0, ip - (_recSettled[i.invNo]||0));
+  },0);
+  var totalIn = invOrigIn + recTotal;
   var totalOut = purPaidTotal + supPayTotal + expTotal;
   var pnlRows = [
     ['P&L SUMMARY', dateStr],
     [''],
     ['Sales (Invoiced)', saleTotal],
+    ['Paid at Invoice Time', invOrigIn],
     ['Payment Receipts Collected', recTotal],
-    ['Total IN (approx)', totalIn],
+    ['Total IN', totalIn],
     [''],
     ['Purchases (Paid)', purPaidTotal],
     ['Supplier Payments', supPayTotal],
@@ -4842,6 +4853,46 @@ function updateTgBackupLabel(){
 //   Edit_Log.pdf          (invoice/receipt edit audit trail for the day)
 //   Invoices/, Payment_Receipts/, Purchase_Payment_Receipts/ (invoice-no wise & receipt-wise individual PDFs)
 // This replaces the old raw-JSON Telegram backup.
+// ── Telegram report banane se PEHLE data fresh karo ──
+// Pehle report seedha is device ki memory se ban jati thi. Auto backup 8:30 AM par
+// jo bhi device khula ho (mobile/laptop/staff) wahi bhejta tha — agar us device ka
+// sync purana/adhura ho (naye invoices/receipts abhi aaye hi nahi), report me 0 ya
+// kam data jata tha, jabki manual report (jo fresh device se banti) me poora data hota.
+async function _tgEnsureFreshData(){
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl){
+    if(!(invoices||[]).length && !(purchases||[]).length && !(expenses||[]).length && !(pendingPayments||[]).length) return {ok:false, why:'device-has-no-data'};
+    return {ok:true, skipped:true};
+  }
+  try{
+    if(!_hasFullData){
+      await pullCloud();                       // is device par poora data abhi aaya hi nahi
+      if(!_hasFullData) return {ok:false, why:'full-data-missing'};
+    } else {
+      _lastDeltaSyncOK = false;
+      await _deltaSync();
+      if(!_lastDeltaSyncOK) return {ok:false, why:'delta-failed'};
+    }
+    if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'admin'){
+      await pullAndMergeStaffData();           // staff ke invoices/receipts bhi merge
+    }
+    // memory arrays ko latest local copy se align karo (receipts/supplier payments LS se padhte hain)
+    invoices = LS.get('invoices') || invoices || [];
+    purchases = LS.get('purchases') || purchases || [];
+    expenses = LS.get('expenses') || expenses || [];
+    pendingPayments = LS.get('pendingPayments') || pendingPayments || [];
+    // Sabse bada safety-check: agar is device par kuch bhi data nahi hai (naya/khaali device ya
+    // abhi load nahi hua), to ye report 0 hi aayegi — bhejni nahi chahiye.
+    if(!invoices.length && !purchases.length && !expenses.length && !pendingPayments.length){
+      return {ok:false, why:'device-has-no-data'};
+    }
+    return {ok:true, at:new Date()};
+  }catch(e){
+    console.warn('[Telegram Backup] fresh-sync failed:', e);
+    return {ok:false, why:'exception'};
+  }
+}
+
 function sendTelegramBackup(silent, dateStr, isAutoSend){
   dateStr = dateStr || nowDate();
   return new Promise(function(resolve, reject){
@@ -4859,7 +4910,16 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
     if(!silent && msgEl) msgEl.textContent = 'Generating PDF + Excel report...';
     if(!silent) showToast('Report bana rahe hain, thoda ruko...');
 
-    buildDailyReportZip(dateStr).then(function(built){
+    var _freshInfo = null;
+    _tgEnsureFreshData().then(function(fr){
+      _freshInfo = fr;
+      if(!fr.ok && isAutoSend){
+        // Stale data se report bhejne se behtar hai ruk jao — claim release hoga aur agle check par retry hoga
+        throw new Error('stale-data: fresh sync nahi ho paya ('+(fr.why||'?')+')');
+      }
+      if(!fr.ok && !silent) showToast('⚠️ Cloud sync nahi ho paya — is device ke data se report ban rahi hai', 'warn');
+      return buildDailyReportZip(dateStr);
+    }).then(function(built){
       var dayInvs = (invoices||[]).filter(function(i){ return i.invDate===dateStr; });
       var saleTotal = dayInvs.reduce(function(s,i){return s+i.total;},0);
       var dayRecsC = (LS.get('pendingPayments')||[]).filter(function(r){ return r.date===dateStr; });
@@ -4882,8 +4942,12 @@ function sendTelegramBackup(silent, dateStr, isAutoSend){
         + '🧾 Invoices: ' + (built.invOK||0) + '/' + dayInvs.length + ' | 💰 Sales: ' + fmt(saleTotal) + '\n'
         + '🧾 Payment Receipts: ' + (built.recOK||0) + '/' + dayRecsC.length + ' | 🧾 Purchase Payment Receipts: ' + (built.spOK||0) + '/' + daySupPayC.length + '\n'
         + (dayRetexC.length ? '↩️ Return/Exchange Receipts: ' + (built.retexOK||0) + '/' + dayRetexC.length + '\n' : '')
+        + '📊 Data check: Purchases ' + (purchases||[]).filter(function(p){ return p.date===dateStr; }).length
+        + ' | Expenses ' + (expenses||[]).filter(function(e){ return e.date===dateStr; }).length
+        + ' | Sync: ' + (_freshInfo && _freshInfo.skipped ? 'local only' : (_freshInfo && _freshInfo.ok ? ('✓ fresh ' + (_freshInfo.at ? _freshInfo.at.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '') ) : '⚠️ not fresh')) + '\n'
         + '📁 Folder: ' + built.folder + ' (Invoices, Receipts, Inventory Log, Edit Log, PDF + Excel)'
         + failNote;
+      if(caption.length > 1020) caption = caption.slice(0, 1017) + '...';
 
       var fd = new FormData();
       fd.append('chat_id', cfg.chatId);
@@ -7986,20 +8050,23 @@ function renderPayments(){
     if(!r.invNo) return;
     if(!allReceiptByInv[r.invNo]) allReceiptByInv[r.invNo] = {total:0, cash:0, upi:0};
     var amt = r.paidAmt || 0;
-    allReceiptByInv[r.invNo].total += amt;
+    allReceiptByInv[r.invNo].total += amt + (r.discountAmt||0);   // chhoot bhi invoice settle karti hai (cash nahi hai)
     if(r.payMode === 'Cash') allReceiptByInv[r.invNo].cash += amt;
     else if(r.payMode === 'UPI' || r.payMode === 'Bank') allReceiptByInv[r.invNo].upi += amt;
     else if(r.payMode === 'Split'){ allReceiptByInv[r.invNo].cash += (r.cashAmt||0); allReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
   });
 
   var totalCashIn = 0, totalUpiIn = 0, totalBankIn = 0;
+  var origPaidSum = 0, recInSum = 0;   // TOTAL IN = invoice ke time mila + receipts (receipt ki date se)
 
   // Step 2: Invoices se sirf ORIGINAL payment (receipts minus karke)
   filtInvoices.forEach(function(inv){
     if(inv.payStatus === 'Pending') return;
     var recData = allReceiptByInv[inv.invNo] || {total:0, cash:0, upi:0};
-    var originalPaid = Math.max(0, (inv.paidAmount || 0) - recData.total);
+    var _ip = (inv.payStatus === 'Paid' && !inv.paidAmount) ? inv.total : (inv.paidAmount || 0);
+    var originalPaid = Math.max(0, _ip - recData.total);
     if(originalPaid <= 0) return;
+    origPaidSum += originalPaid;
     if(inv.payMode === 'Cash') totalCashIn += originalPaid;
     else if(inv.payMode === 'UPI') totalUpiIn += originalPaid;
     else if(inv.payMode === 'Bank') totalBankIn += originalPaid;
@@ -8018,6 +8085,7 @@ function renderPayments(){
   // Step 3: Filtered receipts alag se add karo mode-wise
   filtReceipts.forEach(function(r){
     var amt = r.paidAmt || 0;
+    recInSum += amt;
     if(r.payMode === 'Cash') totalCashIn += amt;
     else if(r.payMode === 'UPI' || r.payMode === 'Bank') totalUpiIn += amt;
     else if(r.payMode === 'Split'){ totalCashIn += (r.cashAmt||0); totalUpiIn += (r.upiAmt||0); }
@@ -8043,7 +8111,8 @@ function renderPayments(){
   pendAmt = Math.max(0, pendAmt);
 
   // ── Collected = Revenue - Pending + Return/Exchange extra payments ──
-  var totalIn = Math.max(0, totalRevenue - pendAmt) + retExtraIn;
+  // Pehle yahan Revenue - Pending tha, jisme purane invoice ki aaj ki receipt miss ho jati thi.
+  var totalIn = origPaidSum + recInSum + retExtraIn;
 
   // Purchase OUT = only DIRECTLY paid at purchase time (directPaidAmount)
   // Supplier payments (supplierPayments) handle karte hain baaki OUT — double count avoid karne ke liye
@@ -9577,6 +9646,12 @@ function initApp(){
   lastCheckedDate=LS.get('lastDate')||nowDate();
   lastCheckedMonth=LS.get('lastMonth')||monthKey(nowDate());
   heldInvoices=LS.get('heldInvoices')||[]; // parked invoice drafts (device-local, not synced)
+  // FIX: renderDashboard() -> checkDateChange() -> checkAutoTelegramBackup() isi startup me chal jata hai.
+  // Pehle purchases/receipts/expenses neeche assign hote the, isliye startup-time catch-up report me
+  // ye teeno khaali jate the. Ab pehle load honge.
+  purchases = LS.get('purchases') || [];
+  pendingPayments = LS.get('pendingPayments') || [];
+  expenses = LS.get('expenses') || [];
   var catEl=document.getElementById('inv-cat'); if(catEl)catEl.innerHTML=buildCatOptions('Shirt');
   var sEl=document.getElementById('inv-size'); if(sEl)sEl.innerHTML=buildSizeOptions('M');
   var eCat=document.getElementById('edit-cat'); if(eCat)eCat.innerHTML=buildCatOptions('Shirt');
@@ -10472,7 +10547,7 @@ function renderPendingDashboard(){
   pendingPayments.forEach(function(r){
     if(!r.invNo) return;
     if(!receiptsByInvNo[r.invNo]) receiptsByInvNo[r.invNo] = 0;
-    receiptsByInvNo[r.invNo] += (r.paidAmt||0);
+    receiptsByInvNo[r.invNo] += (r.paidAmt||0) + (r.discountAmt||0);
   });
   var invStatusFixed = false;
   invoices.forEach(function(inv){
@@ -11856,7 +11931,7 @@ async function generateDailyPDF(reportDate, asBlob){
   (LS.get('pendingPayments')||[]).forEach(function(r){
     if(!r.invNo) return;
     if(!allDayReceiptByInv[r.invNo]) allDayReceiptByInv[r.invNo] = {total:0, cash:0, upi:0};
-    allDayReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    allDayReceiptByInv[r.invNo].total += (r.paidAmt||0) + (r.discountAmt||0);
     if(r.payMode==='Cash') allDayReceiptByInv[r.invNo].cash += (r.paidAmt||0);
     else if(r.payMode==='UPI'||r.payMode==='Bank') allDayReceiptByInv[r.invNo].upi += (r.paidAmt||0);
     else if(r.payMode==='Split'){ allDayReceiptByInv[r.invNo].cash += (r.cashAmt||0); allDayReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
@@ -12207,7 +12282,8 @@ function showDatePickerForPDF(type){
   document.getElementById('pdfDailyWrap').style.display   = type==='daily'   ? '' : 'none';
   document.getElementById('pdfWeeklyWrap').style.display  = type==='weekly'  ? '' : 'none';
   document.getElementById('pdfMonthlyWrap').style.display = type==='monthly' ? '' : 'none';
-  var titles = {daily:'📅 Daily PDF Report', weekly:'📆 Weekly PDF Report', monthly:'🗓️ Monthly PDF Report'};
+  var cw = document.getElementById('pdfCustomWrap'); if(cw) cw.style.display = type==='custom' ? '' : 'none';
+  var titles = {daily:'📅 Daily PDF Report', weekly:'📆 Weekly PDF Report', monthly:'🗓️ Monthly PDF Report', custom:'🎯 Custom Date PDF Report'};
   document.getElementById('pdfModalTitle').textContent = titles[type]||'Select Date';
   var today = nowDate();
   if(type==='daily'){
@@ -12217,6 +12293,9 @@ function showDatePickerForPDF(type){
     updateWeekRangeLabel(today);
   } else if(type==='monthly'){
     document.getElementById('pdfMonthInput').value = today.slice(0,7);
+  } else if(type==='custom'){
+    document.getElementById('pdfFromInput').value = today.slice(0,8)+'01';
+    document.getElementById('pdfToInput').value = today;
   }
   modal.style.display = 'flex';
 }
@@ -12251,6 +12330,12 @@ function closePdfDateModal(){
 }
 function confirmPdfDate(){
   var type = document.getElementById('pdfDateType').value;
+  if(type === 'custom'){
+    var _f = document.getElementById('pdfFromInput').value, _t = document.getElementById('pdfToInput').value;
+    if(!_f || !_t){ showToast('From aur To date select karo'); return; }
+    var _a = _f<=_t?_f:_t, _b = _f<=_t?_t:_f;
+    if(Math.round((new Date(_b)-new Date(_a))/86400000)+1 > 366){ showToast('Max 366 din ka range select karo'); return; }
+  }
   closePdfDateModal();
   if(type === 'daily'){
     var date = document.getElementById('pdfDateInput').value;
@@ -12261,24 +12346,34 @@ function confirmPdfDate(){
   } else if(type === 'monthly'){
     var month = document.getElementById('pdfMonthInput').value; // "YYYY-MM"
     generateMonthlyPDF(month);
+  } else if(type === 'custom'){
+    var f = document.getElementById('pdfFromInput').value;
+    var t = document.getElementById('pdfToInput').value;
+    if(f > t){ var tmp=f; f=t; t=tmp; }
+    generateRangePDF(f, t, 'Custom');
   }
 }
 
 // ===== WEEKLY PDF =====
 async function generateWeeklyPDF(anyDateInWeek){
   if(!anyDateInWeek) anyDateInWeek = nowDate();
-  showToast('Generating Weekly PDF...');
-  var biz = SETTINGS.biz || 'The Jeans Club';
-
   var d = new Date(anyDateInWeek);
   var day = d.getDay();
   var mon = new Date(d); mon.setDate(d.getDate()-((day+6)%7));
   var sun = new Date(mon); sun.setDate(mon.getDate()+6);
-  var periodFrom = localDateStr(mon);
-  var periodTo   = localDateStr(sun);
+  return generateRangePDF(localDateStr(mon), localDateStr(sun), 'Weekly');
+}
+
+// Generic date-range payment PDF (Weekly + Custom Date dono yahi use karte hain)
+async function generateRangePDF(periodFrom, periodTo, kind){
+  kind = kind || 'Custom';
+  showToast('Generating '+kind+' PDF...');
+  var biz = SETTINGS.biz || 'The Jeans Club';
+  var _p = function(ds){ var a=ds.split('-'); return new Date(parseInt(a[0]), parseInt(a[1])-1, parseInt(a[2])); };
+  var mon = _p(periodFrom), sun = _p(periodTo);
   function inWeek(ds){ return ds >= periodFrom && ds <= periodTo; }
   var fmt2 = function(dt){ return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); };
-  var weekLabel = fmt2(mon) + ' to ' + fmt2(sun);
+  var weekLabel = (periodFrom===periodTo) ? fmt2(mon) : (fmt2(mon) + ' to ' + fmt2(sun));
 
   var allPP = LS.get('pendingPayments')||[];
   var wkInvs = invoices.filter(function(i){ return inWeek(i.invDate||''); });
@@ -12290,7 +12385,7 @@ async function generateWeeklyPDF(anyDateInWeek){
   allPP.forEach(function(r){
     if(!r.invNo) return;
     if(!allReceiptByInv[r.invNo]) allReceiptByInv[r.invNo] = {total:0,cash:0,upi:0};
-    allReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    allReceiptByInv[r.invNo].total += (r.paidAmt||0) + (r.discountAmt||0);
     if(r.payMode==='Cash') allReceiptByInv[r.invNo].cash += (r.paidAmt||0);
     else if(r.payMode==='UPI'||r.payMode==='Bank') allReceiptByInv[r.invNo].upi += (r.paidAmt||0);
     else if(r.payMode==='Split'){ allReceiptByInv[r.invNo].cash += (r.cashAmt||0); allReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
@@ -12412,7 +12507,7 @@ async function generateWeeklyPDF(anyDateInWeek){
     + '<div style="display:flex;align-items:center;gap:10px;">'
     + (LOGO_URL ? '<img src="'+LOGO_URL+'" style="width:42px;height:42px;object-fit:contain;"/>' : '')
     + '<div><div style="font-family:Cormorant Garamond,serif;font-size:22px;font-weight:700;color:#0d2818;">'+escH(biz)+'</div>'
-    + '<div style="font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">Weekly Payment Report</div>'
+    + '<div style="font-size:10px;color:#666;letter-spacing:1px;text-transform:uppercase;">'+kind+' Payment Report</div>'
     + '<div style="font-size:11px;color:#444;margin-top:2px;">'+weekLabel+'</div></div></div>'
     + '<div style="text-align:right;">'
     + '<div style="font-size:9px;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Net Balance</div>'
@@ -12445,7 +12540,7 @@ async function generateWeeklyPDF(anyDateInWeek){
     + '<div style="text-align:center;margin-top:10px;font-size:8px;color:#555;">Generated: '+new Date().toLocaleString('en-IN')+' &nbsp;|&nbsp; '+escH(biz)+'</div>'
     + '</div>';
 
-  await _renderAndSavePDF(reportHTML, '#weeklyReportPrint', 'The Jeans Club_Weekly_'+periodFrom+'_to_'+periodTo+'.pdf', 'Weekly PDF downloaded!');
+  await _renderAndSavePDF(reportHTML, '#weeklyReportPrint', 'The Jeans Club_'+kind+'_'+periodFrom+'_to_'+periodTo+'.pdf', kind+' PDF downloaded!');
 }
 
 // ===== MONTHLY PDF =====
@@ -12469,7 +12564,7 @@ async function generateMonthlyPDF(monthStr){
   allPP.forEach(function(r){
     if(!r.invNo) return;
     if(!allReceiptByInv[r.invNo]) allReceiptByInv[r.invNo] = {total:0,cash:0,upi:0};
-    allReceiptByInv[r.invNo].total += (r.paidAmt||0);
+    allReceiptByInv[r.invNo].total += (r.paidAmt||0) + (r.discountAmt||0);
     if(r.payMode==='Cash') allReceiptByInv[r.invNo].cash += (r.paidAmt||0);
     else if(r.payMode==='UPI'||r.payMode==='Bank') allReceiptByInv[r.invNo].upi += (r.paidAmt||0);
     else if(r.payMode==='Split'){ allReceiptByInv[r.invNo].cash += (r.cashAmt||0); allReceiptByInv[r.invNo].upi += (r.upiAmt||0); }
@@ -12689,17 +12784,48 @@ function exportPayExcelPeriod(period){
   var periodLabel=period==='daily'?today:(period==='weekly'?from+' to '+to:today.slice(0,7));
   var label=period==='daily'?'Daily':period==='weekly'?'Weekly':'Monthly';
 
-  // Sheet 1: Summary
-  var totalIn=fInvs.filter(function(i){return i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
-              +fRecs.reduce(function(s,r){return s+(r.paidAmt||0);},0);
-  var purTotal=fPurs.reduce(function(s,p){return s+p.totalCost;},0);
+  // Sheet 1: Summary  (cash-basis: invoice ke time mila + receipts; Ledger screen jaisa hi hisaab)
+  var _settled={};
+  allPP.forEach(function(r){ if(!r.invNo) return; _settled[r.invNo]=(_settled[r.invNo]||0)+(r.paidAmt||0)+(r.discountAmt||0); });
+  var cashIn=0, upiIn=0, invOrigIn=0;
+  fInvs.forEach(function(i){
+    if(i.payStatus==='Pending') return;
+    var ip=(i.payStatus==='Paid' && !i.paidAmount)?i.total:(i.paidAmount||0);
+    var op=Math.max(0, ip-(_settled[i.invNo]||0));
+    if(op<=0) return;
+    invOrigIn+=op;
+    if(i.payMode==='Cash') cashIn+=op;
+    else if(i.payMode==='UPI'||i.payMode==='Bank') upiIn+=op;
+    else if(i.payMode==='Split'){
+      var ot=(i.cashAmt||0)+(i.upiAmt||0);
+      if(ot>0){ cashIn+=op*((i.cashAmt||0)/ot); upiIn+=op*((i.upiAmt||0)/ot); } else cashIn+=op;
+    } else cashIn+=op;
+  });
+  var recIn=0;
+  fRecs.forEach(function(r){
+    var a=r.paidAmt||0; recIn+=a;
+    if(r.payMode==='UPI'||r.payMode==='Bank') upiIn+=a;
+    else if(r.payMode==='Split'){ cashIn+=(r.cashAmt||0); upiIn+=(r.upiAmt||0); }
+    else cashIn+=a;
+  });
+  var fRets=(LS.get('returns')||[]).filter(function(r){ return inRange(r.date||''); });
+  var retExtraIn=fRets.reduce(function(s,r){ return s+(r.diffType==='Extra Payment'?(r.diffAmount||0):0); },0);
+  var retRefundOut=fRets.reduce(function(s,r){ return s+(r.diffType==='Refund'?(r.diffAmount||0):0); },0);
+  fRets.forEach(function(r){
+    if(r.diffType!=='Extra Payment') return;
+    if(r.payMode==='UPI'||r.payMode==='Bank') upiIn+=(r.diffAmount||0); else cashIn+=(r.diffAmount||0);
+  });
+  var totalIn=invOrigIn+recIn+retExtraIn;
+  var purTotal=fPurs.reduce(function(s,p){
+    if(p.directPaidAmount!=null) return s+p.directPaidAmount;
+    if(p.payStatus==='Paid') return s+p.totalCost;
+    if(p.payStatus==='Partial') return s+(p.paidAmount||0);
+    return s;
+  },0);
+  var supPayTotal=(LS.get('supplierPayments')||[]).filter(function(r){ return inRange(r.date||''); }).reduce(function(s,r){ return s+(r.amount||0); },0);
   var expTotal=fExps.reduce(function(s,e){return s+e.amount;},0);
-  var totalOut=purTotal+expTotal;
+  var totalOut=purTotal+supPayTotal+expTotal+retRefundOut;
   var netAmt=totalIn-totalOut;
-  var cashIn=fInvs.filter(function(i){return i.payMode==='Cash'&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
-            +fRecs.filter(function(r){return r.payMode==='Cash';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
-  var upiIn=fInvs.filter(function(i){return (i.payMode==='UPI'||i.payMode==='Bank')&&i.payStatus!=='Pending';}).reduce(function(s,i){return s+(i.payStatus==='Paid'?i.total:(i.paidAmount||0));},0)
-           +fRecs.filter(function(r){return r.payMode==='UPI'||r.payMode==='Bank';}).reduce(function(s,r){return s+(r.paidAmt||0);},0);
   var summaryRows=[
     ['THE JEANS CLUB','',''],
     [label+' Payment Report','Period:',periodLabel],
@@ -12709,8 +12835,12 @@ function exportPayExcelPeriod(period){
     ['Total IN (Collected)','',totalIn],
     ['  Cash IN','',cashIn],
     ['  UPI/Bank IN','',upiIn],
+    ['  (Invoice ke time mila)','',invOrigIn],
+    ['  (Payment Receipts se mila)','',recIn],
     ['Total OUT','',totalOut],
-    ['  Purchases','',purTotal],
+    ['  Purchases (Paid)','',purTotal],
+    ['  Supplier Payments','',supPayTotal],
+    ['  Return Refunds','',retRefundOut],
     ['  Expenses','',expTotal],
     ['NET BALANCE','',netAmt],
     [''],
@@ -12727,9 +12857,9 @@ function exportPayExcelPeriod(period){
   });
 
   // Sheet 3: Receipts
-  var recRows=[['Date','Receipt#','Customer','Invoice#','Pending Amt','Paid Amt','Remaining','Mode']];
+  var recRows=[['Date','Receipt#','Customer','Invoice#','Pending Amt','Paid Amt','Remaining','Mode','Discount/Chhoot']];
   fRecs.forEach(function(r){
-    recRows.push([r.date,r.receiptNo||'-',r.custName,r.invNo||'-',r.pendingAmt||0,r.paidAmt||0,r.remainingAmt||0,r.payMode||'Cash']);
+    recRows.push([r.date,r.receiptNo||'-',r.custName,r.invNo||'-',r.pendingAmt||0,r.paidAmt||0,r.remainingAmt||0,r.payMode||'Cash',r.discountAmt||0]);
   });
 
   // Sheet 4: Purchases
@@ -15421,6 +15551,14 @@ function saveStaffPerms(){
     <div id="pdfMonthlyWrap" style="display:none;margin-bottom:14px;">
       <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">Month</label>
       <input type="month" id="pdfMonthInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;"/>
+    </div>
+    <!-- Custom Range -->
+    <div id="pdfCustomWrap" style="display:none;margin-bottom:14px;">
+      <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">From Date</label>
+      <input type="date" id="pdfFromInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;margin-bottom:10px;"/>
+      <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#666;font-family:Arial,sans-serif;display:block;margin-bottom:6px;">To Date</label>
+      <input type="date" id="pdfToInput" style="width:100%;padding:10px;font-family:Arial,sans-serif;font-size:14px;border:1px solid #ddd;box-sizing:border-box;"/>
+      <div style="font-size:11px;color:#666;margin-top:6px;font-family:Arial,sans-serif;">Ek hi din ka chahiye to dono me same date rakho (max 366 din).</div>
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-outline btn-full" onclick="closePdfDateModal()">Cancel</button>
