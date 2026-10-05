@@ -6247,13 +6247,33 @@ function deleteHeldInvoice(heldId){
   showToast('Held invoice delete ho gaya');
 }
 
+// ===== GST on DISCOUNTED amount =====
+// Discount is spread proportionally across all items (by base value), then GST is charged
+// on the post-discount base of each GST slab.
+function calcGstByRate(itemList, disc){
+  var sub = itemList.reduce(function(s,i){ return s + ((i.qty||0)*(i.price||0)); }, 0);
+  var afterDisc = Math.max(sub - (parseFloat(disc)||0), 0);
+  var ratio = sub > 0 ? afterDisc / sub : 0;
+  var byRate = {};
+  itemList.forEach(function(i){
+    if(i.gstPct > 0){
+      var g = (i.qty||0) * (i.price||0) * ratio * i.gstPct / 100;
+      byRate[i.gstPct] = (byRate[i.gstPct]||0) + g;
+    }
+  });
+  Object.keys(byRate).forEach(function(k){ byRate[k] = Math.round(byRate[k]*100)/100; });
+  return byRate;
+}
+function calcTotalGst(itemList, disc){
+  var b = calcGstByRate(itemList, disc);
+  return Object.keys(b).reduce(function(s,k){ return s + b[k]; }, 0);
+}
+
 // Helper: get current invoice total
 function getCurrentInvTotal(){
   var sub = items.reduce(function(s,i){return s+(i.qty*i.price);},0);
   var disc = parseFloat(document.getElementById('discount').value)||0;
-  var totalGst = items.reduce(function(s,i){
-    return s + (i.gstPct>0 ? i.qty*((i.origPrice||i.price)-i.price) : 0);
-  },0);
+  var totalGst = calcTotalGst(items, disc);
   return Math.round((Math.max(sub-disc,0)+totalGst)*100)/100;
 }
 
@@ -6371,9 +6391,7 @@ function updateSplitHint(){
   if(!hintEl) return;
   var sub = items.reduce(function(s,i){return s+(i.qty*i.price);},0);
   var disc = parseFloat(document.getElementById('discount').value)||0;
-  var totalGst = items.reduce(function(s,i){
-    return s + (i.gstPct>0 ? i.qty*((i.origPrice||i.price)-i.price) : 0);
-  },0);
+  var totalGst = calcTotalGst(items, disc);
   var net = Math.round((Math.max(sub-disc,0)+totalGst)*100)/100;
   hintEl.textContent = 'Total: Rs.' + net.toFixed(0);
 }
@@ -6523,14 +6541,8 @@ function calcTotals(){
   var disc = parseFloat(document.getElementById('discount').value)||0;
   var subAfterDisc = Math.max(sub - disc, 0);
 
-  // GST amounts per slab (on base price)
-  var gstByRate = {};
-  items.forEach(function(i){
-    if(i.gstPct > 0){
-      var gstAmt = i.qty * (i.origPrice - i.price); // origPrice - base = gst per unit
-      gstByRate[i.gstPct] = (gstByRate[i.gstPct]||0) + gstAmt;
-    }
-  });
+  // GST amounts per slab — calculated on the DISCOUNTED amount
+  var gstByRate = calcGstByRate(items, disc);
 
   var totalGst = Object.keys(gstByRate).reduce(function(s,k){ return s + gstByRate[k]; }, 0);
   var total = subAfterDisc + totalGst;
@@ -6579,9 +6591,7 @@ function onCashAmtChange(){
   // Total = subtotal - discount + GST (same as calcTotals)
   var sub = items.reduce(function(s,i){return s+(i.qty*i.price);},0);
   var disc = parseFloat(document.getElementById('discount').value)||0;
-  var totalGst = items.reduce(function(s,i){
-    return s + (i.gstPct>0 ? i.qty*(i.origPrice-i.price) : 0);
-  },0);
+  var totalGst = calcTotalGst(items, disc);
   var net = Math.round((Math.max(sub-disc, 0) + totalGst)*100)/100;
   var ca = parseFloat(document.getElementById('cashAmt').value)||0;
   var uaEl = document.getElementById('upiAmt');
@@ -6655,13 +6665,10 @@ function collectFormData(){
   var validItems = items.filter(function(i){ return i.name.trim()!=='' && i.price>0; });
   if(!validItems.length){ showToast('Ek item ka naam aur price zaroor dein!'); return null; }
   var sub = validItems.reduce(function(s,i){return s+(i.qty*i.price);},0);
-  var gstByRate = {};
-  validItems.forEach(function(i){
-    if(i.gstPct>0){ var ga=i.qty*((i.origPrice||i.price)-i.price); gstByRate[i.gstPct]=(gstByRate[i.gstPct]||0)+ga; }
-  });
+  var disc = parseFloat(document.getElementById('discount').value)||0;
+  var gstByRate = calcGstByRate(validItems, disc); // GST on discounted amount
   var gstTypeEl = document.getElementById('inv-gst-type');
   var gstType = gstTypeEl ? gstTypeEl.value : 'cgst';
-  var disc = parseFloat(document.getElementById('discount').value)||0;
   var totalGstAmt = Object.keys(gstByRate).reduce(function(s,k){return s+gstByRate[k];},0);
   var total = Math.round((Math.max(sub-disc,0)+totalGstAmt)*100)/100;
   var pm = document.getElementById('invPayMode').value;
@@ -7703,7 +7710,7 @@ function saveReturnExchange(){
       });
     }
     inv.sub = (inv.items||[]).reduce(function(s,it){return s+(it.qty||0)*(it.price||0);},0);
-    var invTotalGst = (inv.items||[]).reduce(function(s,it){ return s + (it.gstPct>0 ? (it.qty||0)*((it.origPrice||it.price)-it.price) : 0); }, 0);
+    var invTotalGst = calcTotalGst(inv.items||[], inv.disc||0);
     inv.total = Math.max(0, inv.sub - (inv.disc||0) + invTotalGst);
     inv.hasReturn = true;
     inv.returnRefs = inv.returnRefs || [];
