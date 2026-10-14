@@ -888,7 +888,8 @@ input[type=tel], textarea, select {
         </div>
         <div class="card"><div class="card-head"><div class="card-icon">&#128100;</div><div class="card-title">Customer</div></div>
           <div class="card-body">
-            <div class="ig"><label>Customer Name</label><input type="text" id="custName" placeholder="Type name to search..." oninput="searchCust(this.value)" autocomplete="off"/><div id="custSugg"></div></div>
+            <div class="ig"><label>Customer Name</label><input type="text" id="custName" placeholder="Type name to search..." oninput="searchCust(this.value);updateCustPrevDueBox()" onchange="updateCustPrevDueBox()" autocomplete="off"/><div id="custSugg"></div></div>
+            <div id="custPrevDueBox" style="display:none;"></div>
             <div class="ig"><label>Phone</label><input type="tel" id="custPhone" placeholder="9876543210" inputmode="numeric"/></div>
             <div class="ig"><label>Address</label><textarea id="custAddr" placeholder="Shop / City"></textarea></div>
           </div>
@@ -6068,11 +6069,50 @@ function searchCust(val){
   box.style.display = 'block';
 }
 
+// ═════════ PENDING DUE (purana baaki) — same customer ke pending/partial invoices ═════════
+// Returns {amount, invs:[{invNo,due,date}]} — excludeId = jo invoice abhi edit ho raha hai (usse count nahi karna),
+// beforeId = sirf us invoice se pehle bane invoices count karo (edit mode me).
+function getCustPrevDue(custName, excludeId, beforeId){
+  var nm = String(custName||'').trim().toLowerCase();
+  var out = {amount:0, invs:[]};
+  if(!nm) return out;
+  var list = LS.get('invoices') || invoices || [];
+  list.forEach(function(i){
+    if(!i || String(i.custName||'').trim().toLowerCase()!==nm) return;
+    if(excludeId!=null && i.id===excludeId) return;
+    if(beforeId!=null && !(i.id < beforeId)) return;
+    if(!(i.payStatus==='Pending'||i.payStatus==='Partial')) return;
+    var due = Math.round(((parseFloat(i.total)||0) - (parseFloat(i.paidAmount)||0))*100)/100;
+    if(due <= 0) return;
+    out.amount += due;
+    out.invs.push({invNo:i.invNo, due:due, date:i.invDate});
+  });
+  out.amount = Math.round(out.amount*100)/100;
+  out.invs.sort(function(a,b){ return String(a.date||'').localeCompare(String(b.date||'')); });
+  return out;
+}
+
+// Invoice form me customer ka pending due live dikhata hai
+function updateCustPrevDueBox(){
+  var box = document.getElementById('custPrevDueBox');
+  if(!box) return;
+  var nameEl = document.getElementById('custName');
+  var d = getCustPrevDue(nameEl ? nameEl.value : '', (typeof editingInvId!=='undefined' ? editingInvId : null), null);
+  if(d.amount <= 0){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div style="background:#fff3e0;border:1px solid #ffd4a0;color:#c45e00;padding:9px 12px;margin-bottom:12px;font-family:Arial,sans-serif;font-size:12px;border-radius:2px;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><strong>&#9203; Previous Pending Amounts</strong><strong style="font-size:15px;">'+fmt(d.amount)+'</strong></div>'
+    +'<div style="font-size:10px;margin-top:4px;color:#9a6a00;">'+d.invs.map(function(x){ return escH(x.invNo)+' ('+fmt(x.due)+')'; }).join(' &middot; ')+'</div>'
+    +'<div style="font-size:10px;margin-top:4px;color:#9a6a00;">Yeh amount is invoice par &ldquo;Previous Pending Amounts&rdquo; ke naam se dikhega (invoice total me add nahi hoga).</div>'
+    +'</div>';
+}
+
 function pickCust(el){
   document.getElementById('custName').value = el.getAttribute('data-n')||'';
   document.getElementById('custPhone').value = el.getAttribute('data-ph')||'';
   document.getElementById('custAddr').value = el.getAttribute('data-ad')||'';
   document.getElementById('custSugg').style.display = 'none';
+  updateCustPrevDueBox();
 }
 
 // ===== INVOICE =====
@@ -6096,6 +6136,7 @@ function initInvoice(){
   var ppr=document.getElementById('partialRemaining1'); if(ppr) ppr.textContent='₹ 0';
   var pst=document.getElementById('partialSplitTotal'); if(pst) pst.textContent='₹ 0';
   var cs=document.getElementById('custSugg'); if(cs) cs.style.display='none';
+  var cpd=document.getElementById('custPrevDueBox'); if(cpd){ cpd.style.display='none'; cpd.innerHTML=''; }
   items=[]; itemIdCounter=1;
   addItem(); addItem();
   calcTotals();
@@ -6205,6 +6246,7 @@ function resumeHeldInvoice(heldId){
   document.getElementById('invNo').value = genInvNo();
   document.getElementById('invDate').value = h.invDate || nowDate();
   document.getElementById('custName').value = h.custName || '';
+  setTimeout(function(){ if(typeof updateCustPrevDueBox==='function') updateCustPrevDueBox(); }, 0);
   document.getElementById('custPhone').value = h.custPhone || '';
   document.getElementById('custAddr').value = h.custAddr || '';
   document.getElementById('invNote').value = h.invNote || '';
@@ -6776,6 +6818,19 @@ function persistInvoice(fd){
       gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
       paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0};
 
+    // ── PENDING DUE snapshot: same customer ke purane pending/partial invoices ka baaki amount ──
+    // Invoice total me add NAHI hota (sales/reports same rahenge) — sirf invoice par "Pending Due" ke naam se dikhta hai.
+    try {
+      var _oldForDue = isEditMode ? invoices.find(function(i){ return i.id===editingInvId; }) : null;
+      var _sameCust = _oldForDue && String(_oldForDue.custName||'').trim().toLowerCase()===String(inv.custName||'').trim().toLowerCase();
+      if(_sameCust && _oldForDue.prevDue!=null){
+        inv.prevDue = _oldForDue.prevDue; inv.prevDueInvs = _oldForDue.prevDueInvs || [];
+      } else {
+        var _pd = getCustPrevDue(inv.custName, isEditMode ? editingInvId : null, isEditMode ? editingInvId : null);
+        if(_pd.amount > 0){ inv.prevDue = _pd.amount; inv.prevDueInvs = _pd.invs.map(function(x){ return {invNo:x.invNo, due:x.due}; }); }
+      }
+    } catch(pdErr){ console.error('[persistInvoice] prevDue error:', pdErr); }
+
     // ── EDIT MODE: capture old invoice (for stock restore) BEFORE replacing it ──
     var oldInvForStock = null;
     if(isEditMode){
@@ -6987,6 +7042,20 @@ function buildPreview(inv){
   }
 
 
+  // ── PENDING DUE (purana baaki) — invoice banate waqt same customer ka jo due tha ──
+  var prevDueHtml = '';
+  if((parseFloat(inv.prevDue)||0) > 0){
+    var _thisBal = Math.max(0, (parseFloat(inv.total)||0) - (parseFloat(inv.paidAmount)||0));
+    var _pdTotal = Math.round((_thisBal + inv.prevDue)*100)/100;
+    var _pdList = (inv.prevDueInvs||[]).map(function(x){ return escH(x.invNo); }).join(', ');
+    prevDueHtml = '<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-top:1px dashed #d4c9a8;border-bottom:none;background:#fff3e0;align-items:flex-start;">'
+      +'<span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;line-height:1.5;">&#9203; Previous Pending Amounts'+(_pdList?'<br><span style="font-size:8px;font-weight:600;color:#9a6a00;">('+_pdList+')</span>':'')+'</span>'
+      +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;white-space:nowrap;">'+fmt(inv.prevDue)+'</span></div>'
+      +'<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-bottom:none;background:#ffe0b2;">'
+      +'<span style="font-family:Arial,sans-serif;color:#bf360c;font-weight:800;letter-spacing:.5px;">TOTAL OUTSTANDING</span>'
+      +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px;color:#bf360c;white-space:nowrap;">'+fmt(_pdTotal)+'</span></div>';
+  }
+
   // ── Profit Analysis (ADMIN ONLY — never part of #invPrint, so it never shows in PDF/WhatsApp/print) ──
   var profitPanelHtml = '';
   if(CURRENT_ROLE === 'admin'){
@@ -7082,6 +7151,7 @@ function buildPreview(inv){
     +gstHtml
     +'<div class="inv-tot-row grand"><span style="font-family:Arial,sans-serif;letter-spacing:2px;">TOTAL</span><span style="font-family:Arial,sans-serif;">'+fmt(inv.total)+'</span></div>'
     +splitRows
+    +prevDueHtml
     +'</div></div>'
     +'<div class="inv-foot">'
     +'<div>'
@@ -7280,6 +7350,7 @@ function editInv(id){
     document.getElementById('custName').value = inv.custName || '';
     document.getElementById('custPhone').value = inv.custPhone || '';
     document.getElementById('custAddr').value = inv.custAddr || '';
+    updateCustPrevDueBox();
     document.getElementById('discount').value = inv.disc || 0;
     document.getElementById('invNote').value = inv.note || '';
     var pm = document.getElementById('invPayMode'); if(pm) pm.value = inv.payMode || 'Cash';
