@@ -5215,6 +5215,21 @@ function openCustHist(name){
   var totalPending= custInvs.reduce(function(s,i){ return s+(i.total-(i.paidAmount!=null?i.paidAmount:(i.payStatus==='Paid'?i.total:0))); },0);
   if(totalPending < 0) totalPending = 0;
 
+  // ── Customer-wise total discount (ADMIN ONLY): invoice discount + payment-receipt chhoot ──
+  var discRow = '';
+  if(CURRENT_ROLE === 'admin'){
+    var _invNoSet = {};
+    custInvs.forEach(function(i){ _invNoSet[i.invNo] = true; });
+    var invDiscTotal = custInvs.reduce(function(s,i){ return s+(parseFloat(i.disc)||0); },0);
+    var rcptDiscTotal = (LS.get('pendingPayments')||pendingPayments||[]).reduce(function(s,r){ return _invNoSet[r.invNo] ? s+(parseFloat(r.discountAmt)||0) : s; },0);
+    var totalDisc = Math.round((invDiscTotal+rcptDiscTotal)*100)/100;
+    discRow = '<div style="grid-column:1/-1;padding:10px;text-align:center;border-top:1px solid var(--bdr);">'
+      +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">Total Discount Diya</div>'
+      +'<div style="font-size:16px;font-weight:700;color:'+(totalDisc>0?'#d32f2f':'var(--mu)')+';font-family:Arial,sans-serif;">'+fmt(totalDisc)+'</div>'
+      +(totalDisc>0?'<div style="font-size:9px;color:var(--mu);margin-top:3px;font-family:Arial,sans-serif;">Invoice discount '+fmt(invDiscTotal)+' + Receipt chhoot '+fmt(rcptDiscTotal)+'</div>':'')
+      +'</div>';
+  }
+
   document.getElementById('custHistName').textContent = name;
   document.getElementById('custHistPhone').textContent = (phone ? '📞 '+phone : '') + (addr ? '  |  📍 '+addr : '');
 
@@ -5227,7 +5242,8 @@ function openCustHist(name){
     +'<div style="font-size:16px;font-weight:700;color:var(--g);font-family:Arial,sans-serif;">'+fmt(totalSpent)+'</div></div>'
     +'<div style="padding:12px 10px;text-align:center;">'
     +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">Pending</div>'
-    +'<div style="font-size:16px;font-weight:700;color:'+(totalPending>0?'#c45e00':'#1e6e3a')+';font-family:Arial,sans-serif;">'+fmt(totalPending)+'</div></div>';
+    +'<div style="font-size:16px;font-weight:700;color:'+(totalPending>0?'#c45e00':'#1e6e3a')+';font-family:Arial,sans-serif;">'+fmt(totalPending)+'</div></div>'
+    + discRow;
 
   if(!custInvs.length){
     document.getElementById('custHistList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu);">No invoices found for this customer.</div>';
