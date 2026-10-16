@@ -13511,8 +13511,14 @@ function editPurchase(id){
   document.getElementById('epur-rate').value = p.rate || 0;
   document.getElementById('epur-freight').value = p.freight || 0;
   var pm = document.getElementById('epur-paymode'); if(pm) pm.value = p.payMode || 'Cash';
-  var pst = document.getElementById('epur-paystatus'); if(pst) pst.value = p.payStatus || 'Paid';
-  var pp = document.getElementById('epur-partial-paid'); if(pp) pp.value = p.paidAmount || 0;
+  // Form me sirf 'purchase ke time diya paisa' dikhao — supplier payment / advance wala hissa nahi (warna edit par double count hota hai)
+  var _ePaid = p.paidAmount || 0, _eSt = p.payStatus || 'Paid';
+  if(p.directPaidAmount != null){
+    _ePaid = p.directPaidAmount;
+    _eSt = _ePaid >= (p.totalCost||0) - 0.01 ? 'Paid' : (_ePaid > 0 ? 'Partial' : 'Pending');
+  }
+  var pst = document.getElementById('epur-paystatus'); if(pst) pst.value = _eSt;
+  var pp = document.getElementById('epur-partial-paid'); if(pp) pp.value = _ePaid;
   document.getElementById('epur-notes').value = p.notes || '';
   onEPurPayStatusChange();
   document.getElementById('editPurchaseModal').classList.add('show');
