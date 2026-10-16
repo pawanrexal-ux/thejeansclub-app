@@ -9884,8 +9884,8 @@ function searchPurSupplier(val){
   if(!val || val.length < 1){ box.style.display='none'; return; }
   var q = val.toLowerCase(), seen = {}, found = [];
   purchases.forEach(function(p){
-    if(p.supplier && p.supplier.toLowerCase().indexOf(q)===0 && !seen[p.supplier]){
-      seen[p.supplier]=true; found.push(p.supplier);
+    if(p.supplier && p.supplier.toLowerCase().indexOf(q)===0 && !seen[_supKey(p.supplier)]){
+      seen[_supKey(p.supplier)]=true; found.push(p.supplier);
     }
   });
   found = found.slice(0,6);
@@ -13782,7 +13782,7 @@ async function downloadPurchaseDatePDF(date){
 //   + supplierPayments[].advanceAmt  (payment ka jo hissa kisi purchase me allocate nahi hua)
 //   - purchases[].advanceAdjusted    (naye purchase me jitna advance adjust hua)
 // Balance hamesha in dono se nikalta hai, isliye edit/delete par bhi plus-minus sahi rehta hai.
-function _supKey(n){ return String(n||'Unknown').trim().toLowerCase(); }
+function _supKey(n){ return String(n||'Unknown').toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/g,'') || 'unknown'; }
 function getSupplierAdvance(supplier, excludePurchaseId){
   var k = _supKey(supplier);
   var plus = (supplierPayments||[]).reduce(function(s,r){ return _supKey(r.supplier)===k ? s+(parseFloat(r.advanceAmt)||0) : s; },0);
@@ -13818,6 +13818,28 @@ function applySupplierAdvanceToPurchase(p){
   if(p.payStatus==='Paid') p.paidAmount = p.totalCost;
   p.savedAt = new Date().toISOString();
   return use;
+}
+// Purane purchases (jo naam-mismatch ki wajah se advance adjust nahi hue the) me advance auto minus karta hai.
+// Sirf admin; balance advanceAdjusted se hi nikalta hai isliye dobara chalane par double adjust nahi hota.
+function reconcileSupplierAdvances(){
+  if(typeof CURRENT_ROLE!=='undefined' && CURRENT_ROLE!=='admin') return 0;
+  var keys = {};
+  (supplierPayments||[]).forEach(function(r){ if(parseFloat(r.advanceAmt)>0) keys[_supKey(r.supplier)] = r.supplier; });
+  var total = 0;
+  Object.keys(keys).forEach(function(k){
+    var nm = keys[k];
+    (purchases||[]).filter(function(p){ return _supKey(p.supplier)===k && (p.payStatus==='Pending'||p.payStatus==='Partial'); })
+      .sort(function(a,b){ return (a.date||'') < (b.date||'') ? -1 : 1; })
+      .forEach(function(p){
+        if(getSupplierAdvance(nm) <= 0) return;
+        total += applySupplierAdvanceToPurchase(p);
+      });
+  });
+  if(total > 0){
+    LS.sync('purchases', purchases);
+    showToast('\u2713 Supplier advance '+fmt(total)+' pending purchases me adjust ho gaya');
+  }
+  return total;
 }
 // Purchase form me supplier ka advance balance dikhata hai
 function updatePurAdvanceNote(){
@@ -13972,6 +13994,7 @@ function paySupplierShortcut(name){
 function renderSupplierPendingPage(){
   purchases = LS.get('purchases')||purchases||[];
   supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  reconcileSupplierAdvances();
   var names = {}, order = [];
   purchases.forEach(function(p){ var n=String(p.supplier||'Unknown').trim(), k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
   supplierPayments.forEach(function(r){ var n=String(r.supplier||'Unknown').trim(), k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
@@ -13983,11 +14006,11 @@ function renderSupplierPendingPage(){
 
   var sum = document.getElementById('supp-summary');
   if(sum) sum.innerHTML =
-    '<div style="flex:1;min-width:130px;background:#fff3e0;border:1px solid #ffd4a0;border-radius:3px;padding:10px 14px;text-align:center;">'
+    '<div ondblclick="openSupplierList()" title="Double click: sabhi suppliers ki list" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;flex:1;min-width:130px;background:#fff3e0;border:1px solid #ffd4a0;border-radius:3px;padding:10px 14px;text-align:center;">'
       +'<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#c45e00;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Pending</div>'
       +'<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#c45e00;">'+fmt(tPend)+'</div>'
       +'<div style="font-size:10px;color:#c45e00;font-family:Arial,sans-serif;margin-top:2px;">'+nP+' supplier'+(nP===1?'':'s')+' ko dena hai</div></div>'
-    +'<div style="flex:1;min-width:130px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">'
+    +'<div ondblclick="openSupplierList()" title="Double click: sabhi suppliers ki list" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;flex:1;min-width:130px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">'
       +'<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#2e7d32;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Advance</div>'
       +'<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#2e7d32;">'+fmt(tAdv)+'</div>'
       +'<div style="font-size:10px;color:#2e7d32;font-family:Arial,sans-serif;margin-top:2px;">'+nA+' supplier'+(nA===1?'':'s')+' ke paas jama</div></div>';
@@ -14038,8 +14061,8 @@ function searchSPSupplier(val){
   var q = val.toLowerCase();
   var seen = {}, found = [];
   purchases.forEach(function(p){
-    if(p.supplier && p.supplier.toLowerCase().indexOf(q)===0 && !seen[p.supplier]){
-      seen[p.supplier]=true; found.push(p.supplier);
+    if(p.supplier && p.supplier.toLowerCase().indexOf(q)===0 && !seen[_supKey(p.supplier)]){
+      seen[_supKey(p.supplier)]=true; found.push(p.supplier);
     }
   });
   if(!found.length){ box.style.display='none'; return; }
@@ -14064,7 +14087,7 @@ function loadSPSupplierPending(supplier){
 
   // Find all pending/partial purchases for this supplier
   var pendPurs = purchases.filter(function(p){
-    return (p.supplier||'Unknown').trim().toLowerCase() === supplier.trim().toLowerCase()
+    return _supKey(p.supplier) === _supKey(supplier)
       && (p.payStatus==='Pending' || p.payStatus==='Partial');
   });
 
@@ -14193,7 +14216,7 @@ function saveSupplierPayment(){
 
   // Update purchase paidAmount for this supplier (oldest pending first)
   var pendPurs = purchases.filter(function(p){
-    return (p.supplier||'Unknown').trim().toLowerCase() === supplier.trim().toLowerCase()
+    return _supKey(p.supplier) === _supKey(supplier)
       && (p.payStatus==='Pending' || p.payStatus==='Partial');
   }).sort(function(a,b){ return (a.date||'') < (b.date||'') ? -1 : 1; });
 
@@ -14382,7 +14405,7 @@ function deleteSPReceipt(id){
   purchases=LS.get('purchases')||[];
   var reversalAmt = Math.max(0, (r.amount||0) - (r.advanceAmt||0)); // advance wala hissa purchase me gaya hi nahi tha
   var paidPurs = purchases.filter(function(p){
-    return (p.supplier||'Unknown').trim().toLowerCase() === (r.supplier||'').trim().toLowerCase()
+    return _supKey(p.supplier) === _supKey(r.supplier)
       && (p.payStatus==='Paid' || p.payStatus==='Partial')
       && (p.paidAmount||0) > (p.directPaidAmount||0) + (p.advanceAdjusted||0);
   }).sort(function(a,b){ return (b.date||'') < (a.date||'') ? -1 : 1; });
@@ -14583,7 +14606,7 @@ function renderPurchaseDashboard(){
     '<div class="stat-card" onclick="navTo(\'purchaselist\',null);setTimeout(function(){var el=document.getElementById(\'pur-month\');if(el){el.value=monthKey(nowDate());renderPurchases();}},100);" style="cursor:pointer;" title="Is mahine ki purchases dekho"><div class="stat-card-icon">📈</div><div class="stat-label">This Month</div><div class="stat-value" style="color:#1565c0;">'+fmt(monthAmt)+'</div><div class="stat-sub">'+monthP.length+' items &nbsp;›</div></div>' +
     '<div class="stat-card gold" onclick="navTo(\'purchaselist\',null)" style="cursor:pointer;" title="Purchase records dekho"><div class="stat-card-icon">📦</div><div class="stat-label">Today Qty</div><div class="stat-value">'+fmtN(todayQty)+'</div><div class="stat-sub">pieces &nbsp;›</div></div>' +
     '<div class="stat-card" onclick="navTo(\'purchaselist\',null)" style="cursor:pointer;" title="Is mahine ki qty"><div class="stat-card-icon">📊</div><div class="stat-label">Month Qty</div><div class="stat-value">'+fmtN(monthQty)+'</div><div class="stat-sub">pieces &nbsp;›</div></div>' +
-    (totalPendingToSuppliers > 0 ? '<div class="stat-card red" style="cursor:pointer;" title="Suppliers ko pending payment"><div class="stat-card-icon">⏳</div><div class="stat-label">Supplier Pending</div><div class="stat-value" style="color:#c45e00;">'+fmt(totalPendingToSuppliers)+'</div><div class="stat-sub">Pay karna hai &nbsp;↓</div></div>' : '');
+    (totalPendingToSuppliers > 0 ? '<div class="stat-card red" ondblclick="openSupplierList()" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;" title="Double click: sabhi suppliers ki list"><div class="stat-card-icon">⏳</div><div class="stat-label">Supplier Pending</div><div class="stat-value" style="color:#c45e00;">'+fmt(totalPendingToSuppliers)+'</div><div class="stat-sub">Pay karna hai &nbsp;↓</div></div>' : '');
 
   // Today list
   var dt = document.getElementById('pur-dash-today');
@@ -14645,13 +14668,13 @@ function renderPurchaseDashboard(){
       // Summary stat at top
       var summaryHtml =
         '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">' +
-          '<div style="flex:1;min-width:120px;background:#fff3e0;border:1px solid #ffd4a0;border-radius:3px;padding:10px 14px;text-align:center;">' +
+          '<div ondblclick="openSupplierList()" title="Double click: sabhi suppliers ki list" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;flex:1;min-width:120px;background:#fff3e0;border:1px solid #ffd4a0;border-radius:3px;padding:10px 14px;text-align:center;">' +
             '<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#c45e00;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Pending</div>' +
             '<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#c45e00;">'+fmt(grandPending)+'</div>' +
             '<div style="font-size:10px;color:#c45e00;font-family:Arial,sans-serif;margin-top:2px;">'+supNames.length+' supplier'+(supNames.length>1?'s':'')+' baki hain</div>' +
           '</div>' +
           (advList.length ?
-          '<div style="flex:1;min-width:120px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">' +
+          '<div ondblclick="openSupplierList()" title="Double click: sabhi suppliers ki list" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;flex:1;min-width:120px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">' +
             '<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#2e7d32;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Advance</div>' +
             '<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#2e7d32;">'+fmt(grandAdvance)+'</div>' +
             '<div style="font-size:10px;color:#2e7d32;font-family:Arial,sans-serif;margin-top:2px;">'+advList.length+' supplier'+(advList.length>1?'s':'')+' ke paas jama</div>' +
