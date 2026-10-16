@@ -1361,9 +1361,9 @@ input[type=tel], textarea, select {
             <div class="pur-form-grid">
               <div class="ig"><label>Date</label><input type="date" id="pur-date"/></div>
               <div class="ig"><label>Supplier Name</label><div style="position:relative;">
-                <input type="text" id="pur-supplier" placeholder="Supplier / Party name" style="font-family:Arial,sans-serif;width:100%;" oninput="searchPurSupplier(this.value)" onblur="setTimeout(function(){var b=document.getElementById('pur-supplier-sugg');if(b)b.style.display='none';},200)" autocomplete="off"/>
+                <input type="text" id="pur-supplier" placeholder="Supplier / Party name" style="font-family:Arial,sans-serif;width:100%;" oninput="searchPurSupplier(this.value);updatePurAdvanceNote()" onchange="updatePurAdvanceNote()" onblur="setTimeout(function(){var b=document.getElementById('pur-supplier-sugg');if(b)b.style.display='none';},200)" autocomplete="off"/>
                 <div id="pur-supplier-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--bdr);border-top:none;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 4px 10px rgba(0,0,0,.1);"></div>
-              </div></div>
+              <div id="pur-advance-note" style="display:none;"></div></div>
               <div class="ig"><label>Item Name</label><div style="position:relative;">
                 <input type="text" id="pur-item" placeholder="Item purchased" style="font-family:Arial,sans-serif;width:100%;" oninput="searchPurItem(this.value)" onblur="setTimeout(function(){var b=document.getElementById('pur-item-sugg');if(b)b.style.display='none';},200)" autocomplete="off"/>
                 <div id="pur-item-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--bdr);border-top:none;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 4px 10px rgba(0,0,0,.1);"></div>
@@ -1431,7 +1431,7 @@ input[type=tel], textarea, select {
         </div>
         <!-- Supplier Pending Payments Section -->
         <div class="card" id="pur-supplier-pending-card">
-          <div class="card-head"><div class="card-icon">&#9203;</div><div class="card-title">Supplier Pending Payments</div></div>
+          <div class="card-head"><div class="card-icon">&#9203;</div><div class="card-title">Supplier Pending Payments &amp; Advance</div></div>
           <div class="card-body" id="pur-supplier-pending-body"></div>
         </div>
         <div style="text-align:right;margin-bottom:8px;">
@@ -1512,6 +1512,7 @@ input[type=tel], textarea, select {
             <div id="sp-remaining-row" style="display:none;margin-bottom:8px;">
               <div style="padding:10px 12px;background:#e8f5e9;border:1px solid #a5d6a7;font-size:13px;font-weight:700;color:#2e7d32;font-family:Arial,sans-serif;">&#10003; Is payment ke baad baki: <span id="sp-remaining-amt">&#8377; 0</span></div>
             </div>
+            <div id="sp-advance-note" style="display:none;margin-bottom:8px;padding:10px 12px;background:#e3f2fd;border:1px solid #90caf9;font-size:12px;color:#1565c0;font-family:Arial,sans-serif;"></div>
             <div class="ig"><label>Notes (Optional)</label><textarea id="sp-notes" placeholder="e.g. Bill no, cheque no, remarks..."></textarea></div>
           </div>
         </div>
@@ -2318,6 +2319,24 @@ input[type=tel], textarea, select {
 </div>
 
 <!-- ===== END P&L PAGE ===== -->
+
+<!-- SUPPLIER HISTORY MODAL -->
+<div class="modal-overlay" id="supHistModal">
+  <div class="modal-box" style="max-width:500px;">
+    <div class="modal-hdr">
+      <div>
+        <div class="modal-title" id="supHistName">Supplier History</div>
+        <div id="supHistSub" style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.5px;"></div>
+      </div>
+      <button class="modal-close" onclick="closeSupHist()">&#10005;</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div id="supHistSummary" style="display:grid;grid-template-columns:repeat(3,1fr);background:var(--ow);border-bottom:1px solid var(--bdr);"></div>
+      <div id="supHistSearchWrap" style="display:none;padding:10px 12px;border-bottom:1px solid var(--bdr);"><input type="text" id="supHistSearch" placeholder="Supplier search..." oninput="renderSupplierList()" style="width:100%;font-family:Arial,sans-serif;" autocomplete="off"/></div>
+      <div id="supHistList" style="max-height:65vh;overflow-y:auto;"></div>
+    </div>
+  </div>
+</div>
 
 <!-- CUSTOMER HISTORY MODAL -->
 <div class="modal-overlay" id="custHistModal">
@@ -9861,6 +9880,7 @@ function searchPurSupplier(val){
 function pickPurSupplier(val){
   var el=document.getElementById('pur-supplier'); if(el) el.value=val;
   var box=document.getElementById('pur-supplier-sugg'); if(box) box.style.display='none';
+  updatePurAdvanceNote();
 }
 function searchPurItem(val){
   var box = document.getElementById('pur-item-sugg');
@@ -13134,6 +13154,7 @@ var pendingPayments = [];
 function initPurchaseForm(){
   document.getElementById('pur-date').value = nowDate();
   document.getElementById('pur-supplier').value = '';
+  try{ updatePurAdvanceNote(); }catch(e){}
   document.getElementById('pur-item').value = '';
   document.getElementById('pur-qty').value = '';
   document.getElementById('pur-rate').value = '';
@@ -13231,6 +13252,9 @@ function savePurchase(){
   };
 
   purchases.unshift(purchase);
+  // ── Supplier ka advance (agar hai) is purchase me auto minus ──
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  var advUsed = applySupplierAdvanceToPurchase(purchase);
   LS.sync('purchases', purchases);
 
   // Auto-update inventory
@@ -13244,7 +13268,7 @@ function savePurchase(){
     LS.sync('stock', stockItems);
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se stock aayi — supplier '+supplier+' se +'+qty+' pcs'+(notes?' ('+notes+')':'')});
     LS.sync('stockMovLog', stockMovLog);
-    showToast('Purchase saved! ' + item + ' qty updated in inventory (total: ' + existing.qty + ')');
+    showToast('Purchase saved! ' + item + ' qty updated in inventory (total: ' + existing.qty + ')' + (advUsed>0 ? ' | Advance adjust: '+fmt(advUsed) : ''));
   } else {
     // Add new item to inventory
     stockItems.unshift({
@@ -13260,7 +13284,7 @@ function savePurchase(){
     LS.sync('stock', stockItems);
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se naya item stock mein add hua — supplier '+supplier+' se '+qty+' pcs'+(notes?' ('+notes+')':'')});
     LS.sync('stockMovLog', stockMovLog);
-    showToast('Purchase saved! New item added to inventory.');
+    showToast('Purchase saved! New item added to inventory.' + (advUsed>0 ? ' | Advance adjust: '+fmt(advUsed) : ''));
   }
 
   initPurchaseForm();
@@ -13387,7 +13411,7 @@ function renderPurchases(){
         }
         rows += '<tr>' +
           '<td style="font-family:Arial,sans-serif;">'+escH(p.item)+'</td>' +
-          '<td style="font-family:Arial,sans-serif;">'+escH(p.supplier)+'</td>' +
+          '<td style="font-family:Arial,sans-serif;"><span style="cursor:pointer;text-decoration:underline dotted;" onclick="'+_supLink(p.supplier)+'">'+escH(p.supplier)+'</span></td>' +
           '<td style="font-family:Arial,sans-serif;font-weight:700;">'+p.qty+'</td>' +
           '<td style="font-family:Arial,sans-serif;">'+fmt(p.rate)+'</td>' +
           '<td style="font-family:Arial,sans-serif;">'+fmt(p.freight)+'</td>' +
@@ -13575,6 +13599,10 @@ function saveEditPurchase(){
   p.directPaidAmount = paidAmount;
   p.notes = notes;
   p.editedAt = new Date().toISOString();
+  // paidAmount upar overwrite hua — purana advance adjust wapas balance me, phir naye total par dobara adjust
+  p.advanceAdjusted = 0;
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  applySupplierAdvanceToPurchase(p);
 
   LS.sync('purchases', purchases);
 
@@ -13723,6 +13751,183 @@ async function downloadPurchaseDatePDF(date){
   } catch(err){ showToast('PDF error: '+err.message); }
 }
 
+// ===== SUPPLIER ADVANCE (plus / minus) =====
+// Advance = supplier ko diya hua extra paisa (pending se zyada ya bina pending ke).
+//   + supplierPayments[].advanceAmt  (payment ka jo hissa kisi purchase me allocate nahi hua)
+//   - purchases[].advanceAdjusted    (naye purchase me jitna advance adjust hua)
+// Balance hamesha in dono se nikalta hai, isliye edit/delete par bhi plus-minus sahi rehta hai.
+function _supKey(n){ return String(n||'Unknown').trim().toLowerCase(); }
+function getSupplierAdvance(supplier, excludePurchaseId){
+  var k = _supKey(supplier);
+  var plus = (supplierPayments||[]).reduce(function(s,r){ return _supKey(r.supplier)===k ? s+(parseFloat(r.advanceAmt)||0) : s; },0);
+  var minus = (purchases||[]).reduce(function(s,p){
+    if(excludePurchaseId!=null && p.id===excludePurchaseId) return s;
+    return _supKey(p.supplier)===k ? s+(parseFloat(p.advanceAdjusted)||0) : s;
+  },0);
+  return Math.max(0, Math.round((plus-minus)*100)/100);
+}
+// Sabhi suppliers jinka advance balance > 0 hai: [{name, adv}]
+function getSupplierAdvanceList(){
+  var seen = {}, out = [];
+  (supplierPayments||[]).forEach(function(r){
+    if(!(parseFloat(r.advanceAmt)>0)) return;
+    var k = _supKey(r.supplier); if(seen[k]) return; seen[k] = true;
+    var a = getSupplierAdvance(r.supplier);
+    if(a > 0) out.push({name:String(r.supplier||'Unknown').trim(), adv:a});
+  });
+  return out;
+}
+// Naye/edit hue purchase me supplier ka advance auto adjust karta hai (paidAmount badhta hai, directPaidAmount nahi —
+// kyunki cash pehle hi advance payment ke time nikal chuka hai). Returns adjusted amount.
+function applySupplierAdvanceToPurchase(p){
+  if(!p || p.payStatus==='Paid') return 0;
+  var bal = getSupplierAdvance(p.supplier, p.id);
+  if(bal <= 0) return 0;
+  var due = Math.max(0, (p.totalCost||0) - (p.paidAmount||0));
+  var use = Math.round(Math.min(bal, due)*100)/100;
+  if(use <= 0) return 0;
+  p.paidAmount = Math.round(((p.paidAmount||0) + use)*100)/100;
+  p.advanceAdjusted = Math.round(((p.advanceAdjusted||0) + use)*100)/100;
+  p.payStatus = Math.abs(p.totalCost - p.paidAmount) < 0.01 ? 'Paid' : 'Partial';
+  if(p.payStatus==='Paid') p.paidAmount = p.totalCost;
+  p.savedAt = new Date().toISOString();
+  return use;
+}
+// Purchase form me supplier ka advance balance dikhata hai
+function updatePurAdvanceNote(){
+  var box = document.getElementById('pur-advance-note'); if(!box) return;
+  var el = document.getElementById('pur-supplier');
+  var nm = el ? el.value.trim() : '';
+  var adv = nm ? getSupplierAdvance(nm) : 0;
+  if(adv <= 0){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML = '<div style="margin-top:6px;padding:8px 10px;background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32;font-family:Arial,sans-serif;font-size:11px;border-radius:2px;">'
+    +'&#128178; <strong>Advance balance: '+fmt(adv)+'</strong> — is purchase me automatic adjust hoga (Paid/Partial/Pending ke baad jo baaki ho).</div>';
+}
+
+// ===== SUPPLIER HISTORY (customer history jaisa) =====
+function _supLink(name){ return 'openSupHist(decodeURIComponent(\''+encodeURIComponent(name)+'\'))'; }
+
+function _supStats(name){
+  var k = _supKey(name);
+  var purs = (purchases||[]).filter(function(p){ return _supKey(p.supplier)===k; });
+  var qty = purs.reduce(function(s,p){ return s+(parseFloat(p.qty)||0); },0);
+  var amt = purs.reduce(function(s,p){ return s+(parseFloat(p.totalCost)||0); },0);
+  var pend = purs.reduce(function(s,p){
+    if(!(p.payStatus==='Pending'||p.payStatus==='Partial')) return s;
+    return s + Math.max(0,(p.totalCost||0)-(p.paidAmount||0));
+  },0);
+  return {purs:purs, qty:qty, amt:amt, pend:Math.round(pend*100)/100, adv:getSupplierAdvance(name)};
+}
+
+function openSupHist(name){
+  purchases = LS.get('purchases')||purchases||[];
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  var k = _supKey(name);
+  var st = _supStats(name);
+  var pays = supplierPayments.filter(function(r){ return _supKey(r.supplier)===k; });
+
+  document.getElementById('supHistName').textContent = name;
+  document.getElementById('supHistSub').textContent = st.purs.length+' purchase'+(st.purs.length===1?'':'s')+' | '+pays.length+' payment'+(pays.length===1?'':'s');
+  document.getElementById('supHistSearchWrap').style.display = 'none';
+
+  function cell(label, val, color, last){
+    return '<div style="padding:12px 10px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'">'
+      +'<div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">'+label+'</div>'
+      +'<div style="font-size:16px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;">'+val+'</div></div>';
+  }
+  // 3rd cell: Pending (orange) ya Advance (green); dono ho to Pending upar, Advance alag row me
+  var thirdLabel, thirdVal, thirdColor;
+  if(st.pend>0){ thirdLabel='Pending'; thirdVal=fmt(st.pend); thirdColor='#c45e00'; }
+  else if(st.adv>0){ thirdLabel='Advance'; thirdVal=fmt(st.adv); thirdColor='#2e7d32'; }
+  else { thirdLabel='Pending'; thirdVal=fmt(0); thirdColor='#1e6e3a'; }
+  document.getElementById('supHistSummary').innerHTML =
+    cell('Total Qty', st.qty, 'var(--gd)')
+    + cell('Total Amount', fmt(st.amt), 'var(--g)')
+    + cell(thirdLabel, thirdVal, thirdColor, true)
+    + ((st.pend>0 && st.adv>0) ? '<div style="grid-column:1/-1;padding:8px;text-align:center;border-top:1px solid var(--bdr);background:#e8f5e9;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;font-weight:700;">&#128178; Advance balance: '+fmt(st.adv)+'</div>' : '');
+
+  // Timeline: purchases + payments, newest first
+  var rows = [];
+  st.purs.forEach(function(p){ rows.push({t:'P', d:p.date||'', s:p.savedAt||'', o:p}); });
+  pays.forEach(function(r){ rows.push({t:'S', d:r.date||'', s:r.savedAt||'', o:r}); });
+  rows.sort(function(a,b){ return (b.d+b.s).localeCompare(a.d+a.s); });
+
+  var html = '';
+  if(!rows.length){
+    html = '<div style="text-align:center;padding:40px;color:var(--mu);">Is supplier ka koi record nahi mila.</div>';
+  }
+  rows.forEach(function(x){
+    if(x.t==='P'){
+      var p = x.o;
+      var pend = (p.payStatus==='Pending'||p.payStatus==='Partial') ? Math.max(0,(p.totalCost||0)-(p.paidAmount||0)) : 0;
+      var pb = '<span class="pay-badge '+(p.payStatus==='Paid'?'pay-paid':p.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(p.payStatus||'Pending')+'</span>';
+      html += '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#fff;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+        +'<div><div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:var(--gd);">&#128230; '+escH(p.item||'-')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu);margin-top:1px;">'+escH(p.date||'')+' &nbsp;|&nbsp; Qty '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + freight '+fmt(p.freight):'')+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-weight:700;font-size:15px;color:var(--gd);">'+fmt(p.totalCost||0)+'</div>'
+        +'<div style="margin-top:3px;">'+pb+'</div></div></div>'
+        +(pend>0 ? '<div style="font-size:10px;color:#c45e00;font-weight:700;background:#fff3e0;display:inline-block;padding:2px 8px;border:1px solid #ffd4a0;margin-top:6px;">Balance due: '+fmt(pend)+'</div>' : '')
+        +(p.advanceAdjusted>0 ? '<div style="font-size:10px;color:#2e7d32;font-weight:700;background:#e8f5e9;display:inline-block;padding:2px 8px;border:1px solid #a5d6a7;margin:6px 0 0 6px;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
+        +'</div>';
+    } else {
+      var r = x.o;
+      html += '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#f7f4ff;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+        +'<div><div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#5c35b5;">&#128176; Payment '+escH(r.spNo||'')+'</div>'
+        +'<div style="font-size:10px;color:var(--mu);margin-top:1px;">'+escH(r.date||'')+' &nbsp;|&nbsp; '+escH(r.payMode||'')+(r.ref?' &nbsp;|&nbsp; '+escH(r.ref):'')+'</div></div>'
+        +'<div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-weight:700;font-size:15px;color:#5c35b5;">'+fmt(r.amount||0)+'</div></div></div>'
+        +(r.advanceAmt>0 ? '<div style="font-size:10px;color:#2e7d32;font-weight:700;background:#e8f5e9;display:inline-block;padding:2px 8px;border:1px solid #a5d6a7;margin-top:6px;">Advance bana: '+fmt(r.advanceAmt)+'</div>' : '')
+        +'</div>';
+    }
+  });
+  document.getElementById('supHistList').innerHTML = html;
+  document.getElementById('supHistModal').classList.add('show');
+}
+
+// Sabhi suppliers ki list (search ke saath) — kisi par tap karo to uski history khulti hai
+function openSupplierList(){
+  purchases = LS.get('purchases')||purchases||[];
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  document.getElementById('supHistName').textContent = 'Suppliers';
+  document.getElementById('supHistSub').textContent = 'Kisi supplier par tap karo — history dekhne ke liye';
+  var sw = document.getElementById('supHistSearchWrap'); if(sw) sw.style.display='block';
+  var si = document.getElementById('supHistSearch'); if(si) si.value='';
+  renderSupplierList();
+  document.getElementById('supHistModal').classList.add('show');
+}
+
+function renderSupplierList(){
+  var q = ((document.getElementById('supHistSearch')||{}).value||'').trim().toLowerCase();
+  var names = {}, order = [];
+  (purchases||[]).forEach(function(p){ var n=String(p.supplier||'Unknown').trim(); var k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
+  (supplierPayments||[]).forEach(function(r){ var n=String(r.supplier||'Unknown').trim(); var k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
+  var list = order.map(function(k){ var st=_supStats(names[k]); st.name=names[k]; return st; })
+    .filter(function(x){ return !q || x.name.toLowerCase().indexOf(q)!==-1; })
+    .sort(function(a,b){ return (b.pend+b.adv)-(a.pend+a.adv) || b.amt-a.amt; });
+
+  var tQty = list.reduce(function(s,x){return s+x.qty;},0), tAmt = list.reduce(function(s,x){return s+x.amt;},0);
+  var tPend = list.reduce(function(s,x){return s+x.pend;},0), tAdv = list.reduce(function(s,x){return s+x.adv;},0);
+  function cell(label,val,color,last){ return '<div style="padding:12px 10px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">'+label+'</div><div style="font-size:16px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;">'+val+'</div></div>'; }
+  document.getElementById('supHistSummary').innerHTML =
+    cell('Total Qty', tQty, 'var(--gd)') + cell('Total Amount', fmt(tAmt), 'var(--g)')
+    + cell(tPend>0||tAdv<=0 ? 'Pending' : 'Advance', tPend>0||tAdv<=0 ? fmt(tPend) : fmt(tAdv), tPend>0?'#c45e00':(tAdv>0?'#2e7d32':'#1e6e3a'), true)
+    + ((tPend>0 && tAdv>0) ? '<div style="grid-column:1/-1;padding:8px;text-align:center;border-top:1px solid var(--bdr);background:#e8f5e9;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;font-weight:700;">&#128178; Total Advance: '+fmt(tAdv)+'</div>' : '');
+
+  if(!list.length){ document.getElementById('supHistList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu);">Koi supplier nahi mila.</div>'; return; }
+  document.getElementById('supHistList').innerHTML = list.map(function(x){
+    var badge = x.pend>0 ? '<div style="font-size:12px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;">Pending '+fmt(x.pend)+'</div>' : '';
+    var badge2 = x.adv>0 ? '<div style="font-size:12px;font-weight:700;color:#2e7d32;font-family:Arial,sans-serif;">Advance '+fmt(x.adv)+'</div>' : '';
+    return '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;" onclick="'+_supLink(x.name)+'">'
+      +'<div style="min-width:0;"><div style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:var(--gd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">&#127968; '+escH(x.name)+'</div>'
+      +'<div style="font-size:10px;color:var(--mu);margin-top:2px;font-family:Arial,sans-serif;">'+x.purs.length+' purchase'+(x.purs.length===1?'':'s')+' | Qty '+x.qty+' | '+fmt(x.amt)+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0;">'+(badge||badge2?badge+badge2:'<div style="font-size:11px;color:#1e6e3a;font-family:Arial,sans-serif;">&#10003; Clear</div>')+'</div></div>';
+  }).join('');
+}
+
+function closeSupHist(){ document.getElementById('supHistModal').classList.remove('show'); }
+
 // ===== SUPPLIER PAYMENT FUNCTIONS =====
 
 function initSupplierPayForm(){
@@ -13736,6 +13941,7 @@ function initSupplierPayForm(){
   var pl = document.getElementById('sp-pending-list'); if(pl) pl.innerHTML = '';
   var tp = document.getElementById('sp-total-pending'); if(tp) tp.textContent = '\u20b9 0';
   var rr = document.getElementById('sp-remaining-row'); if(rr) rr.style.display='none';
+  var an = document.getElementById('sp-advance-note'); if(an) an.style.display='none';
   var sf = document.getElementById('sp-split-fields'); if(sf) sf.style.display='none';
 }
 
@@ -13784,12 +13990,15 @@ function loadSPSupplierPending(supplier){
   if(tp) tp.textContent = '\u20b9 ' + grandPend.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   if(!pl) return;
+  var advBal = getSupplierAdvance(supplier);
+  var histBtn = '<div style="margin-bottom:8px;"><button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="'+_supLink(supplier)+'">&#128203; Supplier History</button></div>';
+  var advHtml = histBtn + (advBal>0 ? '<div style="padding:9px 12px;background:#e8f5e9;border:1px solid #a5d6a7;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;"><span>&#128178; <strong>Advance balance</strong> (naye purchase me auto minus hoga)</span><strong style="font-size:15px;">'+fmt(advBal)+'</strong></div>' : '');
   if(!pendPurs.length){
-    pl.innerHTML = '<div style="padding:10px;background:#e8f5e9;border:1px solid #a5d6a7;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;">&#10003; Is supplier ka koi pending nahi!</div>';
+    pl.innerHTML = advHtml + '<div style="padding:10px;background:#e8f5e9;border:1px solid #a5d6a7;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;">&#10003; Is supplier ka koi pending nahi!'+(advBal>0?'':' Agar abhi payment karoge to wo <strong>Advance</strong> ke roop me save hogi.')+'</div>';
     return;
   }
 
-  var html = '<div style="margin-bottom:8px;">'
+  var html = advHtml + '<div style="margin-bottom:8px;">'
     +'<div style="font-size:10px;font-weight:700;letter-spacing:1px;color:#546e7a;margin-bottom:6px;font-family:Arial,sans-serif;">PENDING PURCHASES — '+escH(supplier)+'</div>';
   pendPurs.forEach(function(p){
     var rem = Math.max(0, p.totalCost - (p.paidAmount||0));
@@ -13836,7 +14045,14 @@ function onSPAmountChange(){
   if(!amtEl || !tp) return;
   var paying = parseFloat(amtEl.value)||0;
   var totalPend = parseFloat((tp.textContent||'0').replace(/[^0-9.]/g,''))||0;
-  if(paying > 0 && totalPend > 0){
+  var advNote = document.getElementById('sp-advance-note');
+  if(advNote){
+    if(paying > totalPend + 0.001 && paying > 0){
+      advNote.style.display = 'block';
+      advNote.innerHTML = '&#128178; <strong>'+fmt(Math.round((paying-totalPend)*100)/100)+'</strong> Advance ke roop me save hoga — agle purchase me automatic minus hoga.';
+    } else { advNote.style.display='none'; }
+  }
+  if(paying > 0 && totalPend > 0 && paying <= totalPend){
     var rem = Math.max(0, totalPend - paying);
     if(remRow){ remRow.style.display='block'; }
     if(remAmt){ remAmt.textContent = '\u20b9 ' + rem.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -13896,6 +14112,11 @@ function saveSupplierPayment(){
       && (p.payStatus==='Pending' || p.payStatus==='Partial');
   }).sort(function(a,b){ return (a.date||'') < (b.date||'') ? -1 : 1; });
 
+  // Advance check — purchases badalne se PEHLE confirm lo (cancel par kuch change na ho)
+  var _totalDueNow = pendPurs.reduce(function(sum,p){ return sum + Math.max(0, p.totalCost - (p.paidAmount||0)); },0);
+  var _advPre = Math.round(Math.max(0, amount - _totalDueNow)*100)/100;
+  if(_advPre > 0 && !confirm('Pending se '+fmt(_advPre)+' zyada hai.\n\nYeh '+fmt(_advPre)+' "'+supplier+'" ke Advance me jama hoga aur agle purchase me automatic minus hoga.\n\nConfirm?')) return;
+
   var remaining = amount;
   pendPurs.forEach(function(p){
     if(remaining <= 0) return;
@@ -13911,6 +14132,8 @@ function saveSupplierPayment(){
     p.savedAt = new Date().toISOString();
     remaining -= paying;
   });
+  // Jo amount kisi pending purchase me allocate nahi hui = ADVANCE (supplier ke paas jama)
+  var advanceAmt = Math.round(Math.max(0, remaining)*100)/100;
   LS.sync('purchases', purchases);
 
   var spNo = genSPNo(date);
@@ -13925,13 +14148,14 @@ function saveSupplierPayment(){
     payMode: payMode,
     ref: ref,
     notes: notes,
+    advanceAmt: advanceAmt,
     savedAt: new Date().toISOString()
   };
 
   supplierPayments.unshift(payment);
   LS.sync('supplierPayments', supplierPayments);
 
-  showToast('\u2713 Supplier payment saved! ' + fmt(amount) + ' — ' + supplier);
+  showToast('\u2713 Supplier payment saved! ' + fmt(amount) + ' — ' + supplier + (advanceAmt>0 ? ' (Advance: '+fmt(advanceAmt)+')' : ''));
   initSupplierPayForm();
   renderPurchaseDashboard();
   renderSupplierPayPage();
@@ -14071,16 +14295,16 @@ function deleteSPReceipt(id){
 
   // Reverse purchase paidAmount for this supplier
   purchases=LS.get('purchases')||[];
-  var reversalAmt = r.amount||0;
+  var reversalAmt = Math.max(0, (r.amount||0) - (r.advanceAmt||0)); // advance wala hissa purchase me gaya hi nahi tha
   var paidPurs = purchases.filter(function(p){
     return (p.supplier||'Unknown').trim().toLowerCase() === (r.supplier||'').trim().toLowerCase()
       && (p.payStatus==='Paid' || p.payStatus==='Partial')
-      && (p.paidAmount||0) > (p.directPaidAmount||0);
+      && (p.paidAmount||0) > (p.directPaidAmount||0) + (p.advanceAdjusted||0);
   }).sort(function(a,b){ return (b.date||'') < (a.date||'') ? -1 : 1; });
 
   paidPurs.forEach(function(p){
     if(reversalAmt <= 0) return;
-    var supPortion = Math.max(0, (p.paidAmount||0) - (p.directPaidAmount||0));
+    var supPortion = Math.max(0, (p.paidAmount||0) - (p.directPaidAmount||0) - (p.advanceAdjusted||0));
     var toReverse = Math.min(supPortion, reversalAmt);
     p.paidAmount = Math.max(p.directPaidAmount||0, (p.paidAmount||0) - toReverse);
     if(Math.abs(p.paidAmount - p.totalCost) < 0.01){
@@ -14097,6 +14321,28 @@ function deleteSPReceipt(id){
 
   supplierPayments=supplierPayments.filter(function(x){return x.id!==id;});
   LS.sync('supplierPayments',supplierPayments);
+
+  // Agar is payment ka advance pehle hi kisi purchase me use ho chuka tha, to wo adjustment wapas (latest purchase se pehle)
+  if(r.advanceAmt>0){
+    var supKey = _supKey(r.supplier);
+    var plusNow = supplierPayments.reduce(function(s,x){ return _supKey(x.supplier)===supKey ? s+(parseFloat(x.advanceAmt)||0) : s; },0);
+    var usedNow = purchases.reduce(function(s,x){ return _supKey(x.supplier)===supKey ? s+(parseFloat(x.advanceAdjusted)||0) : s; },0);
+    var deficit = Math.round((usedNow-plusNow)*100)/100;
+    if(deficit > 0){
+      purchases.filter(function(x){ return _supKey(x.supplier)===supKey && (x.advanceAdjusted||0)>0; })
+        .sort(function(a,b){ return (b.savedAt||'') < (a.savedAt||'') ? -1 : 1; })
+        .forEach(function(x){
+          if(deficit <= 0) return;
+          var back = Math.min(x.advanceAdjusted, deficit);
+          x.advanceAdjusted = Math.round((x.advanceAdjusted-back)*100)/100;
+          x.paidAmount = Math.max(x.directPaidAmount||0, Math.round(((x.paidAmount||0)-back)*100)/100);
+          x.payStatus = Math.abs(x.paidAmount-x.totalCost)<0.01 ? 'Paid' : (x.paidAmount>0 ? 'Partial' : 'Pending');
+          x.savedAt = new Date().toISOString();
+          deficit -= back;
+        });
+      LS.sync('purchases', purchases);
+    }
+  }
   renderSupplierPayPage();
   renderPurchaseDashboard();
   showToast('\u2713 Deleted \u2014 Purchase amount reversed');
@@ -14163,6 +14409,7 @@ function buildSPPreview(r){
     +'<td style="padding:10px 14px;text-align:right;font-family:Arial,sans-serif;font-size:17px;font-weight:700;color:#5c35b5;">'+fmt(r.amount)+'</td>'
     +'</tr>'
     +splitRow
+    +((r.advanceAmt>0)?'<tr style="background:#e8f5e9;"><td style="padding:8px 14px;font-family:Arial,sans-serif;color:#2e7d32;font-size:11px;font-weight:700;">&#128178; Advance (agle purchase me adjust hoga)</td><td style="padding:8px 14px;text-align:right;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#2e7d32;">'+fmt(r.advanceAmt)+'</td></tr>':'')
     +'<tr style="background:transparent;border-top:2px solid #5c35b5;">'
     +'<td colspan="2" style="padding:12px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:700;color:#5c35b5;text-align:center;letter-spacing:2px;">&#10003; PAYMENT MADE TO SUPPLIER</td>'
     +'</tr>'
@@ -14296,7 +14543,15 @@ function renderPurchaseDashboard(){
     var supNames = Object.keys(supplierMap).filter(function(s){ return supplierMap[s].total > 0; });
     supNames.sort(function(a,b){ return supplierMap[b].total - supplierMap[a].total; }); // highest pending first
 
-    if(!supNames.length){
+    // Advance (supplier ke paas jama) — pending ke saath hi dikhta hai
+    supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+    var advList = getSupplierAdvanceList();
+    var advByKey = {}; advList.forEach(function(a){ advByKey[_supKey(a.name)] = a; });
+    var supKeys = {}; supNames.forEach(function(n){ supKeys[_supKey(n)] = true; });
+    var advOnly = advList.filter(function(a){ return !supKeys[_supKey(a.name)]; });
+    var grandAdvance = advList.reduce(function(s,a){ return s+a.adv; },0);
+
+    if(!supNames.length && !advList.length){
       spBody.innerHTML = '<div style="text-align:center;padding:24px;color:var(--mu);font-family:Arial,sans-serif;font-size:13px;">&#10003; Koi pending payment nahi! Sab suppliers ko payment ho gayi.</div>';
     } else {
       // Grand total pending
@@ -14310,6 +14565,12 @@ function renderPurchaseDashboard(){
             '<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#c45e00;">'+fmt(grandPending)+'</div>' +
             '<div style="font-size:10px;color:#c45e00;font-family:Arial,sans-serif;margin-top:2px;">'+supNames.length+' supplier'+(supNames.length>1?'s':'')+' baki hain</div>' +
           '</div>' +
+          (advList.length ?
+          '<div style="flex:1;min-width:120px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">' +
+            '<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#2e7d32;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Advance</div>' +
+            '<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#2e7d32;">'+fmt(grandAdvance)+'</div>' +
+            '<div style="font-size:10px;color:#2e7d32;font-family:Arial,sans-serif;margin-top:2px;">'+advList.length+' supplier'+(advList.length>1?'s':'')+' ke paas jama</div>' +
+          '</div>' : '') +
         '</div>';
 
       // Supplier rows
@@ -14324,12 +14585,13 @@ function renderPurchaseDashboard(){
         rowsHtml +=
           '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);">' +
             '<div style="flex:1;min-width:0;">' +
-              '<div style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:var(--gd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">&#127968; '+escH(sup)+'</div>' +
+              '<div style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:var(--gd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline dotted;" onclick="'+_supLink(sup)+'">&#127968; '+escH(sup)+'</div>' +
               '<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;margin-top:2px;">' +
                 entryCount+' purchase'+(entryCount>1?'s':'')+
                 (latestLabel ? ' &nbsp;|&nbsp; Last: '+latestLabel : '') +
                 (sd.partial > 0 ? ' &nbsp;|&nbsp; <span style="color:#9a6a00;">Partial: '+fmt(sd.partial)+'</span>' : '') +
                 (sd.pending > 0 ? ' &nbsp;|&nbsp; <span style="color:#c45e00;">Credit: '+fmt(sd.pending)+'</span>' : '') +
+                (advByKey[_supKey(sup)] ? ' &nbsp;|&nbsp; <span style="color:#2e7d32;font-weight:700;">Advance: '+fmt(advByKey[_supKey(sup)].adv)+'</span>' : '') +
               '</div>' +
             '</div>' +
             '<div style="text-align:right;flex-shrink:0;margin-left:12px;">' +
@@ -14339,9 +14601,24 @@ function renderPurchaseDashboard(){
           '</div>';
       });
 
+      advOnly.forEach(function(a){
+        rowsHtml +=
+          '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:var(--gd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline dotted;" onclick="'+_supLink(a.name)+'">&#127968; '+escH(a.name)+'</div>' +
+              '<div style="font-size:10px;color:#2e7d32;font-family:Arial,sans-serif;margin-top:2px;">Advance diya hua — agle purchase me minus hoga</div>' +
+            '</div>' +
+            '<div style="text-align:right;flex-shrink:0;margin-left:12px;">' +
+              '<div style="font-family:Arial,sans-serif;font-size:16px;font-weight:700;color:#2e7d32;">'+fmt(a.adv)+'</div>' +
+              '<div style="font-size:9px;font-family:Arial,sans-serif;color:#2e7d32;background:#e8f5e9;border:1px solid #a5d6a7;padding:1px 7px;display:inline-block;margin-top:3px;border-radius:2px;">ADVANCE</div>' +
+            '</div>' +
+          '</div>';
+      });
+
       spBody.innerHTML = summaryHtml +
         '<div>' + rowsHtml + '</div>' +
         '<div style="text-align:right;margin-top:10px;">' +
+          '<button class="btn btn-gold" style="font-size:11px;padding:5px 12px;margin-right:6px;" onclick="openSupplierList()">&#127968; All Suppliers History</button>' +
           '<button class="btn btn-outline" style="font-size:11px;padding:5px 12px;" onclick="navTo(\'purchaselist\',null)">View All Purchase Records &#8594;</button>' +
         '</div>';
     }
