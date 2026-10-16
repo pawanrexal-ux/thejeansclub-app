@@ -822,7 +822,10 @@ input[type=tel], textarea, select {
       <div class="nav-sec">Purchase</div>
       <div class="nav-item" onclick="navTo('purchases',this)"><span class="nav-icon">&#128666;</span>Purchase Dashboard</div>
       <div class="nav-item" onclick="navTo('purchaselist',this)"><span class="nav-icon">&#128203;</span>Purchase Records</div>
+      <div class="nav-sec">Supplier &#127968;</div>
       <div class="nav-item" onclick="navTo('supplierpay',this)"><span class="nav-icon">&#128176;</span>Pay Supplier</div>
+      <div class="nav-item" onclick="navTo('supplierpending',this)"><span class="nav-icon">&#9203;</span>Supplier Pending / Advance</div>
+      <div class="nav-item" onclick="navTo('supplierhistory',this)"><span class="nav-icon">&#128203;</span>Supplier History</div>
       <div class="nav-sec">Inventory</div>
       <div class="nav-item" onclick="navTo('inventory',this)"><span class="nav-icon">&#128230;</span>Stock Manager</div>
       <div class="nav-item" onclick="navTo('invreport',this)" id="navitem-invreport"><span class="nav-icon">&#128202;</span>Inventory Report</div>
@@ -1454,6 +1457,22 @@ input[type=tel], textarea, select {
         </div>
       </div>
 
+      <!-- SUPPLIER PENDING / ADVANCE PAGE -->
+      <div class="page" id="page-supplierpending">
+        <div id="supp-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;"></div>
+        <div class="card">
+          <div class="card-head"><div class="card-icon">&#9203;</div><div class="card-title">Supplier Pending / Advance</div></div>
+          <div class="card-body" id="supp-body"></div>
+        </div>
+      </div>
+      <!-- SUPPLIER HISTORY PAGE -->
+      <div class="page" id="page-supplierhistory">
+        <div class="search-wrap"><input class="search-box" type="text" id="suph-search" placeholder="Supplier search..." oninput="renderSupplierList('suph-summary','suph-list','suph-search')" autocomplete="off" style="font-family:Arial,sans-serif;"/></div>
+        <div class="card" style="overflow:hidden;">
+          <div id="suph-summary" style="display:grid;grid-template-columns:repeat(3,1fr);background:var(--ow);border-bottom:1px solid var(--bdr);"></div>
+          <div id="suph-list"></div>
+        </div>
+      </div>
       <!-- SUPPLIER PAY PAGE -->
       <!-- SUPPLIER PAY — NEW PAYMENT FORM -->
       <div class="page" id="page-supplierpay">
@@ -3639,6 +3658,8 @@ function applyDeltaItems(items){
     if(currentPage === 'purchases') renderPurchaseDashboard();
   }
   if(touched.supplierPayments && currentPage === 'supplierpay') renderSupplierPayPage();
+  if((touched.supplierPayments || touched.purchases) && currentPage === 'supplierpending') renderSupplierPendingPage();
+  if((touched.supplierPayments || touched.purchases) && currentPage === 'supplierhistory') renderSupplierHistoryPage();
   if(touched.pendingPayments){
     if(currentPage === 'pendingreceipts') renderPendingReceipts();
     if(currentPage === 'pending') renderPendingDashboard();
@@ -5368,7 +5389,7 @@ function staffCanAccess(page){
   if(page === 'settings') return false;
   // pnl, profitreport, editlog, loginlog, supplierpay, suppaypreview always blocked for staff
   if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog') return false;
-  if(page === 'supplierpay' || page === 'suppaypreview') return false;
+  if(page === 'supplierpay' || page === 'suppaypreview' || page === 'supplierpending' || page === 'supplierhistory') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
 
@@ -5808,7 +5829,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice') initInvoice();
@@ -5830,6 +5851,8 @@ function navTo(page, el, mi){
   if(page==='purchases') ensureFullDataLoaded(renderPurchaseDashboard);
   if(page==='purchaselist') ensureFullDataLoaded(renderPurchases);
   if(page==='supplierpay'){ initSupplierPayForm(); ensureFullDataLoaded(renderSupplierPayPage); }
+  if(page==='supplierpending') ensureFullDataLoaded(renderSupplierPendingPage);
+  if(page==='supplierhistory') ensureFullDataLoaded(renderSupplierHistoryPage);
   if(page==='pending') ensureFullDataLoaded(renderPendingDashboard);
   if(page==='expenses') ensureFullDataLoaded(renderExpenseDashboard);
   if(page==='expenselist') ensureFullDataLoaded(renderExpenses);
@@ -11326,6 +11349,8 @@ async function silentPull(){
       else if(currentPage==='expenses') renderExpenseDashboard();
       else if(currentPage==='expenselist') renderExpenses();
       else if(currentPage==='supplierpay'){ initSupplierPayForm(); renderSupplierPayPage(); }
+      else if(currentPage==='supplierpending') renderSupplierPendingPage();
+      else if(currentPage==='supplierhistory') renderSupplierHistoryPage();
       else if(currentPage==='purchases') renderPurchaseDashboard();
       else if(currentPage==='purchaselist') renderPurchases();
       // FIX: Stock qty wale screens (Stock Manager, Low Item List, Inventory
@@ -13899,8 +13924,9 @@ function openSupplierList(){
   document.getElementById('supHistModal').classList.add('show');
 }
 
-function renderSupplierList(){
-  var q = ((document.getElementById('supHistSearch')||{}).value||'').trim().toLowerCase();
+function renderSupplierList(sumId, listId, searchId){
+  sumId = sumId || 'supHistSummary'; listId = listId || 'supHistList'; searchId = searchId || 'supHistSearch';
+  var q = ((document.getElementById(searchId)||{}).value||'').trim().toLowerCase();
   var names = {}, order = [];
   (purchases||[]).forEach(function(p){ var n=String(p.supplier||'Unknown').trim(); var k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
   (supplierPayments||[]).forEach(function(r){ var n=String(r.supplier||'Unknown').trim(); var k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
@@ -13911,13 +13937,13 @@ function renderSupplierList(){
   var tQty = list.reduce(function(s,x){return s+x.qty;},0), tAmt = list.reduce(function(s,x){return s+x.amt;},0);
   var tPend = list.reduce(function(s,x){return s+x.pend;},0), tAdv = list.reduce(function(s,x){return s+x.adv;},0);
   function cell(label,val,color,last){ return '<div style="padding:12px 10px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'"><div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">'+label+'</div><div style="font-size:16px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;">'+val+'</div></div>'; }
-  document.getElementById('supHistSummary').innerHTML =
+  document.getElementById(sumId).innerHTML =
     cell('Total Qty', tQty, 'var(--gd)') + cell('Total Amount', fmt(tAmt), 'var(--g)')
     + cell(tPend>0||tAdv<=0 ? 'Pending' : 'Advance', tPend>0||tAdv<=0 ? fmt(tPend) : fmt(tAdv), tPend>0?'#c45e00':(tAdv>0?'#2e7d32':'#1e6e3a'), true)
     + ((tPend>0 && tAdv>0) ? '<div style="grid-column:1/-1;padding:8px;text-align:center;border-top:1px solid var(--bdr);background:#e8f5e9;font-family:Arial,sans-serif;font-size:12px;color:#2e7d32;font-weight:700;">&#128178; Total Advance: '+fmt(tAdv)+'</div>' : '');
 
-  if(!list.length){ document.getElementById('supHistList').innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu);">Koi supplier nahi mila.</div>'; return; }
-  document.getElementById('supHistList').innerHTML = list.map(function(x){
+  if(!list.length){ document.getElementById(listId).innerHTML = '<div style="text-align:center;padding:40px;color:var(--mu);">Koi supplier nahi mila.</div>'; return; }
+  document.getElementById(listId).innerHTML = list.map(function(x){
     var badge = x.pend>0 ? '<div style="font-size:12px;font-weight:700;color:#c45e00;font-family:Arial,sans-serif;">Pending '+fmt(x.pend)+'</div>' : '';
     var badge2 = x.adv>0 ? '<div style="font-size:12px;font-weight:700;color:#2e7d32;font-family:Arial,sans-serif;">Advance '+fmt(x.adv)+'</div>' : '';
     return '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#fff;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;" onclick="'+_supLink(x.name)+'">'
@@ -13928,6 +13954,64 @@ function renderSupplierList(){
 }
 
 function closeSupHist(){ document.getElementById('supHistModal').classList.remove('show'); }
+
+// ===== SUPPLIER NAV PAGES (Pending/Advance + History) =====
+function renderSupplierHistoryPage(){
+  purchases = LS.get('purchases')||purchases||[];
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  renderSupplierList('suph-summary','suph-list','suph-search');
+}
+
+// Supplier ko seedha pay karne ke liye: Pay Supplier page khol ke naam bhar deta hai
+function paySupplierShortcut(name){
+  navTo('supplierpay', null);
+  var el = document.getElementById('sp-supplier'); if(el) el.value = name;
+  loadSPSupplierPending(name);
+}
+
+function renderSupplierPendingPage(){
+  purchases = LS.get('purchases')||purchases||[];
+  supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
+  var names = {}, order = [];
+  purchases.forEach(function(p){ var n=String(p.supplier||'Unknown').trim(), k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
+  supplierPayments.forEach(function(r){ var n=String(r.supplier||'Unknown').trim(), k=_supKey(n); if(!names[k]){ names[k]=n; order.push(k); } });
+  var list = order.map(function(k){ var st=_supStats(names[k]); st.name=names[k]; return st; })
+    .filter(function(x){ return x.pend>0 || x.adv>0; })
+    .sort(function(a,b){ return (b.pend-a.pend) || (b.adv-a.adv); });
+  var tPend = list.reduce(function(s,x){return s+x.pend;},0), tAdv = list.reduce(function(s,x){return s+x.adv;},0);
+  var nP = list.filter(function(x){return x.pend>0;}).length, nA = list.filter(function(x){return x.adv>0;}).length;
+
+  var sum = document.getElementById('supp-summary');
+  if(sum) sum.innerHTML =
+    '<div style="flex:1;min-width:130px;background:#fff3e0;border:1px solid #ffd4a0;border-radius:3px;padding:10px 14px;text-align:center;">'
+      +'<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#c45e00;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Pending</div>'
+      +'<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#c45e00;">'+fmt(tPend)+'</div>'
+      +'<div style="font-size:10px;color:#c45e00;font-family:Arial,sans-serif;margin-top:2px;">'+nP+' supplier'+(nP===1?'':'s')+' ko dena hai</div></div>'
+    +'<div style="flex:1;min-width:130px;background:#e8f5e9;border:1px solid #a5d6a7;border-radius:3px;padding:10px 14px;text-align:center;">'
+      +'<div style="font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:#2e7d32;font-weight:700;font-family:Arial,sans-serif;margin-bottom:4px;">Total Advance</div>'
+      +'<div style="font-family:Arial,sans-serif;font-size:20px;font-weight:700;color:#2e7d32;">'+fmt(tAdv)+'</div>'
+      +'<div style="font-size:10px;color:#2e7d32;font-family:Arial,sans-serif;margin-top:2px;">'+nA+' supplier'+(nA===1?'':'s')+' ke paas jama</div></div>';
+
+  var body = document.getElementById('supp-body');
+  if(!body) return;
+  if(!list.length){
+    body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--mu);font-family:Arial,sans-serif;font-size:13px;">&#10003; Koi pending ya advance nahi — sab clear hai.</div>';
+    return;
+  }
+  body.innerHTML = list.map(function(x){
+    var amts = '';
+    if(x.pend>0) amts += '<div style="font-family:Arial,sans-serif;font-size:16px;font-weight:700;color:#c45e00;">'+fmt(x.pend)+'</div><div style="font-size:9px;font-family:Arial,sans-serif;color:#c45e00;background:#fff3e0;border:1px solid #ffd4a0;padding:1px 7px;display:inline-block;margin-top:3px;border-radius:2px;">PENDING</div>';
+    if(x.adv>0) amts += '<div style="font-family:Arial,sans-serif;font-size:'+(x.pend>0?'12':'16')+'px;font-weight:700;color:#2e7d32;margin-top:'+(x.pend>0?'6':'0')+'px;">'+fmt(x.adv)+'</div><div style="font-size:9px;font-family:Arial,sans-serif;color:#2e7d32;background:#e8f5e9;border:1px solid #a5d6a7;padding:1px 7px;display:inline-block;margin-top:3px;border-radius:2px;">ADVANCE</div>';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bdr);gap:10px;">'
+      +'<div style="flex:1;min-width:0;">'
+        +'<div style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;color:var(--gd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline dotted;" onclick="'+_supLink(x.name)+'">&#127968; '+escH(x.name)+'</div>'
+        +'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;margin-top:2px;">'+x.purs.length+' purchase'+(x.purs.length===1?'':'s')+' | Qty '+x.qty+' | '+fmt(x.amt)+'</div>'
+        +'<div style="margin-top:6px;"><button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="paySupplierShortcut(decodeURIComponent(\''+encodeURIComponent(x.name)+'\'))">&#128176; Pay</button> '
+        +'<button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="'+_supLink(x.name)+'">&#128203; History</button></div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'+amts+'</div></div>';
+  }).join('');
+}
 
 // ===== SUPPLIER PAYMENT FUNCTIONS =====
 
