@@ -1480,6 +1480,7 @@ input[type=tel], textarea, select {
         <div class="card">
           <div class="card-head"><div class="card-icon">&#128176;</div><div class="card-title">Pay Supplier — Pending Payment</div></div>
           <div class="card-body">
+            <div id="sp-edit-banner" style="display:none;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;padding:9px 12px;background:#fff8e1;border:1px solid #ffd54f;color:#8a5a00;font-family:Arial,sans-serif;font-size:12px;font-weight:700;"><span id="sp-edit-banner-txt"></span><button class="btn btn-outline" style="font-size:10px;padding:4px 10px;flex-shrink:0;" onclick="initSupplierPayForm()">Cancel Edit</button></div>
             <div class="row2">
               <div class="ig"><label>Date</label><input type="date" id="sp-date"/></div>
               <div class="ig"><label>Payment Mode</label>
@@ -1538,7 +1539,7 @@ input[type=tel], textarea, select {
         </div>
         <div class="bottom-bar">
           <button class="btn btn-outline" onclick="initSupplierPayForm()" style="flex-shrink:0;">Clear</button>
-          <button class="btn btn-green btn-full" onclick="saveSupplierPayment()">&#10003; Save Supplier Payment</button>
+          <button id="sp-save-btn" class="btn btn-green btn-full" onclick="saveSupplierPayment()">&#10003; Save Supplier Payment</button>
         </div>
         <!-- Supplier Payment Receipts List (folder-wise) -->
         <div class="card" style="margin-top:16px;">
@@ -11348,7 +11349,7 @@ async function silentPull(){
       else if(currentPage==='salesreport') renderSalesReport();
       else if(currentPage==='expenses') renderExpenseDashboard();
       else if(currentPage==='expenselist') renderExpenses();
-      else if(currentPage==='supplierpay'){ initSupplierPayForm(); renderSupplierPayPage(); }
+      else if(currentPage==='supplierpay'){ if(_spEditId==null) initSupplierPayForm(); renderSupplierPayPage(); }
       else if(currentPage==='supplierpending') renderSupplierPendingPage();
       else if(currentPage==='supplierhistory') renderSupplierHistoryPage();
       else if(currentPage==='purchases') renderPurchaseDashboard();
@@ -14051,6 +14052,7 @@ function initSupplierPayForm(){
   var rr = document.getElementById('sp-remaining-row'); if(rr) rr.style.display='none';
   var an = document.getElementById('sp-advance-note'); if(an) an.style.display='none';
   var sf = document.getElementById('sp-split-fields'); if(sf) sf.style.display='none';
+  _spEditId = null; _spEditNo = ''; _spSetEditUI(false);
 }
 
 function searchSPSupplier(val){
@@ -14179,6 +14181,42 @@ function onSPSplitChange(){
   if(amtEl && total > 0){ amtEl.value = total; onSPAmountChange(); }
 }
 
+var _spEditId = null, _spEditNo = '';
+function _spSetEditUI(on, no){
+  var b = document.getElementById('sp-edit-banner');
+  if(b){
+    b.style.display = on ? 'flex' : 'none';
+    var t = document.getElementById('sp-edit-banner-txt'); if(t) t.textContent = on ? ('\u270F\uFE0F Edit mode \u2014 Receipt '+no+' (same receipt no. se save hoga)') : '';
+  }
+  var btn = document.getElementById('sp-save-btn');
+  if(btn) btn.innerHTML = on ? '&#10003; Update Supplier Payment' : '&#10003; Save Supplier Payment';
+}
+function editSPReceipt(id){
+  if(CURRENT_ROLE!=='admin'){showToast('\u26d4 Only Admin can edit');return;}
+  supplierPayments = LS.get('supplierPayments')||[];
+  var r = supplierPayments.find(function(x){return x.id===id;});
+  if(!r){ showToast('Receipt nahi mili'); return; }
+  navTo('supplierpay', null);   // form reset hota hai — uske baad values bharo
+  var set = function(i,v){ var e=document.getElementById(i); if(e) e.value = (v==null?'':v); };
+  set('sp-date', r.date || nowDate());
+  set('sp-paymode', r.payMode || 'Cash');
+  onSPModeChange();
+  set('sp-supplier', r.supplier);
+  set('sp-ref', r.ref);
+  set('sp-notes', r.notes);
+  if(r.payMode==='Split'){
+    set('sp-cash', r.cashAmt||0); set('sp-upi', r.upiAmt||0);
+    if(typeof onSPSplitChange==='function') onSPSplitChange();
+  } else {
+    set('sp-amount', r.amount);
+  }
+  _spEditId = id; _spEditNo = r.spNo || '';
+  _spSetEditUI(true, _spEditNo);
+  var b = document.getElementById('sp-edit-banner');
+  if(b && b.scrollIntoView) b.scrollIntoView({behavior:'smooth', block:'center'});
+  showToast('\u270F\uFE0F Edit mode: '+(r.spNo||'')+' \u2014 badlav karke Update dabao');
+}
+
 function genSPNo(date){
   var months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   var d = new Date(date);
@@ -14214,6 +14252,21 @@ function saveSupplierPayment(){
   if(!supplier){ showToast('Supplier name required!'); return; }
   if(amount <= 0){ showToast('Amount enter karein!'); return; }
 
+  // ── EDIT mode: purani payment ka asar pehle wapas karo, phir naya lagao (same receipt no.) ──
+  var _editing = (_spEditId!=null) ? _spEditId : null, _editOld = null, _editIdx = -1, _bkP = null, _bkS = null;
+  var _restoreEdit = function(){
+    if(_bkP==null) return;
+    purchases = JSON.parse(_bkP); supplierPayments = JSON.parse(_bkS);
+    LS.sync('purchases', purchases); LS.sync('supplierPayments', supplierPayments);
+  };
+  if(_editing!=null){
+    _bkP = JSON.stringify(purchases); _bkS = JSON.stringify(supplierPayments);
+    _editIdx = supplierPayments.findIndex(function(x){ return x.id===_editing; });
+    _editOld = _spReverseEffects(_editing);
+    if(!_editOld){ showToast('Receipt nahi mili'); initSupplierPayForm(); return; }
+    purchases = LS.get('purchases')||[]; supplierPayments = LS.get('supplierPayments')||[];
+  }
+
   // Update purchase paidAmount for this supplier (oldest pending first)
   var pendPurs = purchases.filter(function(p){
     return _supKey(p.supplier) === _supKey(supplier)
@@ -14223,7 +14276,7 @@ function saveSupplierPayment(){
   // Advance check — purchases badalne se PEHLE confirm lo (cancel par kuch change na ho)
   var _totalDueNow = pendPurs.reduce(function(sum,p){ return sum + Math.max(0, p.totalCost - (p.paidAmount||0)); },0);
   var _advPre = Math.round(Math.max(0, amount - _totalDueNow)*100)/100;
-  if(_advPre > 0 && !confirm('Pending se '+fmt(_advPre)+' zyada hai.\n\nYeh '+fmt(_advPre)+' "'+supplier+'" ke Advance me jama hoga aur agle purchase me automatic minus hoga.\n\nConfirm?')) return;
+  if(_advPre > 0 && !confirm('Pending se '+fmt(_advPre)+' zyada hai.\n\nYeh '+fmt(_advPre)+' "'+supplier+'" ke Advance me jama hoga aur agle purchase me automatic minus hoga.\n\nConfirm?')){ _restoreEdit(); return; }
 
   var remaining = amount;
   pendPurs.forEach(function(p){
@@ -14244,9 +14297,9 @@ function saveSupplierPayment(){
   var advanceAmt = Math.round(Math.max(0, remaining)*100)/100;
   LS.sync('purchases', purchases);
 
-  var spNo = genSPNo(date);
+  var spNo = _editOld ? _editOld.spNo : genSPNo(date);
   var payment = {
-    id: Date.now(),
+    id: _editOld ? _editOld.id : Date.now(),
     spNo: spNo,
     date: date,
     supplier: supplier,
@@ -14257,13 +14310,16 @@ function saveSupplierPayment(){
     ref: ref,
     notes: notes,
     advanceAmt: advanceAmt,
-    savedAt: new Date().toISOString()
+    savedAt: _editOld ? (_editOld.savedAt || new Date().toISOString()) : new Date().toISOString()
   };
+  if(_editOld) payment.editedAt = new Date().toISOString();
 
-  supplierPayments.unshift(payment);
+  if(_editOld && _editIdx >= 0) supplierPayments.splice(Math.min(_editIdx, supplierPayments.length), 0, payment);
+  else supplierPayments.unshift(payment);
   LS.sync('supplierPayments', supplierPayments);
+  if(_editOld) reconcileSupplierAdvances();
 
-  showToast('\u2713 Supplier payment saved! ' + fmt(amount) + ' — ' + supplier + (advanceAmt>0 ? ' (Advance: '+fmt(advanceAmt)+')' : ''));
+  showToast((_editOld ? '\u2713 Supplier payment updated (' + spNo + ')! ' : '\u2713 Supplier payment saved! ') + fmt(amount) + ' — ' + supplier + (advanceAmt>0 ? ' (Advance: '+fmt(advanceAmt)+')' : ''));
   initSupplierPayForm();
   renderPurchaseDashboard();
   renderSupplierPayPage();
@@ -14340,6 +14396,7 @@ function renderSupplierPayPage(){
             +'<button class="btn btn-outline" style="padding:4px 9px;font-size:9px;" data-spaction="viewsp" data-spid="'+r.id+'">View</button>'
             +'<button class="btn btn-wa" style="padding:4px 9px;font-size:9px;" data-spaction="waspay" data-spid="'+r.id+'">&#128172; WA</button>'
             +'<button class="btn btn-green" style="padding:4px 9px;font-size:9px;" data-spaction="dlsp" data-spid="'+r.id+'">&#8595; PDF</button>'
+            +'<button class="btn btn-outline" style="padding:4px 9px;font-size:9px;" data-spaction="editsp" data-spid="'+r.id+'">&#9998; Edit</button>'
             +'<button class="btn btn-red" style="padding:4px 9px;font-size:9px;" data-spaction="delsp" data-spid="'+r.id+'">Delete</button>'
           +'</div>'
         +'</div>';
@@ -14358,6 +14415,7 @@ function renderSupplierPayPage(){
       if(act==='viewsp') viewSPReceipt(id);
       else if(act==='waspay') shareSPReceiptWA(id);
       else if(act==='dlsp') downloadSPReceiptPDFById(id);
+      else if(act==='editsp') editSPReceipt(id);
       else if(act==='delsp') deleteSPReceipt(id);
     }
   };
@@ -14394,12 +14452,11 @@ function viewSPReceipt(id){
   navTo('suppaypreview',null);
 }
 
-function deleteSPReceipt(id){
-  if(CURRENT_ROLE!=='admin'){showToast('\u26d4 Only Admin can delete');return;}
-  if(!confirm('Is supplier payment ko delete karein?\n\nDhyan do: Purchase ki paidAmount bhi reverse ho jaayegi.')) return;
+// Payment ka asar (purchase paidAmount + advance) wapas karke payment hata deta hai. Delete aur Edit dono use karte hain.
+function _spReverseEffects(id){
   supplierPayments=LS.get('supplierPayments')||[];
   var r=supplierPayments.find(function(x){return x.id===id;});
-  if(!r){ showToast('Receipt nahi mili'); return; }
+  if(!r) return null;
 
   // Reverse purchase paidAmount for this supplier
   purchases=LS.get('purchases')||[];
@@ -14451,6 +14508,15 @@ function deleteSPReceipt(id){
       LS.sync('purchases', purchases);
     }
   }
+  return r;
+}
+
+function deleteSPReceipt(id){
+  if(CURRENT_ROLE!=='admin'){showToast('\u26d4 Only Admin can delete');return;}
+  if(!confirm('Is supplier payment ko delete karein?\n\nDhyan do: Purchase ki paidAmount bhi reverse ho jaayegi.')) return;
+  var r=_spReverseEffects(id);
+  if(!r){ showToast('Receipt nahi mili'); return; }
+  if(_spEditId===id) initSupplierPayForm();
   renderSupplierPayPage();
   renderPurchaseDashboard();
   showToast('\u2713 Deleted \u2014 Purchase amount reversed');
