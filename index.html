@@ -467,9 +467,7 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 /* Supplier History ledger: mobile same; laptop par box 1.75x chauda, text 0.875x (pehle se aadha) */
 @media (min-width:1024px) and (hover:hover){
   #supHistModal .modal-box{max-width:875px !important;}
-  #supHistModal .modal-box > .modal-hdr,
-  #supHistModal .modal-box > .modal-body{zoom:.875;}
-  #supHistModal #supHistList{max-height:calc(65vh / .875);}
+  #supHistModal #supHistList{max-height:65vh;}
 }
 .modal-hdr{background:linear-gradient(90deg,var(--gd),var(--g));padding:15px 18px;display:flex;align-items:center;justify-content:space-between;}
 .modal-title{font-family:"Cormorant Garamond",serif;font-size:14px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--gl2);}
@@ -2377,6 +2375,10 @@ input[type=tel], textarea, select {
           <input type="date" id="supLedFrom" onchange="renderSupLedger()" style="flex:1;min-width:0;font-family:Arial,sans-serif;font-size:12px;"/>
           <span style="font-size:11px;color:var(--mu);">to</span>
           <input type="date" id="supLedTo" onchange="renderSupLedger()" style="flex:1;min-width:0;font-family:Arial,sans-serif;font-size:12px;"/>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button onclick="downloadSupLedgerPDF()" style="flex:1;padding:10px 6px;border:none;background:#b3261e;color:#fff;font-family:Arial,sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-radius:3px;">&#128196; Download PDF</button>
+          <button onclick="downloadSupLedgerExcel()" style="flex:1;padding:10px 6px;border:none;background:#1e6e3a;color:#fff;font-family:Arial,sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-radius:3px;">&#128202; Download Excel</button>
         </div>
       </div>
       <div id="supHistSearchWrap" style="display:none;padding:10px 12px;border-bottom:1px solid var(--bdr);"><input type="text" id="supHistSearch" placeholder="Supplier search..." oninput="renderSupplierList()" style="width:100%;font-family:Arial,sans-serif;" autocomplete="off"/></div>
@@ -14100,9 +14102,9 @@ function _supLedgerEntries(name){
 
 function _supBalHtml(bal, bold){
   var b = Math.round(bal*100)/100;
-  if(b > 0.004)  return '<span style="color:#c45e00;font-weight:'+(bold?800:700)+';">'+fmt(b)+'</span><div style="font-size:8px;color:#c45e00;">Baaki</div>';
-  if(b < -0.004) return '<span style="color:#2e7d32;font-weight:'+(bold?800:700)+';">'+fmt(-b)+'</span><div style="font-size:8px;color:#2e7d32;">Advance</div>';
-  return '<span style="color:#1e6e3a;font-weight:700;">'+fmt(0)+'</span><div style="font-size:8px;color:#1e6e3a;">Clear</div>';
+  if(b > 0.004)  return '<span style="color:#c45e00;font-weight:'+(bold?800:700)+';">'+fmt(b)+'</span><div style="font-size:10px;color:#c45e00;">Baaki</div>';
+  if(b < -0.004) return '<span style="color:#2e7d32;font-weight:'+(bold?800:700)+';">'+fmt(-b)+'</span><div style="font-size:10px;color:#2e7d32;">Advance</div>';
+  return '<span style="color:#1e6e3a;font-weight:700;">'+fmt(0)+'</span><div style="font-size:10px;color:#1e6e3a;">Clear</div>';
 }
 
 function onSupLedPeriodChange(){
@@ -14121,44 +14123,52 @@ function onSupLedPeriodChange(){
   renderSupLedger();
 }
 
-function renderSupLedger(){
-  var box = document.getElementById('supHistList'); if(!box) return;
-  var name = _supLed.name;
-  var preset = _supLed.preset;
-  var fromV = '', toV = '';
+// Ledger ka data (screen, PDF aur Excel teeno yahin se lete hain => hamesha same hisaab)
+function _supLedgerData(){
+  var name = _supLed.name, preset = _supLed.preset, fromV = '', toV = '';
   if(preset==='custom'){
     fromV = (document.getElementById('supLedFrom')||{}).value||'';
     toV = (document.getElementById('supLedTo')||{}).value||'';
   }
   var rg = _supLedRange(preset, fromV, toV);
   var all = _supLedgerEntries(name);
-
-  // Opening balance = period shuru hone se pehle tak ka balance
   var opening = 0;
   if(rg.from){ all.forEach(function(e){ if(e.date < rg.from) opening = Math.round((opening + e.bill - e.paid)*100)/100; }); }
   var rows = all.filter(function(e){ return (!rg.from || e.date >= rg.from) && (!rg.to || e.date <= rg.to); });
-
   var tQty = 0, tBill = 0, tPaid = 0;
   rows.forEach(function(e){ tQty += e.qty; tBill += e.bill; tPaid += e.paid; });
   tBill = Math.round(tBill*100)/100; tPaid = Math.round(tPaid*100)/100;
   var closing = Math.round((opening + tBill - tPaid)*100)/100;
-
   var label;
   if(!rg.from && !rg.to) label = 'Sabhi records (All Time)';
   else if(rg.from && rg.to) label = _supFmtD(rg.from)+' se '+_supFmtD(rg.to);
   else if(rg.from) label = _supFmtD(rg.from)+' se aage';
   else label = _supFmtD(rg.to)+' tak';
+  return {name:name, rg:rg, rows:rows, opening:opening, tQty:tQty, tBill:tBill, tPaid:tPaid, closing:closing, label:label};
+}
+function _supBalTxt(b, short){
+  b = Math.round(b*100)/100;
+  if(b > 0.004) return fmt(b)+' Baaki';
+  if(b < -0.004) return fmt(-b)+(short?' Adv.':' Advance');
+  return fmt(0)+(short?'':' Clear');
+}
+function _supRsN(n){ return 'Rs.'+Math.round(n||0).toLocaleString('en-IN'); }
+
+function renderSupLedger(){
+  var box = document.getElementById('supHistList'); if(!box) return;
+  var D = _supLedgerData();
+  var rg = D.rg, rows = D.rows, opening = D.opening, tQty = D.tQty, tBill = D.tBill, tPaid = D.tPaid, closing = D.closing, name = D.name, label = D.label;
 
   function sc(lbl, val, color, last){
-    return '<div style="padding:8px 4px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'">'
-      +'<div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:3px;">'+lbl+'</div>'
-      +'<div style="font-size:13px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;">'+val+'</div></div>';
+    return '<div style="padding:10px 4px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'">'
+      +'<div style="font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:4px;">'+lbl+'</div>'
+      +'<div style="font-size:15px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;line-height:1.3;">'+val+'</div></div>';
   }
   var closeColor = closing>0.004 ? '#c45e00' : (closing<-0.004 ? '#2e7d32' : '#1e6e3a');
-  var closeTxt = closing>0.004 ? fmt(closing)+' Baaki' : (closing<-0.004 ? fmt(-closing)+' Advance' : fmt(0)+' Clear');
+  var closeTxt = _supBalTxt(closing);
   var openTxt = opening>0.004 ? fmt(opening)+' Baaki' : (opening<-0.004 ? fmt(-opening)+' Adv.' : fmt(0));
 
-  var html = '<div style="padding:8px 12px;background:#fffdf5;border-bottom:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:11px;color:#444;">'
+  var html = '<div style="padding:10px 12px;background:#fffdf5;border-bottom:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:13px;color:#333;">'
     +'&#128210; <b>Ledger:</b> '+escH(label)+' &nbsp;|&nbsp; '+rows.length+' entr'+(rows.length===1?'y':'ies')+'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);background:var(--ow);border-bottom:1px solid var(--bdr);">'
     + sc('Opening', openTxt, opening>0.004?'#c45e00':(opening<-0.004?'#2e7d32':'var(--gd)'))
@@ -14168,27 +14178,27 @@ function renderSupLedger(){
     +'</div>';
 
   if(!rows.length && !(Math.abs(opening) > 0.004)){
-    html += '<div style="text-align:center;padding:40px 16px;color:var(--mu);font-family:Arial,sans-serif;">Is period me is supplier ka koi record nahi mila.</div>';
+    html += '<div style="text-align:center;padding:40px 16px;color:var(--mu);font-family:Arial,sans-serif;font-size:14px;">Is period me is supplier ka koi record nahi mila.</div>';
     box.innerHTML = html; box.scrollTop = 0; return;
   }
 
-  var th = 'padding:7px 4px;font-size:8px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#3a3226;font-family:Arial,sans-serif;';
+  var th = 'padding:9px 5px;font-size:10px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#3a3226;font-family:Arial,sans-serif;';
   html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">'
     +'<thead><tr><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:center;">Qty</th>'
     +'<th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead><tbody>';
 
-  var td = 'padding:7px 4px;border-bottom:1px solid var(--bdr);font-size:10.5px;vertical-align:top;';
+  var td = 'padding:9px 5px;border-bottom:1px solid var(--bdr);font-size:13px;vertical-align:top;';
   if(rg.from){
-    html += '<tr style="background:#f4f1ea;"><td style="'+td+'font-weight:700;color:#555;" colspan="4">Opening Balance <span style="font-weight:400;font-size:10px;">('+escH(_supFmtD(rg.from))+' se pehle ka)</span></td>'
+    html += '<tr style="background:#f4f1ea;"><td style="'+td+'font-weight:700;color:#444;" colspan="4">Opening Balance <span style="font-weight:400;font-size:11px;">('+escH(_supFmtD(rg.from))+' se pehle ka)</span></td>'
       +'<td style="'+td+'text-align:right;">'+_supBalHtml(opening)+'</td></tr>';
   }
   rows.forEach(function(e){
     if(e.t==='P'){
       var p = e.o;
       html += '<tr style="background:#fff;">'
-        +'<td style="'+td+'"><div style="font-weight:700;color:var(--gd);font-size:11px;">&#128230; '+escH(p.item||'-')+'</div>'
-        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + frt '+fmt(p.freight):'')+'</div>'
-        +(p.advanceAdjusted>0 ? '<div style="font-size:9px;color:#2e7d32;font-weight:700;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
+        +'<td style="'+td+'"><div style="font-weight:700;color:var(--gd);font-size:14px;">&#128230; '+escH(p.item||'-')+'</div>'
+        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + frt '+fmt(p.freight):'')+'</div>'
+        +(p.advanceAdjusted>0 ? '<div style="font-size:11.5px;color:#2e7d32;font-weight:700;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
         +'</td>'
         +'<td style="'+td+'text-align:center;font-weight:700;">'+(p.qty||0)+'</td>'
         +'<td style="'+td+'text-align:right;font-weight:700;">'+fmt(e.bill)+'</td>'
@@ -14197,23 +14207,204 @@ function renderSupLedger(){
     } else {
       var r = e.o;
       html += '<tr style="background:#f7f4ff;">'
-        +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:11px;">&#128176; '+(r.orphan ? 'Supplier Payment / Advance (receipt is naam se nahi mili)' : 'Payment '+escH(r.spNo||''))+'</div>'
-        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+((r.supplier && _supKey(r.supplier)!==_supKey(name))?' | naam: '+escH(r.supplier):'')+'</div></td>'
+        +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:14px;">&#128176; '+(r.orphan ? 'Supplier Payment / Advance (receipt is naam se nahi mili)' : 'Payment '+escH(r.spNo||''))+'</div>'
+        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+((r.supplier && _supKey(r.supplier)!==_supKey(name))?' | naam: '+escH(r.supplier):'')+'</div></td>'
         +'<td style="'+td+'text-align:center;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;font-weight:700;color:#5c35b5;">'+fmt(e.paid)+'</td>'
         +'<td style="'+td+'text-align:right;">'+_supBalHtml(e.bal)+'</td></tr>';
     }
   });
-  var tf = 'padding:8px 4px;font-size:10.5px;font-weight:800;background:#efe9d8;border-top:2px solid #3a3226;';
+  var tf = 'padding:10px 5px;font-size:13.5px;font-weight:800;background:#efe9d8;border-top:2px solid #3a3226;';
   html += '<tr><td style="'+tf+'">TOTAL</td><td style="'+tf+'text-align:center;">'+tQty+'</td>'
     +'<td style="'+tf+'text-align:right;">'+fmt(tBill)+'</td><td style="'+tf+'text-align:right;color:#5c35b5;">'+fmt(tPaid)+'</td>'
     +'<td style="'+tf+'text-align:right;">'+_supBalHtml(closing, true)+'</td></tr>';
   html += '</tbody></table></div>';
-  html += '<div style="padding:10px 12px;font-family:Arial,sans-serif;font-size:11px;color:#444;text-align:center;line-height:1.6;background:#fafafa;">'
+  html += '<div style="padding:12px;font-family:Arial,sans-serif;font-size:13px;color:#333;text-align:center;line-height:1.7;background:#fafafa;">'
     +'Hisaab: Opening '+escH(openTxt)+' + Purchase '+fmt(tBill)+' &minus; Paid '+fmt(tPaid)+' = <b style="color:'+closeColor+';">'+closeTxt+'</b></div>';
   box.innerHTML = html;
   box.scrollTop = 0;
+}
+
+// ===== SUPPLIER LEDGER DOWNLOAD (PDF + Excel) — selected period ke hisaab se =====
+function _supLedFileName(D, ext){
+  var nm = String(D.name||'Supplier').replace(/[^A-Za-z0-9\u0900-\u097f]+/g,'_').replace(/^_+|_+$/g,'') || 'Supplier';
+  var per = (D.rg.from||D.rg.to) ? ((D.rg.from||'start')+'_to_'+(D.rg.to||'today')) : 'AllTime';
+  return 'Ledger_'+nm+'_'+per+'.'+ext;
+}
+function _supLedDetailTxt(e){
+  if(e.t==='P'){
+    var p = e.o;
+    return (p.item||'-') + ' (' + (p.qty||0) + ' x ' + Math.round(p.rate||0) + ((p.freight>0)?' + frt '+Math.round(p.freight):'') + ')' + (p.advanceAdjusted>0 ? ' | Advance adjust '+Math.round(p.advanceAdjusted) : '');
+  }
+  var r = e.o;
+  return r.orphan ? 'Supplier Payment / Advance (receipt is naam se nahi mili)' : ('Payment '+(r.spNo||'') + (r.payMode?' | '+r.payMode:'') + (r.ref?' | '+r.ref:''));
+}
+
+function downloadSupLedgerExcel(){
+  var D = _supLedgerData();
+  if(!D.name){ showToast('Pehle supplier select karo'); return; }
+  if(!D.rows.length && Math.abs(D.opening) < 0.005){ showToast('Is period me koi record nahi'); return; }
+  if(typeof XLSX==='undefined'){ showToast('Excel library load nahi hui, internet check karo','error'); return; }
+  var biz = (typeof SETTINGS!=='undefined' && SETTINGS && SETTINGS.biz) ? SETTINGS.biz : 'The Jeans Club';
+  var aoa = [];
+  aoa.push([biz]);
+  aoa.push(['SUPPLIER LEDGER']);
+  aoa.push(['Supplier', D.name]);
+  aoa.push(['Period', D.label]);
+  aoa.push(['Generated', new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})]);
+  aoa.push([]);
+  aoa.push(['Opening Balance', _supBalTxt(D.opening)]);
+  aoa.push(['Total Purchase', D.tBill]);
+  aoa.push(['Total Paid', D.tPaid]);
+  aoa.push(['Closing Balance', _supBalTxt(D.closing)]);
+  aoa.push([]);
+  var headRow = aoa.length;
+  aoa.push(['Date','Type','Details','Qty','Purchase (Rs)','Paid (Rs)','Balance (Rs)','Balance Status']);
+  function stat(b){ return b>0.004 ? 'Baaki' : (b<-0.004 ? 'Advance' : 'Clear'); }
+  if(D.rg.from){
+    aoa.push([_supFmtD(D.rg.from)+' se pehle','Opening','Opening Balance','','','',Math.abs(D.opening),stat(D.opening)]);
+  }
+  D.rows.forEach(function(e){
+    aoa.push([_supFmtD(e.date), e.t==='P'?'Purchase':'Payment', _supLedDetailTxt(e), e.qty||'', e.bill||'', e.paid||'', Math.abs(e.bal), stat(e.bal)]);
+  });
+  aoa.push(['','TOTAL','',D.tQty,D.tBill,D.tPaid,Math.abs(D.closing),stat(D.closing)]);
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:16},{wch:11},{wch:58},{wch:8},{wch:15},{wch:15},{wch:15},{wch:15}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+  XLSX.writeFile(wb, _supLedFileName(D,'xlsx'));
+  showToast('Ledger Excel downloaded!');
+}
+
+async function downloadSupLedgerPDF(){
+  var D = _supLedgerData();
+  if(!D.name){ showToast('Pehle supplier select karo'); return; }
+  if(!D.rows.length && Math.abs(D.opening) < 0.005){ showToast('Is period me koi record nahi'); return; }
+  if(typeof html2canvas==='undefined' || !(window.jspdf && window.jspdf.jsPDF)){ showToast('PDF library load nahi hui, internet check karo','error'); return; }
+  showToast('Generating PDF...');
+  try{
+    var biz = (typeof SETTINGS!=='undefined' && SETTINGS && SETTINGS.biz) ? SETTINGS.biz : 'The Jeans Club';
+    var W = 720; // css px; A4 par fit hoke text bada dikhta hai
+    var cC = D.closing>0.004 ? '#c45e00' : (D.closing<-0.004 ? '#2e7d32' : '#1e6e3a');
+    var th = 'padding:10px 8px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:#1a3a2a;';
+    var td = 'padding:10px 8px;border-bottom:1px solid #ddd;font-size:15px;vertical-align:top;color:#111;';
+    function balC(b){ b=Math.round(b*100)/100; return b>0.004 ? '#c45e00' : (b<-0.004 ? '#2e7d32' : '#1e6e3a'); }
+    function balH(b){
+      b = Math.round(b*100)/100;
+      var t = b>0.004 ? 'Baaki' : (b<-0.004 ? 'Advance' : 'Clear');
+      return '<div style="font-weight:700;color:'+balC(b)+';">'+_supRsN(Math.abs(b))+'</div><div style="font-size:11px;color:'+balC(b)+';">'+t+'</div>';
+    }
+    function box(l,v,c,last){
+      return '<td style="padding:10px 6px;text-align:center;'+(last?'':'border-right:1px solid #ccc;')+'"><div style="font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#555;font-weight:700;">'+l+'</div>'
+        +'<div style="font-size:17px;font-weight:700;color:'+c+';margin-top:4px;">'+v+'</div></td>';
+    }
+    var body = '';
+    if(D.rg.from){
+      body += '<tr class="brk" style="background:#f1eee6;"><td style="'+td+'font-weight:700;" colspan="4">Opening Balance <span style="font-weight:400;font-size:12px;">('+escH(_supFmtD(D.rg.from))+' se pehle ka)</span></td><td style="'+td+'text-align:right;">'+balH(D.opening)+'</td></tr>';
+    }
+    D.rows.forEach(function(e,i){
+      var bg = e.t==='P' ? (i%2?'#fafafa':'#fff') : '#f4f0ff';
+      var det;
+      if(e.t==='P'){
+        var p = e.o;
+        det = '<div style="font-weight:700;font-size:16px;">'+escH(p.item||'-')+'</div>'
+          +'<div style="font-size:13px;color:#444;margin-top:2px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' x '+_supRsN(p.rate||0)+((p.freight>0)?' + frt '+_supRsN(p.freight):'')+'</div>'
+          +(p.advanceAdjusted>0 ? '<div style="font-size:13px;color:#2e7d32;font-weight:700;">Advance adjust: '+_supRsN(p.advanceAdjusted)+'</div>' : '');
+      } else {
+        var r = e.o;
+        det = '<div style="font-weight:700;font-size:16px;color:#5c35b5;">'+(r.orphan ? 'Supplier Payment / Advance' : 'Payment '+escH(r.spNo||''))+'</div>'
+          +'<div style="font-size:13px;color:#444;margin-top:2px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+'</div>';
+      }
+      body += '<tr class="brk" style="background:'+bg+';"><td style="'+td+'">'+det+'</td>'
+        +'<td style="'+td+'text-align:center;font-weight:700;">'+(e.qty||'-')+'</td>'
+        +'<td style="'+td+'text-align:right;font-weight:700;">'+(e.bill?_supRsN(e.bill):'-')+'</td>'
+        +'<td style="'+td+'text-align:right;color:#5c35b5;font-weight:700;">'+(e.paid>0?_supRsN(e.paid):'-')+'</td>'
+        +'<td style="'+td+'text-align:right;">'+balH(e.bal)+'</td></tr>';
+    });
+    var tf = 'padding:12px 8px;font-size:16px;font-weight:800;background:#e9e2cc;border-top:2px solid #1a3a2a;';
+    body += '<tr class="brk"><td style="'+tf+'">TOTAL</td><td style="'+tf+'text-align:center;">'+D.tQty+'</td>'
+      +'<td style="'+tf+'text-align:right;">'+_supRsN(D.tBill)+'</td><td style="'+tf+'text-align:right;color:#5c35b5;">'+_supRsN(D.tPaid)+'</td>'
+      +'<td style="'+tf+'text-align:right;">'+balH(D.closing)+'</td></tr>';
+
+    var html = '<div id="supLedPdfRoot" style="font-family:Arial,sans-serif;width:'+W+'px;padding:26px;box-sizing:border-box;background:#fff;color:#111;">'
+      +'<div style="text-align:center;margin-bottom:16px;">'
+      +'<div style="font-size:28px;font-weight:700;color:#1a3a2a;">'+escH(biz)+'</div>'
+      +'<div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-top:4px;">Supplier Ledger</div>'
+      +'<div style="font-size:21px;font-weight:700;margin-top:8px;">'+escH(D.name)+'</div>'
+      +'<div style="font-size:15px;color:#333;margin-top:4px;">Period: <b>'+escH(D.label)+'</b></div>'
+      +'</div>'
+      +'<table style="width:100%;border-collapse:collapse;border:1px solid #ccc;margin-bottom:16px;background:#f8f6ef;"><tr>'
+      + box('Opening', _supBalTxt(D.opening,true), balC(D.opening))
+      + box('Purchase', _supRsN(D.tBill), '#1a3a2a')
+      + box('Paid', _supRsN(D.tPaid), '#5c35b5')
+      + box('Closing', _supBalTxt(D.closing), cC, true)
+      +'</tr></table>'
+      +'<table style="width:100%;border-collapse:collapse;">'
+      +'<thead id="supLedPdfHead"><tr><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:center;">Qty</th>'
+      +'<th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead>'
+      +'<tbody>'+body+'</tbody></table>'
+      +'<div class="brk" style="margin-top:14px;padding:12px;background:#fafafa;border:1px solid #ddd;text-align:center;font-size:15px;line-height:1.7;">'
+      +'Hisaab: Opening '+escH(_supBalTxt(D.opening,true))+' + Purchase '+_supRsN(D.tBill)+' &minus; Paid '+_supRsN(D.tPaid)+' = <b style="color:'+cC+';">'+escH(_supBalTxt(D.closing))+'</b></div>'
+      +'<div style="text-align:center;margin-top:14px;font-size:11px;color:#666;letter-spacing:1px;">Generated by '+escH(biz)+' Business Suite &middot; '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
+      +'</div>';
+
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper);
+    await new Promise(function(r){ setTimeout(r, 250); });
+    var root = wrapper.firstChild;
+    var rTop = root.getBoundingClientRect().top;
+    var items = Array.prototype.map.call(root.querySelectorAll('.brk'), function(el){
+      var b = el.getBoundingClientRect(); return {t:b.top-rTop, b:b.bottom-rTop};
+    });
+    var headEl = root.querySelector('#supLedPdfHead').getBoundingClientRect();
+    var headT = headEl.top-rTop, headH = headEl.height;
+    var totalH = root.getBoundingClientRect().height;
+    var SC = 2.5;
+    var canvas = await html2canvas(root, {scale:SC, useCORS:true, backgroundColor:'#fff', logging:false});
+    document.body.removeChild(wrapper);
+
+    var pdf = new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    var pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+    var margin = 8, footerH = 6, imgW = pw-margin*2;
+    var mmPerPx = imgW / W;
+    var pageHpx = (ph - margin*2 - footerH) / mmPerPx;
+
+    // Pages: row boundary par todo (row beech me na kate), har naye page par table header dobara
+    var pages = [], start = 0, idx = 0;
+    while(start < totalH - 1){
+      var avail = pageHpx - (pages.length ? headH : 0);
+      var end = start, lastIdx = idx;
+      while(lastIdx < items.length && items[lastIdx].b - start <= avail){ end = items[lastIdx].b; lastIdx++; }
+      if(lastIdx >= items.length && totalH - start <= avail){ end = totalH; }
+      else if(end === start){ end = Math.min(start + avail, totalH); lastIdx = Math.min(idx+1, items.length); }
+      pages.push({from:start, to:end});
+      start = end; idx = lastIdx;
+    }
+    function crop(y0, y1){
+      var c = document.createElement('canvas');
+      c.width = canvas.width; c.height = Math.max(1, Math.round((y1-y0)*SC));
+      c.getContext('2d').drawImage(canvas, 0, Math.round(y0*SC), canvas.width, c.height, 0, 0, canvas.width, c.height);
+      return c;
+    }
+    var headCanvas = crop(headT, headT+headH);
+    pages.forEach(function(pg, n){
+      if(n>0) pdf.addPage();
+      var y = margin;
+      if(n>0){
+        pdf.addImage(headCanvas.toDataURL('image/jpeg',0.92),'JPEG',margin,y,imgW,headH*mmPerPx);
+        y += headH*mmPerPx;
+      }
+      var sc = crop(pg.from, pg.to);
+      pdf.addImage(sc.toDataURL('image/jpeg',0.92),'JPEG',margin,y,imgW,(pg.to-pg.from)*mmPerPx);
+      pdf.setFontSize(9); pdf.setTextColor(110);
+      pdf.text('Page '+(n+1)+' of '+pages.length, pw/2, ph-5, {align:'center'});
+    });
+    pdf.save(_supLedFileName(D,'pdf'));
+    showToast('Ledger PDF downloaded!');
+  } catch(err){ showToast('PDF error: '+err.message,'error'); }
 }
 
 // Sabhi suppliers ki list (search ke saath) — kisi par tap karo to uski history khulti hai
