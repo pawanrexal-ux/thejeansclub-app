@@ -2353,6 +2353,25 @@ input[type=tel], textarea, select {
     </div>
     <div class="modal-body" style="padding:0;">
       <div id="supHistSummary" style="display:grid;grid-template-columns:repeat(3,1fr);background:var(--ow);border-bottom:1px solid var(--bdr);"></div>
+      <div id="supHistPeriodWrap" style="display:none;padding:8px 12px;border-bottom:1px solid var(--bdr);background:#fff;font-family:Arial,sans-serif;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--mu);flex-shrink:0;">&#128197; Period</span>
+          <select id="supLedPeriod" onchange="onSupLedPeriodChange()" style="flex:1;min-width:0;font-family:Arial,sans-serif;font-size:12px;padding:6px 8px;">
+            <option value="all">Sabhi (All Time)</option>
+            <option value="today">Aaj</option>
+            <option value="week">Last 7 Din</option>
+            <option value="month">Is Mahine</option>
+            <option value="lastmonth">Pichhle Mahine</option>
+            <option value="fy">Is Financial Year (Apr-Mar)</option>
+            <option value="custom">Custom (From - To)</option>
+          </select>
+        </div>
+        <div id="supLedCustom" style="display:none;align-items:center;gap:8px;margin-top:8px;">
+          <input type="date" id="supLedFrom" onchange="renderSupLedger()" style="flex:1;min-width:0;font-family:Arial,sans-serif;font-size:12px;"/>
+          <span style="font-size:11px;color:var(--mu);">to</span>
+          <input type="date" id="supLedTo" onchange="renderSupLedger()" style="flex:1;min-width:0;font-family:Arial,sans-serif;font-size:12px;"/>
+        </div>
+      </div>
       <div id="supHistSearchWrap" style="display:none;padding:10px 12px;border-bottom:1px solid var(--bdr);"><input type="text" id="supHistSearch" placeholder="Supplier search..." oninput="renderSupplierList()" style="width:100%;font-family:Arial,sans-serif;" autocomplete="off"/></div>
       <div id="supHistList" style="max-height:65vh;overflow-y:auto;"></div>
     </div>
@@ -13985,44 +14004,176 @@ function openSupHist(name){
       +'Hisaab: Total '+fmt(st.amt)+' &minus; Purchase ke time paid '+fmt(direct)+' &minus; Supplier payments '+fmt(payTot)+' = '+res+'</div>';
   })();
 
-  // Timeline: purchases + payments, newest first
-  var rows = [];
-  st.purs.forEach(function(p){ rows.push({t:'P', d:p.date||'', s:p.savedAt||'', o:p}); });
-  pays.forEach(function(r){ rows.push({t:'S', d:r.date||'', s:r.savedAt||'', o:r}); });
-  rows.sort(function(a,b){ return (b.d+b.s).localeCompare(a.d+a.s); });
+  // Ledger (period filter ke saath) — purane timeline ki jagah
+  _supLed.name = name; _supLed.preset = 'all'; _supLed.from = ''; _supLed.to = '';
+  var _ps = document.getElementById('supLedPeriod'); if(_ps) _ps.value = 'all';
+  var _cu = document.getElementById('supLedCustom'); if(_cu) _cu.style.display = 'none';
+  var _pw = document.getElementById('supHistPeriodWrap'); if(_pw) _pw.style.display = 'block';
+  renderSupLedger();
+  document.getElementById('supHistModal').classList.add('show');
+}
 
-  var html = '';
-  if(!rows.length){
-    html = '<div style="text-align:center;padding:40px;color:var(--mu);">Is supplier ka koi record nahi mila.</div>';
+// ===== SUPPLIER LEDGER (supplier-wise hisaab, Qty + period filter) =====
+// Har supplier ki ledger: Purchase (bill) + Paid (purchase ke time + supplier payments) + running Balance.
+// Balance > 0 = Baaki (supplier ko dena hai), Balance < 0 = Advance (supplier ke paas jama).
+// Closing balance hamesha "Hisaab" line (Total - direct paid - supplier payments) se match karta hai.
+var _supLed = {name:'', preset:'all', from:'', to:''};
+
+function _supFmtD(d){ if(!d) return ''; var p = String(d).split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : String(d); }
+
+function _supLedRange(preset, fromV, toV){
+  var now = new Date(), t = localDateStr(now), y = now.getFullYear(), m = now.getMonth();
+  if(preset==='today') return {from:t, to:t};
+  if(preset==='week'){ var d7 = new Date(y, m, now.getDate()-6); return {from:localDateStr(d7), to:t}; }
+  if(preset==='month') return {from:localDateStr(new Date(y,m,1)), to:localDateStr(new Date(y,m+1,0))};
+  if(preset==='lastmonth') return {from:localDateStr(new Date(y,m-1,1)), to:localDateStr(new Date(y,m,0))};
+  if(preset==='fy'){ var fy = m>=3 ? y : y-1; return {from:fy+'-04-01', to:(fy+1)+'-03-31'}; }
+  if(preset==='custom'){
+    var f = fromV||'', e = toV||'';
+    if(f && e && f > e){ var tmp = f; f = e; e = tmp; }
+    return {from:f, to:e};
   }
-  rows.forEach(function(x){
-    if(x.t==='P'){
-      var p = x.o;
-      var pend = (p.payStatus==='Pending'||p.payStatus==='Partial') ? Math.max(0,(p.totalCost||0)-(p.paidAmount||0)) : 0;
-      var pb = '<span class="pay-badge '+(p.payStatus==='Paid'?'pay-paid':p.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(p.payStatus||'Pending')+'</span>';
-      html += '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#fff;">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-        +'<div><div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:var(--gd);">&#128230; '+escH(p.item||'-')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu);margin-top:1px;">'+escH(p.date||'')+' &nbsp;|&nbsp; Qty '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + freight '+fmt(p.freight):'')+'</div></div>'
-        +'<div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-weight:700;font-size:15px;color:var(--gd);">'+fmt(p.totalCost||0)+'</div>'
-        +'<div style="margin-top:3px;">'+pb+'</div></div></div>'
-        +(pend>0 ? '<div style="font-size:10px;color:#c45e00;font-weight:700;background:#fff3e0;display:inline-block;padding:2px 8px;border:1px solid #ffd4a0;margin-top:6px;">Balance due: '+fmt(pend)+'</div>' : '')
-        +(p.advanceAdjusted>0 ? '<div style="font-size:10px;color:#2e7d32;font-weight:700;background:#e8f5e9;display:inline-block;padding:2px 8px;border:1px solid #a5d6a7;margin:6px 0 0 6px;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
-        +(p.directPaidAmount>0 ? '<div style="font-size:10px;color:#555;font-weight:700;background:#f1f1f1;display:inline-block;padding:2px 8px;border:1px solid #ddd;margin:6px 0 0 6px;">Purchase ke time paid: '+fmt(p.directPaidAmount)+'</div>' : '')
-        +'</div>';
+  return {from:'', to:''};
+}
+
+// Supplier ki poori ledger entries (oldest -> newest), running balance ke saath
+function _supLedgerEntries(name){
+  var k = _supKey(name), ev = [];
+  (purchases||[]).forEach(function(p){
+    if(_supKey(p.supplier)!==k) return;
+    var direct = p.directPaidAmount!=null ? (parseFloat(p.directPaidAmount)||0)
+      : (p.payStatus==='Paid' ? (p.totalCost||0) : (p.payStatus==='Partial' ? (p.paidAmount||0) : 0));
+    ev.push({t:'P', date:p.date||'', id:Number(p.id)||0, o:p, qty:parseFloat(p.qty)||0, bill:parseFloat(p.totalCost)||0, paid:direct});
+  });
+  (supplierPayments||[]).forEach(function(r){
+    if(_supKey(r.supplier)!==k) return;
+    ev.push({t:'S', date:r.date||'', id:Number(r.id)||0, o:r, qty:0, bill:0, paid:parseFloat(r.amount)||0});
+  });
+  ev.sort(function(a,b){
+    if(a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.id - b.id;
+  });
+  var bal = 0;
+  ev.forEach(function(e){ bal = Math.round((bal + e.bill - e.paid)*100)/100; e.bal = bal; });
+  return ev;
+}
+
+function _supBalHtml(bal, bold){
+  var b = Math.round(bal*100)/100;
+  if(b > 0.004)  return '<span style="color:#c45e00;font-weight:'+(bold?800:700)+';">'+fmt(b)+'</span><div style="font-size:8px;color:#c45e00;">Baaki</div>';
+  if(b < -0.004) return '<span style="color:#2e7d32;font-weight:'+(bold?800:700)+';">'+fmt(-b)+'</span><div style="font-size:8px;color:#2e7d32;">Advance</div>';
+  return '<span style="color:#1e6e3a;font-weight:700;">'+fmt(0)+'</span><div style="font-size:8px;color:#1e6e3a;">Clear</div>';
+}
+
+function onSupLedPeriodChange(){
+  var sel = document.getElementById('supLedPeriod');
+  var preset = sel ? sel.value : 'all';
+  _supLed.preset = preset;
+  var cu = document.getElementById('supLedCustom');
+  if(cu) cu.style.display = (preset==='custom') ? 'flex' : 'none';
+  if(preset==='custom'){
+    var fe = document.getElementById('supLedFrom'), te = document.getElementById('supLedTo');
+    if(fe && !fe.value && te && !te.value){
+      var r = _supLedRange('month');
+      fe.value = r.from; te.value = localDateStr(new Date());
+    }
+  }
+  renderSupLedger();
+}
+
+function renderSupLedger(){
+  var box = document.getElementById('supHistList'); if(!box) return;
+  var name = _supLed.name;
+  var preset = _supLed.preset;
+  var fromV = '', toV = '';
+  if(preset==='custom'){
+    fromV = (document.getElementById('supLedFrom')||{}).value||'';
+    toV = (document.getElementById('supLedTo')||{}).value||'';
+  }
+  var rg = _supLedRange(preset, fromV, toV);
+  var all = _supLedgerEntries(name);
+
+  // Opening balance = period shuru hone se pehle tak ka balance
+  var opening = 0;
+  if(rg.from){ all.forEach(function(e){ if(e.date < rg.from) opening = Math.round((opening + e.bill - e.paid)*100)/100; }); }
+  var rows = all.filter(function(e){ return (!rg.from || e.date >= rg.from) && (!rg.to || e.date <= rg.to); });
+
+  var tQty = 0, tBill = 0, tPaid = 0;
+  rows.forEach(function(e){ tQty += e.qty; tBill += e.bill; tPaid += e.paid; });
+  tBill = Math.round(tBill*100)/100; tPaid = Math.round(tPaid*100)/100;
+  var closing = Math.round((opening + tBill - tPaid)*100)/100;
+
+  var label;
+  if(!rg.from && !rg.to) label = 'Sabhi records (All Time)';
+  else if(rg.from && rg.to) label = _supFmtD(rg.from)+' se '+_supFmtD(rg.to);
+  else if(rg.from) label = _supFmtD(rg.from)+' se aage';
+  else label = _supFmtD(rg.to)+' tak';
+
+  function sc(lbl, val, color, last){
+    return '<div style="padding:8px 4px;text-align:center;'+(last?'':'border-right:1px solid var(--bdr);')+'">'
+      +'<div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);font-weight:700;margin-bottom:3px;">'+lbl+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:'+color+';font-family:Arial,sans-serif;">'+val+'</div></div>';
+  }
+  var closeColor = closing>0.004 ? '#c45e00' : (closing<-0.004 ? '#2e7d32' : '#1e6e3a');
+  var closeTxt = closing>0.004 ? fmt(closing)+' Baaki' : (closing<-0.004 ? fmt(-closing)+' Advance' : fmt(0)+' Clear');
+  var openTxt = opening>0.004 ? fmt(opening)+' Baaki' : (opening<-0.004 ? fmt(-opening)+' Adv.' : fmt(0));
+
+  var html = '<div style="padding:8px 12px;background:#fffdf5;border-bottom:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:11px;color:#444;">'
+    +'&#128210; <b>Ledger:</b> '+escH(label)+' &nbsp;|&nbsp; '+rows.length+' entr'+(rows.length===1?'y':'ies')+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);background:var(--ow);border-bottom:1px solid var(--bdr);">'
+    + sc('Opening', openTxt, opening>0.004?'#c45e00':(opening<-0.004?'#2e7d32':'var(--gd)'))
+    + sc('Purchase', fmt(tBill), 'var(--gd)')
+    + sc('Paid', fmt(tPaid), '#5c35b5')
+    + sc('Closing', closeTxt, closeColor, true)
+    +'</div>';
+
+  if(!rows.length && !(Math.abs(opening) > 0.004)){
+    html += '<div style="text-align:center;padding:40px 16px;color:var(--mu);font-family:Arial,sans-serif;">Is period me is supplier ka koi record nahi mila.</div>';
+    box.innerHTML = html; box.scrollTop = 0; return;
+  }
+
+  var th = 'padding:7px 4px;font-size:8px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#3a3226;font-family:Arial,sans-serif;';
+  html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">'
+    +'<thead><tr><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:center;">Qty</th>'
+    +'<th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead><tbody>';
+
+  var td = 'padding:7px 4px;border-bottom:1px solid var(--bdr);font-size:10.5px;vertical-align:top;';
+  if(rg.from){
+    html += '<tr style="background:#f4f1ea;"><td style="'+td+'font-weight:700;color:#555;" colspan="4">Opening Balance <span style="font-weight:400;font-size:10px;">('+escH(_supFmtD(rg.from))+' se pehle ka)</span></td>'
+      +'<td style="'+td+'text-align:right;">'+_supBalHtml(opening)+'</td></tr>';
+  }
+  rows.forEach(function(e){
+    if(e.t==='P'){
+      var p = e.o;
+      html += '<tr style="background:#fff;">'
+        +'<td style="'+td+'"><div style="font-weight:700;color:var(--gd);font-size:11px;">&#128230; '+escH(p.item||'-')+'</div>'
+        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + frt '+fmt(p.freight):'')+'</div>'
+        +(p.advanceAdjusted>0 ? '<div style="font-size:9px;color:#2e7d32;font-weight:700;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
+        +'</td>'
+        +'<td style="'+td+'text-align:center;font-weight:700;">'+(p.qty||0)+'</td>'
+        +'<td style="'+td+'text-align:right;font-weight:700;">'+fmt(e.bill)+'</td>'
+        +'<td style="'+td+'text-align:right;color:#5c35b5;">'+(e.paid>0 ? fmt(e.paid) : '-')+'</td>'
+        +'<td style="'+td+'text-align:right;">'+_supBalHtml(e.bal)+'</td></tr>';
     } else {
-      var r = x.o;
-      html += '<div style="border-bottom:1px solid var(--bdr);padding:12px 16px;background:#f7f4ff;">'
-        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
-        +'<div><div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;color:#5c35b5;">&#128176; Payment '+escH(r.spNo||'')+'</div>'
-        +'<div style="font-size:10px;color:var(--mu);margin-top:1px;">'+escH(r.date||'')+' &nbsp;|&nbsp; '+escH(r.payMode||'')+(r.ref?' &nbsp;|&nbsp; '+escH(r.ref):'')+'</div></div>'
-        +'<div style="text-align:right;"><div style="font-family:Arial,sans-serif;font-weight:700;font-size:15px;color:#5c35b5;">'+fmt(r.amount||0)+'</div></div></div>'
-        +_spBreakdownHtml(r)
-        +'</div>';
+      var r = e.o;
+      html += '<tr style="background:#f7f4ff;">'
+        +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:11px;">&#128176; Payment '+escH(r.spNo||'')+'</div>'
+        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+'</div></td>'
+        +'<td style="'+td+'text-align:center;color:var(--mu);">-</td>'
+        +'<td style="'+td+'text-align:right;color:var(--mu);">-</td>'
+        +'<td style="'+td+'text-align:right;font-weight:700;color:#5c35b5;">'+fmt(e.paid)+'</td>'
+        +'<td style="'+td+'text-align:right;">'+_supBalHtml(e.bal)+'</td></tr>';
     }
   });
-  document.getElementById('supHistList').innerHTML = html;
-  document.getElementById('supHistModal').classList.add('show');
+  var tf = 'padding:8px 4px;font-size:10.5px;font-weight:800;background:#efe9d8;border-top:2px solid #3a3226;';
+  html += '<tr><td style="'+tf+'">TOTAL</td><td style="'+tf+'text-align:center;">'+tQty+'</td>'
+    +'<td style="'+tf+'text-align:right;">'+fmt(tBill)+'</td><td style="'+tf+'text-align:right;color:#5c35b5;">'+fmt(tPaid)+'</td>'
+    +'<td style="'+tf+'text-align:right;">'+_supBalHtml(closing, true)+'</td></tr>';
+  html += '</tbody></table></div>';
+  html += '<div style="padding:10px 12px;font-family:Arial,sans-serif;font-size:11px;color:#444;text-align:center;line-height:1.6;background:#fafafa;">'
+    +'Hisaab: Opening '+escH(openTxt)+' + Purchase '+fmt(tBill)+' &minus; Paid '+fmt(tPaid)+' = <b style="color:'+closeColor+';">'+closeTxt+'</b></div>';
+  box.innerHTML = html;
+  box.scrollTop = 0;
 }
 
 // Sabhi suppliers ki list (search ke saath) — kisi par tap karo to uski history khulti hai
@@ -14031,6 +14182,7 @@ function openSupplierList(){
   supplierPayments = LS.get('supplierPayments')||supplierPayments||[];
   document.getElementById('supHistName').textContent = 'Suppliers';
   document.getElementById('supHistSub').textContent = 'Kisi supplier par tap karo — history dekhne ke liye';
+  var pw0 = document.getElementById('supHistPeriodWrap'); if(pw0) pw0.style.display='none';
   var sw = document.getElementById('supHistSearchWrap'); if(sw) sw.style.display='block';
   var si = document.getElementById('supHistSearch'); if(si) si.value='';
   renderSupplierList();
