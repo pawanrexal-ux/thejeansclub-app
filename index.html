@@ -13979,7 +13979,8 @@ function openSupHist(name){
   reconcileSupplierAdvances(true);
   var k = _supKey(name);
   var st = _supStats(name);
-  var pays = supplierPayments.filter(function(r){ return _supKey(r.supplier)===k; });
+  var _pinfo = _supPayInfo(name);
+  var pays = _pinfo.pays.slice(); if(_pinfo.extra > 0) pays.push({amount:_pinfo.extra});
 
   document.getElementById('supHistName').textContent = name;
   document.getElementById('supHistSub').textContent = st.purs.length+' purchase'+(st.purs.length===1?'':'s')+' | '+pays.length+' payment'+(pays.length===1?'':'s');
@@ -14004,7 +14005,7 @@ function openSupHist(name){
   // Hisaab ki line: user khud verify kar sake
   (function(){
     var direct = st.purs.reduce(function(s,p){ return s + (p.directPaidAmount!=null ? p.directPaidAmount : (p.payStatus==='Paid' ? (p.totalCost||0) : (p.payStatus==='Partial' ? (p.paidAmount||0) : 0))); },0);
-    var payTot = pays.reduce(function(s,r){ return s+(parseFloat(r.amount)||0); },0);
+    var payTot = _pinfo.payTotal;
     var net = Math.round((st.amt - direct - payTot)*100)/100;
     var res = net>0 ? '<b style="color:#c45e00;">Pending '+fmt(net)+'</b>' : (net<0 ? '<b style="color:#2e7d32;">Advance '+fmt(-net)+'</b>' : '<b style="color:#1e6e3a;">Barabar (0)</b>');
     document.getElementById('supHistSummary').innerHTML += '<div style="grid-column:1/-1;padding:8px 10px;border-top:1px solid var(--bdr);background:#fafafa;font-family:Arial,sans-serif;font-size:11px;color:#444;line-height:1.5;text-align:center;">'
@@ -14043,6 +14044,35 @@ function _supLedRange(preset, fromV, toV){
   return {from:'', to:''};
 }
 
+// Supplier ki saari payments (receipts): exact naam + milte-julte naam (jaise "AJ Fashion" vs "AJ Fashion (Delhi)").
+// Agar purchase me supplier-payment/advance se paid dikh raha hai par uski receipt nahi mili, to wo farq alag entry me dikhta hai,
+// taaki ledger ka Closing hamesha upar ke Pending se match kare.
+function _supPayInfo(name){
+  var k = _supKey(name);
+  var pays = (supplierPayments||[]).filter(function(r){
+    var rk = _supKey(r.supplier);
+    if(rk === k) return true;
+    var a = rk.length < k.length ? rk : k, b = rk.length < k.length ? k : rk;
+    return a.length >= 4 && b.indexOf(a) === 0;
+  });
+  var purs = (purchases||[]).filter(function(p){ return _supKey(p.supplier)===k; });
+  var viaSup = 0, lastDate = '', lastId = 0;
+  purs.forEach(function(p){
+    var direct = p.directPaidAmount!=null ? (parseFloat(p.directPaidAmount)||0)
+      : (p.payStatus==='Paid' ? (p.totalCost||0) : (p.payStatus==='Partial' ? (p.paidAmount||0) : 0));
+    var ex = Math.max(0, (parseFloat(p.paidAmount)||0) - direct);
+    if(p.payStatus==='Paid' && p.directPaidAmount!=null) ex = Math.max(0, (parseFloat(p.totalCost)||0) - direct);
+    if(ex > 0.004){ viaSup += ex; if((p.date||'') > lastDate || ((p.date||'')===lastDate && (Number(p.id)||0) > lastId)){ lastDate = p.date||''; lastId = Number(p.id)||0; } }
+  });
+  var T = 0, adv = 0;
+  pays.forEach(function(r){ T += parseFloat(r.amount)||0; adv += parseFloat(r.advanceAmt)||0; });
+  var used = purs.reduce(function(a,p){ return a + (parseFloat(p.advanceAdjusted)||0); },0);
+  var advBal = Math.max(0, adv - used);
+  var extra = Math.round((viaSup - (T - advBal))*100)/100;
+  if(extra < 0.01) extra = 0;
+  return {pays:pays, payTotal:Math.round((T+extra)*100)/100, extra:extra, extraDate:lastDate, extraId:lastId+0.5};
+}
+
 // Supplier ki poori ledger entries (oldest -> newest), running balance ke saath
 function _supLedgerEntries(name){
   var k = _supKey(name), ev = [];
@@ -14052,10 +14082,13 @@ function _supLedgerEntries(name){
       : (p.payStatus==='Paid' ? (p.totalCost||0) : (p.payStatus==='Partial' ? (p.paidAmount||0) : 0));
     ev.push({t:'P', date:p.date||'', id:Number(p.id)||0, o:p, qty:parseFloat(p.qty)||0, bill:parseFloat(p.totalCost)||0, paid:direct});
   });
-  (supplierPayments||[]).forEach(function(r){
-    if(_supKey(r.supplier)!==k) return;
+  var info = _supPayInfo(name);
+  info.pays.forEach(function(r){
     ev.push({t:'S', date:r.date||'', id:Number(r.id)||0, o:r, qty:0, bill:0, paid:parseFloat(r.amount)||0});
   });
+  if(info.extra > 0){
+    ev.push({t:'S', date:info.extraDate, id:info.extraId, o:{spNo:'', date:info.extraDate, orphan:true}, qty:0, bill:0, paid:info.extra});
+  }
   ev.sort(function(a,b){
     if(a.date !== b.date) return a.date < b.date ? -1 : 1;
     return a.id - b.id;
@@ -14164,8 +14197,8 @@ function renderSupLedger(){
     } else {
       var r = e.o;
       html += '<tr style="background:#f7f4ff;">'
-        +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:11px;">&#128176; Payment '+escH(r.spNo||'')+'</div>'
-        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+'</div></td>'
+        +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:11px;">&#128176; '+(r.orphan ? 'Supplier Payment / Advance (receipt is naam se nahi mili)' : 'Payment '+escH(r.spNo||''))+'</div>'
+        +'<div style="font-size:9px;color:var(--mu);margin-top:1px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+((r.supplier && _supKey(r.supplier)!==_supKey(name))?' | naam: '+escH(r.supplier):'')+'</div></td>'
         +'<td style="'+td+'text-align:center;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;font-weight:700;color:#5c35b5;">'+fmt(e.paid)+'</td>'
