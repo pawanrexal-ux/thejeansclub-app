@@ -13898,7 +13898,7 @@ function recomputeSupplierLedgers(quiet){
   var chP = 0, chS = 0, nowIso = new Date().toISOString();
   Object.keys(groups).forEach(function(k){
     var g = groups[k];
-    if(!g.pays.length) return;                                                   // payment hi nahi -> purchase ka apna status rahe
+    // FIX: payment na ho tab bhi chalao — taaki bachi hui purani 'supplier se paid' value saaf ho aur sirf manual receipts hi paid maane jayein
     if(g.purs.some(function(p){ return p.directPaidAmount==null; })) return;     // bahut purane records: safe side par chhod do
     var ev = [];
     g.purs.forEach(function(p){ ev.push({t:'P', o:p, st:{p:p, paid:Math.min(p.directPaidAmount||0, p.totalCost||0), adv:0}}); });
@@ -14090,8 +14090,9 @@ function _supPayInfo(name){
   pays.forEach(function(r){ T += parseFloat(r.amount)||0; adv += parseFloat(r.advanceAmt)||0; });
   var used = purs.reduce(function(a,p){ return a + (parseFloat(p.advanceAdjusted)||0); },0);
   var advBal = Math.max(0, adv - used);
-  var extra = Math.round((viaSup - (T - advBal))*100)/100;
-  if(extra < 0.01) extra = 0;
+  // FIX: Pehle yahan farq ko 'auto supplier payment' entry bana kar dikha diya jaata tha.
+  // Ab koi automatic entry nahi banti — sirf admin ki manual entry (receipt) hi ledger me aayegi.
+  var extra = 0;
   return {pays:pays, payTotal:Math.round((T+extra)*100)/100, extra:extra, extraDate:lastDate, extraId:lastId+0.5};
 }
 
