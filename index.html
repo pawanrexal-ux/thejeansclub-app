@@ -3343,6 +3343,25 @@ async function pushCloud(){
     return false;
   }
 
+  // ── STALE-MEMORY GUARD ──
+  // Agar in-memory array khali hai lekin local DB (IDB cache) mein data hai,
+  // to memory purani/unloaded hai — usse Firebase par 'delete' mat bhejo.
+  // (LS har save par update hota hai, isliye asli delete par dono khali honge.)
+  ['purchases','supplierPayments','pendingPayments','expenses','returns'].forEach(function(k){
+    try{
+      var memArr = _getDeltaArrayRef(k);
+      var lsArr = LS.get(k);
+      if(memArr && !memArr.length && Array.isArray(lsArr) && lsArr.length){
+        console.warn('[Sync] ' + k + ' memory empty but local DB has ' + lsArr.length + ' — reloading before push');
+        if(k==='purchases') purchases = lsArr;
+        else if(k==='supplierPayments') supplierPayments = lsArr;
+        else if(k==='pendingPayments') pendingPayments = lsArr;
+        else if(k==='expenses') expenses = lsArr;
+        else if(k==='returns') returns = lsArr;
+      }
+    }catch(e){}
+  });
+
   // Build complete payload — ALL data keys included
   var payload = {
     syncKey: SYNC_KEY,
@@ -5448,6 +5467,7 @@ function checkLogin(){
   dailyReports = LS.get('dailyReports') || {};
   monthlyReports = LS.get('monthlyReports') || {};
   purchases = LS.get('purchases') || [];
+  supplierPayments = LS.get('supplierPayments') || []; // FIX: boot par load nahi hota tha -> push par sab delete ho jaate the
   pendingPayments = LS.get('pendingPayments') || [];
   expenses = LS.get('expenses') || [];
   // Load edit audit log
