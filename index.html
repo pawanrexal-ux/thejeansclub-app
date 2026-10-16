@@ -1363,6 +1363,7 @@ input[type=tel], textarea, select {
               <div class="ig"><label>Supplier Name</label><div style="position:relative;">
                 <input type="text" id="pur-supplier" placeholder="Supplier / Party name" style="font-family:Arial,sans-serif;width:100%;" oninput="searchPurSupplier(this.value);updatePurAdvanceNote()" onchange="updatePurAdvanceNote()" onblur="setTimeout(function(){var b=document.getElementById('pur-supplier-sugg');if(b)b.style.display='none';},200)" autocomplete="off"/>
                 <div id="pur-supplier-sugg" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--bdr);border-top:none;max-height:160px;overflow-y:auto;z-index:200;box-shadow:0 4px 10px rgba(0,0,0,.1);"></div>
+              </div>
               <div id="pur-advance-note" style="display:none;"></div></div>
               <div class="ig"><label>Item Name</label><div style="position:relative;">
                 <input type="text" id="pur-item" placeholder="Item purchased" style="font-family:Arial,sans-serif;width:100%;" oninput="searchPurItem(this.value)" onblur="setTimeout(function(){var b=document.getElementById('pur-item-sugg');if(b)b.style.display='none';},200)" autocomplete="off"/>
