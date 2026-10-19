@@ -350,10 +350,16 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .ac-wrap{position:relative;}
 .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--cb);border:1px solid var(--bdr);border-top:none;z-index:500;max-height:150px;overflow-y:auto;display:none;box-shadow:var(--sh2);}
 .ac-list.show{display:block;}
-.ac-item{padding:9px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:space-between;transition:background .12s;}
+.ac-item{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;transition:background .12s;}
 .ac-item:hover{background:var(--ow);}
 .ac-item:last-child{border-bottom:none;}
-.ac-badge{font-size:10px;color:var(--mu);background:var(--ow);padding:2px 6px;border:1px solid var(--bdr);}
+.ac-badge{font-size:14px;font-weight:700;color:var(--mu);background:var(--ow);padding:4px 9px;border:1px solid var(--bdr);}
+/* Mobile: dropdown poori width me khulta hai, naam upar aur Size|Qty|Rate neeche (cut nahi hoga) */
+@media(max-width:768px){
+  .ac-list.ac-mobile{position:fixed;left:10px;right:10px;width:auto;max-height:45vh;border:1px solid var(--bdr);z-index:2000;-webkit-overflow-scrolling:touch;}
+  .ac-list.ac-mobile .ac-item{flex-direction:column;align-items:flex-start;gap:5px;padding:11px 12px;font-size:14px;}
+  .ac-list.ac-mobile .ac-badge{font-size:14px;white-space:normal;}
+}
 
 /* ── TOTALS ─────────────────────────────────────────── */
 .tot-box{background:var(--ow);border:1px solid var(--bdr);padding:13px;margin-bottom:12px;border-radius:1px;}
@@ -6651,7 +6657,7 @@ function showAC(id, q){
   var matches = stockItems.filter(function(s){
     return s.name.toLowerCase().indexOf(ql) === 0 && s.qty > 0 && currentNames.indexOf(s.name.toLowerCase()) === -1;
   });
-  if(!matches.length){ ac.classList.remove('show'); return; }
+  if(!matches.length){ ac.classList.remove('show'); _hideACLayer(); return; }
   var html = '';
   matches.slice(0,8).forEach(function(s){
     var n = escH(s.name);
@@ -6659,11 +6665,47 @@ function showAC(id, q){
     html += n + ' <span class="ac-badge">'+s.size+' | Qty:'+s.qty+' | '+fmt(s.mrp)+'</span>';
     html += '</div>';
   });
+  // Mobile: list ko body-level alag layer me dikhao (card ke overflow/transform me clip na ho),
+  // screen ki poori width me, input ke theek neeche.
+  if(window.matchMedia && window.matchMedia('(max-width:768px)').matches){
+    ac.classList.remove('show');
+    var wrap = ac.parentNode, r = wrap.getBoundingClientRect();
+    var layer = document.getElementById('ac-mobile-layer');
+    if(!layer){
+      layer = document.createElement('div');
+      layer.id = 'ac-mobile-layer';
+      document.body.appendChild(layer);
+      // page scroll / keyboard resize par list input ke saath chipki rahe (band nahi hoti)
+      var _reposAC = function(e){
+        if(e && e.target && e.target.id === 'ac-mobile-layer') return;
+        if(!layer.classList.contains('show')) return;
+        var w = layer._wrap;
+        if(!w || !document.body.contains(w)){ _hideACLayer(); return; }
+        layer.style.top = Math.round(w.getBoundingClientRect().bottom) + 'px';
+      };
+      window.addEventListener('scroll', _reposAC, true);
+      window.addEventListener('resize', _reposAC);
+    }
+    layer._wrap = wrap;
+    layer.className = 'ac-list ac-mobile show';
+    layer.innerHTML = html;
+    layer.setAttribute('data-for', id);
+    layer.style.top = Math.round(r.bottom) + 'px';
+    var room = window.innerHeight - r.bottom - 90; // neeche fixed Save bar ke liye jagah
+    layer.style.maxHeight = Math.max(140, Math.min(room, window.innerHeight*0.45)) + 'px';
+    return;
+  }
+  _hideACLayer();
   ac.innerHTML = html;
   ac.classList.add('show');
 }
 
-function hideAC(id){ var ac = document.getElementById('ac-'+id); if(ac) ac.classList.remove('show'); }
+function _hideACLayer(){
+  var l = document.getElementById('ac-mobile-layer');
+  if(l){ l.classList.remove('show'); l.innerHTML = ''; }
+}
+
+function hideAC(id){ var ac = document.getElementById('ac-'+id); if(ac) ac.classList.remove('show'); var l = document.getElementById('ac-mobile-layer'); if(l && l.getAttribute('data-for') == String(id)) _hideACLayer(); }
 
 function pickAC(el){
   var n = el.getAttribute('data-nm');
