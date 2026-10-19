@@ -350,6 +350,8 @@ hr{border:none;border-top:1px solid var(--bdr);margin:10px 0;}
 .ac-wrap{position:relative;}
 .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--cb);border:1px solid var(--bdr);border-top:none;z-index:500;max-height:150px;overflow-y:auto;display:none;box-shadow:var(--sh2);}
 .ac-list.show{display:block;}
+/* Floating layer (body-level): card ke overflow me clip nahi hota, scroll hota hai */
+.ac-list.ac-float{position:fixed;top:auto;right:auto;border:1px solid var(--bdr);z-index:2000;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 .ac-item{padding:9px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bdr);display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:space-between;transition:background .12s;}
 .ac-item:hover{background:var(--ow);}
 .ac-item:last-child{border-bottom:none;}
@@ -6665,39 +6667,54 @@ function showAC(id, q){
     html += n + ' <span class="ac-badge">'+s.size+' | Qty:'+s.qty+' | '+fmt(s.mrp)+'</span>';
     html += '</div>';
   });
-  // Mobile: list ko body-level alag layer me dikhao (card ke overflow/transform me clip na ho),
-  // screen ki poori width me, input ke theek neeche.
-  if(window.matchMedia && window.matchMedia('(max-width:768px)').matches){
-    ac.classList.remove('show');
-    var wrap = ac.parentNode, r = wrap.getBoundingClientRect();
-    var layer = document.getElementById('ac-mobile-layer');
-    if(!layer){
-      layer = document.createElement('div');
-      layer.id = 'ac-mobile-layer';
-      document.body.appendChild(layer);
-      // page scroll / keyboard resize par list input ke saath chipki rahe (band nahi hoti)
-      var _reposAC = function(e){
-        if(e && e.target && e.target.id === 'ac-mobile-layer') return;
-        if(!layer.classList.contains('show')) return;
-        var w = layer._wrap;
-        if(!w || !document.body.contains(w)){ _hideACLayer(); return; }
-        layer.style.top = Math.round(w.getBoundingClientRect().bottom) + 'px';
-      };
-      window.addEventListener('scroll', _reposAC, true);
-      window.addEventListener('resize', _reposAC);
-    }
-    layer._wrap = wrap;
-    layer.className = 'ac-list ac-mobile show';
-    layer.innerHTML = html;
-    layer.setAttribute('data-for', id);
-    layer.style.top = Math.round(r.bottom) + 'px';
-    var room = window.innerHeight - r.bottom - 90; // neeche fixed Save bar ke liye jagah
-    layer.style.maxHeight = Math.max(140, Math.min(room, window.innerHeight*0.45)) + 'px';
-    return;
+  // List ko body-level alag layer me dikhao (card ke overflow me clip na ho, scroll ho sake)
+  var isMob = window.matchMedia && window.matchMedia('(max-width:768px)').matches;
+  ac.classList.remove('show');
+  var wrap = ac.parentNode;
+  var layer = document.getElementById('ac-mobile-layer');
+  if(!layer){
+    layer = document.createElement('div');
+    layer.id = 'ac-mobile-layer';
+    document.body.appendChild(layer);
+    // page scroll / resize par list input ke saath chipki rahe
+    var _reposAC = function(e){
+      if(e && e.target && e.target.id === 'ac-mobile-layer') return;
+      if(!layer.classList.contains('show')) return;
+      var w = layer._wrap;
+      if(!w || !document.body.contains(w)){ _hideACLayer(); return; }
+      _placeACLayer(layer, w);
+    };
+    window.addEventListener('scroll', _reposAC, true);
+    window.addEventListener('resize', _reposAC);
   }
-  _hideACLayer();
-  ac.innerHTML = html;
-  ac.classList.add('show');
+  layer._wrap = wrap;
+  layer.className = 'ac-list ac-float show' + (isMob ? ' ac-mobile' : '');
+  layer.innerHTML = html;
+  layer.setAttribute('data-for', id);
+  _placeACLayer(layer, wrap);
+}
+
+function _placeACLayer(layer, wrap){
+  var r = wrap.getBoundingClientRect();
+  var isMob = layer.classList.contains('ac-mobile');
+  var vw = window.innerWidth, vh = window.innerHeight;
+  if(isMob){ layer.style.left = '10px'; layer.style.right = '10px'; layer.style.width = 'auto'; }
+  else {
+    var w = Math.min(Math.max(r.width, 380), vw - 20);
+    var left = Math.max(10, Math.min(r.left, vw - w - 10));
+    layer.style.left = left + 'px'; layer.style.right = 'auto'; layer.style.width = w + 'px';
+  }
+  var below = vh - r.bottom - (isMob ? 90 : 16);   // mobile: neeche Save bar ke liye jagah
+  var cap = isMob ? vh*0.45 : 320;
+  if(below < 160 && r.top > below){                // neeche jagah kam ho to input ke upar kholo
+    layer.style.top = 'auto';
+    layer.style.bottom = Math.round(vh - r.top) + 'px';
+    layer.style.maxHeight = Math.max(140, Math.min(cap, r.top - 16)) + 'px';
+  } else {
+    layer.style.bottom = 'auto';
+    layer.style.top = Math.round(r.bottom) + 'px';
+    layer.style.maxHeight = Math.max(140, Math.min(cap, below)) + 'px';
+  }
 }
 
 function _hideACLayer(){
