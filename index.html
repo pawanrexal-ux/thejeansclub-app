@@ -805,6 +805,7 @@ input[type=tel], textarea, select {
     <div class="lig"><label>Username</label><input type="text" id="loginUser" placeholder="Enter username" autocomplete="off"/></div>
     <div class="lig"><label>Password</label><div class="pwrap"><input type="password" id="loginPass" placeholder="Enter password" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()"/><button class="pwtog" onclick="togglePw('loginPass',this)" type="button">&#128065;</button></div></div>
     <button class="lbtn" onclick="doLogin()">Login</button>
+    <button class="lbtn" id="fpLoginBtn" type="button" onclick="fpLogin(false)" style="display:none;margin-top:10px;background:var(--gl,#c9a84c);color:#1a1a1a;">&#128070; Fingerprint se Login</button>
     <div class="lerr" id="loginError">Wrong username or password</div>
     <div id="defaultPwWarn" style="display:none;margin-top:10px;background:#fff3cd;border:1px solid #ffc107;color:#856404;padding:9px 12px;font-size:11px;font-family:Arial,sans-serif;text-align:left;">
       ⚠️ <strong>Default password use ho raha hai!</strong><br>Settings → Change Password se abhi badlein.
@@ -1930,6 +1931,14 @@ input[type=tel], textarea, select {
 
       <!-- SETTINGS -->
       <div class="page" id="page-settings">
+        <div class="set-section"><div class="set-head">&#128070; Fingerprint Login</div>
+          <div class="set-body">
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;line-height:1.5;">Is phone/laptop par fingerprint se app kholein &mdash; password type karne ki zarurat nahi. Password se login hamesha chalega. Jo bhi fingerprint is device ke lock me saved hai wahi chalega.</p>
+            <div id="fpStatus" style="background:var(--ow);border:1px solid var(--bdr);padding:10px 12px;margin-bottom:8px;text-align:center;font-size:12px;font-weight:700;font-family:Arial,sans-serif;color:var(--mu);">Checking...</div>
+            <button class="btn btn-green btn-full" id="fpEnableBtn" onclick="enableFingerprint()" style="margin-bottom:8px;">&#128070; Enable Fingerprint Login</button>
+            <button class="btn btn-outline btn-full" id="fpDisableBtn" onclick="disableFingerprint(false)" style="display:none;">&#10005; Disable Fingerprint Login</button>
+          </div>
+        </div>
         <div class="set-section"><div class="set-head">&#128260; Sync Status</div>
           <div class="set-body">
             <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;">Login/sync hote hi sirf <b>naya/badla hua data</b> download hota hai aur purane data ke saath merge ho jaata hai — poora dataset baar-baar download nahi hota, isse Firebase ka download quota bacha rehta hai.</p>
@@ -5453,6 +5462,111 @@ function staffCanAccess(page){
 var STAFF_RESTRICTED_PAGES = []; // computed dynamically
 var STAFF_RESTRICTED_NAV_LABELS = []; // computed dynamically
 
+// ===== FINGERPRINT LOGIN (WebAuthn — device ka fingerprint/face/screen-lock) =====
+var FP_KEY = 'ac_fp';
+function _fpOriginOk(){ return location.protocol === 'https:' || location.hostname === 'localhost'; }
+function _fpSupported(){ return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext && _fpOriginOk()); }
+function _fpGet(){ try{ return JSON.parse(localStorage.getItem(FP_KEY) || 'null'); }catch(e){ return null; } }
+function _fpHash(str){ var h = 5381; for(var i=0;i<str.length;i++){ h = ((h<<5) + h + str.charCodeAt(i)) | 0; } return String(h); }
+function _fpSig(role){
+  var a = role === 'admin' ? (LS.get('auth') || {user:'thejeans', pass:'alpha@123'}) : getStaffAuth();
+  return {user: a.user, pv: _fpHash(a.user + '|' + a.pass)};
+}
+function _fpB64(buf){ var b = new Uint8Array(buf), t = ''; for(var i=0;i<b.length;i++) t += String.fromCharCode(b[i]); return btoa(t); }
+function _fpUnB64(str){ var t = atob(str), b = new Uint8Array(t.length); for(var i=0;i<t.length;i++) b[i] = t.charCodeAt(i); return b; }
+function _fpRand(n){ var a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
+
+function updateFpUi(){
+  var d = _fpGet(), sup = _fpSupported();
+  var btn = document.getElementById('fpLoginBtn');
+  if(btn) btn.style.display = (d && sup) ? '' : 'none';
+  var st = document.getElementById('fpStatus'), en = document.getElementById('fpEnableBtn'), dis = document.getElementById('fpDisableBtn');
+  if(!st) return;
+  if(!sup){
+    st.style.color = '#e67e22';
+    st.textContent = !_fpOriginOk()
+      ? '\u26a0\ufe0f Fingerprint sirf HTTPS link par chalta hai. Aap app ko phone ki file (' + location.protocol + '//) se khol rahe hain \u2014 Chrome me apna Vercel wala link kholein, wahan enable karein.'
+      : 'Is browser/device par fingerprint login support nahi hai';
+    st.style.lineHeight = '1.5';
+    if(en) en.style.display = 'none'; if(dis) dis.style.display = 'none';
+  } else if(d){
+    st.style.color = '#2d7a4f'; st.textContent = '\u2705 Enabled \u2014 ' + (d.role === 'admin' ? 'Admin' : 'Staff') + ' (' + d.user + ')';
+    if(en) en.style.display = 'none'; if(dis) dis.style.display = '';
+  } else {
+    st.style.color = 'var(--mu)'; st.textContent = 'Disabled';
+    if(en) en.style.display = ''; if(dis) dis.style.display = 'none';
+  }
+}
+
+function enableFingerprint(){
+  if(!_fpOriginOk()){
+    showToast('Fingerprint sirf HTTPS link par chalta hai \u2014 app ko Vercel link se kholein, file se nahi', 'warn');
+    updateFpUi(); return;
+  }
+  if(!_fpSupported()){ showToast('Is device/browser par fingerprint support nahi hai', 'warn'); return; }
+  var role = CURRENT_ROLE, sig = _fpSig(role);
+  var t0 = Date.now();
+  // create() seedha tap ke andar bulao (beech me await nahi) taaki browser block na kare
+  navigator.credentials.create({publicKey:{
+    challenge: _fpRand(32),
+    rp: {name: 'The Jeans Club', id: location.hostname},
+    user: {id: _fpRand(16), name: sig.user, displayName: sig.user},
+    pubKeyCredParams: [{type:'public-key', alg:-7}, {type:'public-key', alg:-257}],
+    authenticatorSelection: {authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged'},
+    timeout: 60000, attestation: 'none'
+  }}).then(function(cred){
+    if(!cred) return;
+    localStorage.setItem(FP_KEY, JSON.stringify({id:_fpB64(cred.rawId), role:role, user:sig.user, pv:sig.pv}));
+    updateFpUi();
+    showToast('\u2705 Fingerprint login enable ho gaya');
+  }).catch(function(e){
+    var n = e && e.name, m;
+    if(n === 'NotSupportedError') m = 'Is device me fingerprint/screen lock set nahi hai \u2014 phone Settings me pehle fingerprint add karein';
+    else if(n === 'SecurityError') m = 'Security error \u2014 app ko HTTPS (Vercel) link se kholein';
+    else if(n === 'NotAllowedError') m = (Date.now() - t0 < 1500)
+      ? 'Browser ne fingerprint prompt block kar diya \u2014 phone me fingerprint/screen lock set hai ya nahi dekhein, aur HTTPS link se kholein'
+      : 'Fingerprint cancel hua ya time out ho gaya \u2014 dobara try karein';
+    else m = 'Fingerprint enable nahi ho paya' + (n ? ' (' + n + ')' : '');
+    showToast(m, 'warn');
+  });
+}
+
+function disableFingerprint(silent){
+  localStorage.removeItem(FP_KEY);
+  updateFpUi();
+  if(!silent) showToast('Fingerprint login band kar diya');
+}
+
+function fpLogin(auto){
+  var d = _fpGet();
+  if(!d || !_fpSupported()) return;
+  // Password badla ho to fingerprint login automatically band — naye password se dobara enable karna padega
+  var cur = _fpSig(d.role);
+  if(cur.user !== d.user || cur.pv !== d.pv){
+    disableFingerprint(true);
+    showToast('Password badla hai \u2014 password se login karke fingerprint dobara enable karein', 'warn');
+    return;
+  }
+  navigator.credentials.get({publicKey:{
+    challenge: _fpRand(32),
+    allowCredentials: [{type:'public-key', id:_fpUnB64(d.id)}],
+    userVerification: 'required',
+    timeout: 60000
+  }}).then(function(assertion){
+    if(!assertion) return;
+    CURRENT_ROLE = d.role;
+    sessionStorage.setItem('ac_logged', 'yes');
+    sessionStorage.setItem('ac_role', CURRENT_ROLE);
+    document.getElementById('loginScreen').classList.add('hidden');
+    showApp();
+    showToast('Welcome, ' + d.user + '! (' + (CURRENT_ROLE === 'admin' ? 'Admin' : 'Staff') + ' \u00b7 Fingerprint)');
+    logLogin(d.user, CURRENT_ROLE);
+    if(SYNC_KEY) setTimeout(pullCloud, 1000);
+  }).catch(function(){
+    if(!auto) showToast('Fingerprint match nahi hua \u2014 dobara try karein ya password se login karein', 'warn');
+  });
+}
+
 function checkLogin(){
   SYNC_KEY = localStorage.getItem('ac_synckey') || '';
   AUTH = LS.get('auth') || {user:'thejeans', pass:'alpha@123'};
@@ -5515,6 +5629,11 @@ function checkLogin(){
         showToast('💡 Tip: Settings > Backup se data save karein', 'info');
       }, 5000);
     }
+  }
+  updateFpUi();
+  // Login screen par ho to fingerprint ka prompt apne aap khol do
+  if(!(sessionStorage.getItem('ac_logged') === 'yes' && savedRole) && _fpGet()){
+    setTimeout(function(){ fpLogin(true); }, 600);
   }
 }
 
@@ -5613,6 +5732,7 @@ function doLogout(){
   document.getElementById('loginRole').value = 'staff';
   document.getElementById('loginRoleGroup').style.display = 'none';
   onRoleChange();
+  updateFpUi();
 }
 
 // ===== AUTO LOGOUT AFTER 10 MIN INACTIVITY =====
@@ -5633,6 +5753,7 @@ function resetAutoLogout(){
       document.getElementById('loginPass').value = '';
       document.getElementById('loginRole').value = 'staff';
       document.getElementById('loginRoleGroup').style.display = 'none';
+      updateFpUi();
       showToast('⏱️ Auto logout — inactivity ke wajah se');
     }
   }, AUTO_LOGOUT_MS);
