@@ -6747,6 +6747,7 @@ function renderItems(){
     html += '<div class="ac-wrap">';
     html += '<input type="text" placeholder="Item name" value="'+escH(item.name)+'" ';
     html += 'oninput="updateItem('+iid+',\'name\',this.value)" ';
+    html += 'onfocus="showItemNamePop('+iid+')" onclick="showItemNamePop('+iid+')" ';
     html += 'onblur="setTimeout(function(){hideAC('+iid+')},300)" ';
     html += 'style="padding:8px 7px;font-size:14px;font-family:Arial,sans-serif;width:100%;" />';
     html += '<div class="ac-list" id="ac-'+iid+'"></div>';
@@ -6788,7 +6789,10 @@ function showAC(id, q){
     html += n + ' <span class="ac-badge">'+s.size+' | Qty:'+s.qty+' | '+fmt(s.mrp)+'</span>';
     html += '</div>';
   });
-  // List ko body-level alag layer me dikhao (card ke overflow me clip na ho, scroll ho sake)
+  _openACLayer(id, ac, html);
+}
+
+function _openACLayer(id, ac, html){
   var isMob = window.matchMedia && window.matchMedia('(max-width:768px)').matches;
   ac.classList.remove('show');
   var wrap = ac.parentNode;
@@ -6813,6 +6817,16 @@ function showAC(id, q){
   layer.innerHTML = html;
   layer.setAttribute('data-for', id);
   _placeACLayer(layer, wrap);
+}
+
+// Item name box par tap/focus: sirf usi item ka poora naam list-jaise popup me dikhao
+function showItemNamePop(id){
+  var item = items.find(function(i){ return i.id === id; });
+  if(!item || !item.name) return;
+  var ac = document.getElementById('ac-'+id);
+  if(!ac) return;
+  var html = '<div class="ac-item ac-fullname" style="display:block;cursor:default;font-size:15px;font-weight:700;line-height:1.4;padding:12px 14px;white-space:normal;word-break:break-word;">'+escH(item.name)+'</div>';
+  _openACLayer(id, ac, html);
 }
 
 function _placeACLayer(layer, wrap){
