@@ -1005,7 +1005,7 @@ input[type=tel], textarea, select {
           <button class="btn btn-outline" onclick="clearInvoice()" style="flex-shrink:0;">Clear</button>
           <button class="btn btn-outline" onclick="holdCurrentInvoice()" style="flex-shrink:0;white-space:nowrap;padding:9px 10px;" title="Is invoice ko park karke naya customer shuru karein">&#128190; Hold</button>
           <button class="btn btn-gold" onclick="saveAndNew()" style="flex-shrink:0;white-space:nowrap;padding:9px 12px;">&#10133; Save &amp; New</button>
-          <button class="btn btn-green btn-full" onclick="previewAndSave()">Preview &amp; Save</button>
+          <button class="btn btn-green btn-full" onclick="previewOnly()">Preview</button>
         </div>
       </div>
 
@@ -1024,11 +1024,16 @@ input[type=tel], textarea, select {
 
       <!-- PREVIEW -->
       <div class="page" id="page-preview">
+        <div id="invPreviewBanner" style="display:none;background:#fff8e1;border:1px solid #ffe082;padding:9px 12px;margin-bottom:10px;font-size:12px;font-family:Arial,sans-serif;color:#8a6100;line-height:1.5;">
+          &#128065;&#65039; <strong>Sirf Preview</strong> &mdash; invoice abhi save nahi hui hai. Save karne ke liye Back jaakar <strong>Save &amp; New</strong> dabayein.
+        </div>
         <div id="invPreviewBox"></div>
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-          <button class="btn btn-green" onclick="downloadPDF()">&#8595; PDF</button>
-          <button class="btn btn-gold" onclick="exportInvExcel()">&#128202; Excel</button>
-          <button class="btn btn-wa" onclick="shareWA()">&#128172; WhatsApp</button>
+          <span id="invPreviewActions" style="display:contents;">
+            <button class="btn btn-green" onclick="downloadPDF()">&#8595; PDF</button>
+            <button class="btn btn-gold" onclick="exportInvExcel()">&#128202; Excel</button>
+            <button class="btn btn-wa" onclick="shareWA()">&#128172; WhatsApp</button>
+          </span>
           <button class="btn btn-outline" onclick="goBack()">&#8592; Back</button>
         </div>
       </div>
@@ -6010,7 +6015,10 @@ function navTo(page, el, mi){
   var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
-  if(page==='invoice') initInvoice();
+  if(page==='invoice'){
+    if(window._keepInvForm){ window._keepInvForm = false; }   // Preview se Back: bhara hua form jaisa tha waisa rahe
+    else initInvoice();
+  } else if(page!=='preview'){ window._keepInvForm = false; }
   if(page==='invreport') renderInvReport();
   if(page==='dashboard') renderDashboard();
   // History screens ab hamesha poora local data dikhate hain (delta-sync ki wajah se complete rehta hai).
@@ -6046,6 +6054,7 @@ function navTo(page, el, mi){
 }
 
 function goBack(){
+  if(currentPage === 'preview' && window._previewOnlyActive) window._keepInvForm = true;
   if(pageHistory.length > 0){ var prev = pageHistory.pop(); navTo(prev, null); }
 }
 
@@ -7222,10 +7231,35 @@ function previewAndSave(){
   });
 }
 
+// ── previewOnly: sirf preview dikhao — invoice SAVE nahi hoti, number claim nahi hota, stock/customer change nahi hota ──
+function previewOnly(){
+  var fd = collectFormData();
+  if(!fd) return;
+  var inv = {id:'preview', isPreview:true, invNo:(fd.invNoField || 'PREVIEW'), invDate:fd.invDate, custName:fd.custName,
+    custPhone:fd.custPhone, custAddr:fd.custAddr, payMode:fd.pm, payStatus:fd.ps,
+    cashAmt:fd.cashAmt, upiAmt:fd.upiAmt, note:fd.note, items:fd.items,
+    sub:fd.sub, disc:fd.disc, gstByRate:fd.gstByRate, totalGst:fd.totalGst,
+    gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
+    paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0};
+  try {
+    var _pd = getCustPrevDue(inv.custName, editingInvId || null, editingInvId || null);
+    if(_pd && _pd.amount > 0){ inv.prevDue = _pd.amount; inv.prevDueInvs = _pd.invs.map(function(x){ return {invNo:x.invNo, due:x.due}; }); }
+  } catch(e){}
+  // currentInv ko touch nahi karte — taaki koi PDF/Share purane/unsaved data se na ho
+  buildPreview(inv);
+  navTo('preview', null);
+}
+
 function collectInvoice(){ return collectFormData(); } // backward compat alias
 function prepareNextInvoice(){} // no-op, kept for compatibility
 
 function buildPreview(inv){
+  // Preview-only (unsaved) invoice: banner dikhao, PDF/Excel/WhatsApp chhupao
+  var _isPrev = !!(inv && inv.isPreview);
+  window._previewOnlyActive = _isPrev;
+  var _bn = document.getElementById('invPreviewBanner'), _ac = document.getElementById('invPreviewActions');
+  if(_bn) _bn.style.display = _isPrev ? '' : 'none';
+  if(_ac) _ac.style.display = _isPrev ? 'none' : 'contents';
   // Always fetch latest receipts from storage so invoice PDF shows updated payments
   pendingPayments = LS.get('pendingPayments') || pendingPayments || [];
   var dateStr = inv.invDate ? new Date(inv.invDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '';
