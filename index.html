@@ -3268,7 +3268,7 @@ function getSyncPath(){
 // baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog'];
+var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog','heldInvoices'];
 var _hasFullData = (localStorage.getItem('ac_hasFullData') === '1'); // true jab is device par ek baar poora data aa chuka ho
 var _lastChangeTs = parseInt(localStorage.getItem('ac_lastChangeTs'), 10) || 0; // is device ne ab tak kaunse changes dekh liye hain
 
@@ -3369,7 +3369,7 @@ async function pushCloud(){
   // Agar in-memory array khali hai lekin local DB (IDB cache) mein data hai,
   // to memory purani/unloaded hai — usse Firebase par 'delete' mat bhejo.
   // (LS har save par update hota hai, isliye asli delete par dono khali honge.)
-  ['purchases','supplierPayments','pendingPayments','expenses','returns'].forEach(function(k){
+  ['purchases','supplierPayments','pendingPayments','expenses','returns','heldInvoices'].forEach(function(k){
     try{
       var memArr = _getDeltaArrayRef(k);
       var lsArr = LS.get(k);
@@ -3380,6 +3380,7 @@ async function pushCloud(){
         else if(k==='pendingPayments') pendingPayments = lsArr;
         else if(k==='expenses') expenses = lsArr;
         else if(k==='returns') returns = lsArr;
+        else if(k==='heldInvoices') heldInvoices = lsArr;
       }
     }catch(e){}
   });
@@ -3404,6 +3405,7 @@ async function pushCloud(){
     monthlyReports: monthlyReports,   // ← was missing before!
     editLog: editLog,                 // audit log of invoice/receipt edits
     loginLog: loginLog,               // login audit trail (who logged in, when)
+    heldInvoices: heldInvoices,       // hold/parked invoice drafts — ab devices ke beech sync hote hain
     telegramConfig: getTelegramConfig(),               // bot token/chatId/auto — so staff device also has it
     tgLastBackupAt: localStorage.getItem('ac_tg_lastBackupAt') || null, // shared across devices to avoid duplicate sends
     tgLastBackupDate: localStorage.getItem('ac_tg_lastBackupDate') || null, // which calendar date was last backed up (any send)
@@ -3565,6 +3567,13 @@ function applyPulledData(d){
   if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
   if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
   if(Array.isArray(d.supplierPayments)){ supplierPayments = d.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
+  if(Array.isArray(d.heldInvoices)){
+    var _hIds = {}; d.heldInvoices.forEach(function(h){ if(h && !h.id) h.id = h.heldId; _hIds[String(h.id)] = true; });
+    var _localOnlyH = (heldInvoices||[]).filter(function(h){ return h && !_hIds[String(h.id || h.heldId)]; });
+    heldInvoices = d.heldInvoices.concat(_localOnlyH);
+    LS.setL('heldInvoices', heldInvoices);
+    try{ renderHeldBadge(); }catch(e){}
+  }
   if(d.staffPerms && typeof d.staffPerms === 'object'){ LS.setL('staffPerms', d.staffPerms); loadStaffPerms(); }
   if(Array.isArray(d.pendingPayments)){
     if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
@@ -3683,6 +3692,7 @@ function _getDeltaArrayRef(type){
     case 'stockMovLog': return stockMovLog;
     case 'stock': return stockItems;
     case 'loginLog': return loginLog;
+    case 'heldInvoices': return heldInvoices;
     default: return null;
   }
 }
@@ -3745,6 +3755,13 @@ function applyDeltaItems(items){
     if(currentPage === 'lowlist') renderLowList();
     if(currentPage === 'invreport') renderInvReport();
     showToast('Stock updated from cloud!');
+  }
+  if(touched.heldInvoices){
+    try{
+      renderHeldBadge();
+      var _hm = document.getElementById('heldInvoicesModal');
+      if(_hm && _hm.classList.contains('show')) renderHeldInvoicesList();
+    }catch(e){}
   }
   if(touched.loginLog){
     if(currentPage === 'loginlog' && typeof renderLoginLog === 'function') renderLoginLog();
@@ -6005,6 +6022,20 @@ function navTo(page, el, mi){
   // Staff ke liye expense add only (records & dashboard blocked above)
   // pendingreceipts, pendingnew, pendingpreview allowed
   // expensenew allowed (added expense only, no records)
+  // ── AUTO-HOLD: invoice banate waqt kisi aur page par jaate hi draft apne-aap Hold me chala jaye ──
+  try {
+    var _leavingForm = (currentPage === 'invoice') || (currentPage === 'preview' && window._previewOnlyActive);
+    if(_leavingForm && page !== 'invoice' && page !== 'preview' && editingInvId === null && !isInvoiceFormBlank()){
+      var _snap = snapshotCurrentInvoice();
+      heldInvoices.push(_snap);
+      LS.sync('heldInvoices', heldInvoices);   // Firebase sync
+      renderHeldBadge();
+      window._previewOnlyActive = false;
+      setTimeout(function(){
+        showToast('\ud83d\udcf0 ' + (_snap.custName || 'Invoice') + ' ka draft Hold me chala gaya \u2014 New Invoice > Hold se resume karein');
+      }, 250);
+    }
+  } catch(e){ console.error('[AutoHold] error:', e); }
   if(currentPage && currentPage !== page) pageHistory.push(currentPage);
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
@@ -6018,6 +6049,7 @@ function navTo(page, el, mi){
   if(page==='invoice'){
     if(window._keepInvForm){ window._keepInvForm = false; }   // Preview se Back: bhara hua form jaisa tha waisa rahe
     else initInvoice();
+    _syncHeldQuick(false);   // invoice page khulte hi doosre device ke Hold drafts check
   } else if(page!=='preview'){ window._keepInvForm = false; }
   if(page==='invreport') renderInvReport();
   if(page==='dashboard') renderDashboard();
@@ -6403,8 +6435,10 @@ function isInvoiceFormBlank(){
 }
 
 function snapshotCurrentInvoice(){
+  var _hid = 'H'+Date.now()+Math.floor(Math.random()*1000);
   return {
-    heldId: 'H'+Date.now()+Math.floor(Math.random()*1000),
+    id: _hid,            // delta sync is id se record pehchanta hai
+    heldId: _hid,
     heldAt: new Date().toISOString(),
     custName: document.getElementById('custName').value,
     custPhone: document.getElementById('custPhone').value,
@@ -6428,7 +6462,7 @@ function holdCurrentInvoice(){
   if(isInvoiceFormBlank()){ showToast('Invoice khaali hai — hold karne ko kuch nahi'); return; }
   var snap = snapshotCurrentInvoice();
   heldInvoices.push(snap);
-  LS.set('heldInvoices', heldInvoices); // device-local draft, Firebase sync nahi chahiye
+  LS.sync('heldInvoices', heldInvoices); // Firebase sync — doosre device par bhi dikhega
   editingInvId = null;
   items=[]; itemIdCounter=1;
   initInvoice();
@@ -6443,10 +6477,21 @@ function renderHeldBadge(){
   if(btn) btn.style.display = heldInvoices.length ? 'inline-flex' : 'none';
 }
 
+var _lastHeldQuickSync = 0;
+function _syncHeldQuick(force){
+  try{
+    if(!SYNC_KEY || !getFirebaseUrl() || !navigator.onLine) return;
+    if(!force && Date.now() - _lastHeldQuickSync < 15000) return;   // 15s throttle
+    _lastHeldQuickSync = Date.now();
+    _deltaSync().catch(function(){});   // sirf naye changes (chhota download); applyDeltaItems screen refresh karta hai
+  }catch(e){}
+}
+
 function openHeldInvoicesModal(){
   renderHeldInvoicesList();
   var m = document.getElementById('heldInvoicesModal');
   if(m) m.classList.add('show');
+  _syncHeldQuick(true);   // doosre device ke naye drafts abhi mangwa lo
 }
 
 function closeHeldInvoicesModal(){
@@ -6486,7 +6531,7 @@ function resumeHeldInvoice(heldId){
     heldInvoices.push(snapshotCurrentInvoice());
   }
   heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
-  LS.set('heldInvoices', heldInvoices);
+  LS.sync('heldInvoices', heldInvoices);
 
   editingInvId = null;
   document.getElementById('invNo').value = genInvNo();
@@ -6529,7 +6574,7 @@ function resumeHeldInvoice(heldId){
 function deleteHeldInvoice(heldId){
   if(!confirm('Ye held invoice delete karna hai? Wapas nahi milega.')) return;
   heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
-  LS.set('heldInvoices', heldInvoices);
+  LS.sync('heldInvoices', heldInvoices);
   renderHeldBadge();
   renderHeldInvoicesList();
   showToast('Held invoice delete ho gaya');
@@ -10059,7 +10104,8 @@ function initApp(){
   monthlyReports=LS.get('monthlyReports')||{};
   lastCheckedDate=LS.get('lastDate')||nowDate();
   lastCheckedMonth=LS.get('lastMonth')||monthKey(nowDate());
-  heldInvoices=LS.get('heldInvoices')||[]; // parked invoice drafts (device-local, not synced)
+  heldInvoices=LS.get('heldInvoices')||[]; // parked invoice drafts (ab Firebase se devices ke beech sync)
+  heldInvoices.forEach(function(h){ if(h && !h.id) h.id = h.heldId; }); // purane drafts ko sync-id do
   // FIX: renderDashboard() -> checkDateChange() -> checkAutoTelegramBackup() isi startup me chal jata hai.
   // Pehle purchases/receipts/expenses neeche assign hote the, isliye startup-time catch-up report me
   // ye teeno khaali jate the. Ab pehle load honge.
