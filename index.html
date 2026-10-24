@@ -1620,8 +1620,8 @@ input[type=tel], textarea, select {
             <div class="row2"><div class="ig"><label>Category</label><select id="inv-cat"></select></div><div class="ig"><label>Size</label><select id="inv-size"></select></div></div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
               <div class="ig"><label>Qty</label><input type="number" id="inv-qty" value="10" inputmode="numeric" min="0"/></div>
-              <div class="ig"><label>Cost Rs.</label><input type="number" id="inv-cost" value="200" inputmode="numeric"/></div>
-              <div class="ig"><label>MRP Rs.</label><input type="number" id="inv-mrp" value="499" inputmode="numeric"/></div>
+              <div class="ig"><label>Cost Rs.</label><input type="number" id="inv-cost" value="200" inputmode="numeric" oninput="_markInvPriceTouched(this)"/></div>
+              <div class="ig"><label>MRP Rs.</label><input type="number" id="inv-mrp" value="499" inputmode="numeric" oninput="_markInvPriceTouched(this)"/></div>
             </div>
             <button class="btn btn-green btn-full" onclick="addStock()">+ Add to Inventory</button>
           </div>
@@ -2744,7 +2744,67 @@ function scheduleStaffInvoicePush(){
   _staffPushTimer = setTimeout(function(){
     _staffPushTimer = null;
     pushStaffInvoices();
+    pushStaffHeldDelta();   // Hold invoices shared change-log se jaate hain — staff ke alag path se nahi
   }, 1500);
+}
+
+// ── STAFF: Hold (parked) invoices ko shared delta change-log par bhejo ──
+// FIX: Staff device ka push sirf `/tjc_staff_data` (invoices/stock/etc.) tak jaata tha aur
+// heldInvoices us payload mein tha hi nahi, na admin ke merge mein — isliye staff jab invoice
+// Hold karta tha to wo kisi doosre device tak kabhi nahi pahunchta tha. Ab heldInvoices ka
+// chhota delta (sirf naye/badle/delete hue drafts) admin wale hi change-log par jaata hai,
+// jahan se har device (admin ya staff) _deltaSync() se use utha leta hai.
+var _heldPushBusy = false, _heldPushAgain = false;
+async function pushStaffHeldDelta(){
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl) return;
+  if(!navigator.onLine) return;
+  if(!_IDB_ENGINE.isReady()) return;
+  if(_heldPushBusy){ _heldPushAgain = true; return; }
+  _heldPushBusy = true;
+  try{
+    // stale-memory guard: memory khaali par local DB mein drafts hon to unhe delete mat bhejo
+    var _lsH = LS.get('heldInvoices');
+    if(!heldInvoices.length && Array.isArray(_lsH) && _lsH.length) heldInvoices = _lsH;
+    var snap = _getPushSnapshot();
+    if(!snap.heldInvoices) snap.heldInvoices = {};
+    var deltaItems = [], seen = {};
+    heldInvoices.forEach(function(rec){
+      if(!rec) return;
+      if(!rec.id) rec.id = rec.heldId;
+      var rid = String(rec.id);
+      seen[rid] = true;
+      var h = _quickHash(JSON.stringify(rec));
+      if(snap.heldInvoices[rid] !== h){
+        deltaItems.push({ t:'heldInvoices', id:rec.id, op:'up', rec:rec });
+        snap.heldInvoices[rid] = h;
+      }
+    });
+    Object.keys(snap.heldInvoices).forEach(function(oldId){
+      if(!seen[oldId]){
+        deltaItems.push({ t:'heldInvoices', id:oldId, op:'del' });
+        delete snap.heldInvoices[oldId];
+      }
+    });
+    if(deltaItems.length){
+      var entry = { ts: Date.now(), by: DEVICE_ID, items: deltaItems };
+      var key = Date.now() + '_' + Math.random().toString(36).slice(2,8);
+      var res = await fetch(getChangesPath() + '/' + key + '.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
+      });
+      if(res.ok){
+        _savePushSnapshot(snap);
+        console.log('[StaffSync] Held delta pushed — ' + deltaItems.length + ' change(s)');
+      } else {
+        console.log('[StaffSync] Held delta push failed:', res.status);
+      }
+    }
+  }catch(e){
+    console.log('[StaffSync] Held delta push error:', e);
+  }finally{
+    _heldPushBusy = false;
+    if(_heldPushAgain){ _heldPushAgain = false; setTimeout(pushStaffHeldDelta, 800); }
+  }
 }
 
 async function pushStaffInvoices(){
@@ -3297,6 +3357,15 @@ function getSyncPath(){
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
 var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog','heldInvoices'];
+// Har device ki apni permanent pehchaan. Delta change-log mein har entry par `by` likha jaata hai taaki
+// device apni hi bheji hui entries ko dobara apply na kare (stale overwrite se bachne ke liye).
+var DEVICE_ID = (function(){
+  try{
+    var d = localStorage.getItem('ac_deviceId');
+    if(!d){ d = 'D' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); localStorage.setItem('ac_deviceId', d); }
+    return d;
+  }catch(e){ return 'D' + Math.random().toString(36).slice(2,10); }
+})();
 var _hasFullData = (localStorage.getItem('ac_hasFullData') === '1'); // true jab is device par ek baar poora data aa chuka ho
 var _lastChangeTs = parseInt(localStorage.getItem('ac_lastChangeTs'), 10) || 0; // is device ne ab tak kaunse changes dekh liye hain
 
@@ -3323,10 +3392,17 @@ async function _deltaSync(){
   if(changes && typeof changes === 'object'){
     var allItems = [];
     var maxTs = _lastChangeTs;
-    Object.keys(changes).forEach(function(k){
+    // FIX: entries ko ts ke order mein apply karo (JSON key-order par bharosa nahi)
+    // aur is device ki apni bheji hui entries skip karo (wo already local data mein hain —
+    // unhe dobara apply karne se naye local badlaav purane record se overwrite ho sakte the).
+    var _keys = Object.keys(changes).sort(function(a,b){
+      var ta = (changes[a] && changes[a].ts) || 0, tb = (changes[b] && changes[b].ts) || 0;
+      return ta !== tb ? ta - tb : (a < b ? -1 : 1);
+    });
+    _keys.forEach(function(k){
       var entry = changes[k];
       if(entry && Array.isArray(entry.items)){
-        allItems = allItems.concat(entry.items);
+        if(entry.by !== DEVICE_ID) allItems = allItems.concat(entry.items);
         if(entry.ts > maxTs) maxTs = entry.ts;
       }
     });
@@ -3482,7 +3558,7 @@ async function pushCloud(){
 
     if(deltaItems.length){
       var changeKey = Date.now() + '_' + Math.random().toString(36).slice(2,8);
-      var changeEntry = { ts: Date.now(), items: deltaItems };
+      var changeEntry = { ts: Date.now(), by: DEVICE_ID, items: deltaItems };
       var res = await fetch(getChangesPath() + '/' + changeKey + '.json', {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
@@ -3496,8 +3572,12 @@ async function pushCloud(){
         return false;
       }
       _savePushSnapshot(snap);
-      _lastChangeTs = changeEntry.ts;
-      localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
+      // FIX: Yahan pehle `_lastChangeTs = changeEntry.ts` hota tha — us se is device ka "dekha hua"
+      // pointer aage kood jaata tha aur doosre device ke wo changes (jo is push se pehle cloud par
+      // aaye the par abhi pull nahi hue the) hamesha ke liye SKIP ho jaate the — Hold invoices aur
+      // Stock MRP/price changes isi wajah se doosre device tak nahi pahunchte the, aur purana (stale)
+      // record agle push par naye price ko overwrite kar deta tha. Ab pointer sirf _deltaSync()
+      // se aage badhta hai; apni khud ki entries `by` se pehchaan kar skip hoti hain.
       console.log('[Sync] Delta pushed OK — ' + deltaItems.length + ' changed record(s)');
     } else {
       console.log('[Sync] Nothing changed — delta push skipped');
@@ -3725,9 +3805,26 @@ function _getDeltaArrayRef(type){
   }
 }
 
+// ── STOCK PRICE (MRP) PROTECTION ──
+// Stock record poora ek saath sync hota hai (qty ke saath mrp bhi). Agar kisi device ke paas purana
+// MRP tha aur usne qty badli (purchase/sale/adjust), to uska poora record cloud par jaakar doosre
+// device ka NAYA MRP overwrite kar deta tha. Ab MRP ke saath `mrpAt` (kab jaan-boojhkar set hua)
+// rakha jaata hai — merge ke waqt jis ka MRP zyada naya hai wahi jeetta hai; qty hamesha incoming.
+function _mergeStockRec(localRec, incRec){
+  if(!localRec || !incRec) return incRec;
+  var lAt = Number(localRec.mrpAt) || 0, iAt = Number(incRec.mrpAt) || 0;
+  if(lAt > iAt){
+    var m = {}; Object.keys(incRec).forEach(function(k){ m[k] = incRec[k]; });
+    m.mrp = localRec.mrp; m.mrpAt = localRec.mrpAt;
+    return m;
+  }
+  return incRec;
+}
+
 function applyDeltaItems(items){
   if(!items || !items.length) return;
   var touched = {};
+  var _needRepush = false;
   items.forEach(function(item){
     var arr = _getDeltaArrayRef(item.t);
     if(!arr) return;
@@ -3737,9 +3834,15 @@ function applyDeltaItems(items){
     if(item.op === 'del'){
       if(idx !== -1) arr.splice(idx, 1);
     } else {
-      if(idx !== -1) arr[idx] = item.rec; else arr.push(item.rec);
+      var _rec = item.rec;
+      if(item.t === 'stock' && idx !== -1){
+        _rec = _mergeStockRec(arr[idx], item.rec);
+        if(_rec !== item.rec) _needRepush = true;   // local MRP naya tha — cloud ko sahi value wapas bhejni hai
+      }
+      if(idx !== -1) arr[idx] = _rec; else arr.push(_rec);
     }
   });
+  if(_needRepush){ try{ schedulePush(); }catch(e){} }
 
   Object.keys(touched).forEach(function(type){
     LS.setL(type, _getDeltaArrayRef(type));
@@ -8923,6 +9026,16 @@ var editingStockId=null;
 var CATEGORIES=['Shirt','T-Shirt','Polo Shirt','Full Sleeve Shirt','Half Sleeve Shirt','Pants','Jeans','Jacket','Kurta','Blazer','Shorts','Track Pant','Sweatshirt','Hoodie','Ethnic Wear','Undergarment','Other'];
 var SIZES=['XS','S','M','L','XL','XXL','XXXL','Free Size','Mix Size','28','30','32','34','36','38','40','42','44'];
 
+// Add form ke Cost/MRP fields me default (200/499) bhare rehte hain. Pehle existing item par qty
+// jodte hi ye defaults us item ka asli Cost/MRP overwrite kar dete the. Ab existing item ka
+// Cost/MRP tabhi badalta hai jab user ne field me khud kuch likha/badla ho.
+function _markInvPriceTouched(el){ if(el) el.setAttribute('data-touched','1'); }
+function _resetInvAddForm(){
+  var n=document.getElementById('inv-name'); if(n) n.value='';
+  var q=document.getElementById('inv-qty'); if(q) q.value='10';
+  var c=document.getElementById('inv-cost'); if(c){ c.value='200'; c.removeAttribute('data-touched'); }
+  var m=document.getElementById('inv-mrp'); if(m){ m.value='499'; m.removeAttribute('data-touched'); }
+}
 function addStock(){
   var name=document.getElementById('inv-name').value.trim();
   if(!name){showToast('Item name required!');return;}
@@ -8930,20 +9043,24 @@ function addStock(){
   var qty=parseInt(document.getElementById('inv-qty').value)||0;
   var cost=parseFloat(document.getElementById('inv-cost').value)||0;
   var mrp=parseFloat(document.getElementById('inv-mrp').value)||0;
+  var _costTouched = document.getElementById('inv-cost').getAttribute('data-touched')==='1';
+  var _mrpTouched  = document.getElementById('inv-mrp').getAttribute('data-touched')==='1';
   var existing=stockItems.find(function(s){return s.name.toLowerCase()===name.toLowerCase()&&s.size===size;});
   if(existing){
-    existing.qty+=qty; if(cost>0)existing.cost=cost; if(mrp>0)existing.mrp=mrp;
+    existing.qty+=qty;
+    if(cost>0 && _costTouched) existing.cost=cost;
+    if(mrp>0 && _mrpTouched && mrp!==existing.mrp){ existing.mrp=mrp; existing.mrpAt=Date.now(); }
     LS.sync('stock',stockItems);
     stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'Inventory page se manually qty add ki gayi (+'+qty+' pcs, naya total: '+existing.qty+')'});
     LS.sync('stockMovLog', stockMovLog);
-    document.getElementById('inv-name').value=''; document.getElementById('inv-qty').value='10';
+    _resetInvAddForm();
     renderInventory(); showToast('Qty updated! Total: '+existing.qty+' pcs'); return;
   }
-  stockItems.unshift({id:Date.now(),name:name,category:cat,size:size,qty:qty,cost:cost,mrp:mrp,addedOn:nowDate()});
+  stockItems.unshift({id:Date.now(),name:name,category:cat,size:size,qty:qty,cost:cost,mrp:mrp,mrpAt:Date.now(),addedOn:nowDate()});
   LS.sync('stock',stockItems);
   stockMovLog.push({id:Date.now()+Math.random(), date:nowDate(), type:'IN', item:name, qty:qty, ref:'Manual Inward', note:'Inventory page se naya item manually add kiya gaya ('+qty+' pcs)'});
   LS.sync('stockMovLog', stockMovLog);
-  document.getElementById('inv-name').value=''; document.getElementById('inv-qty').value='10';
+  _resetInvAddForm();
   renderInventory(); showToast('Stock added!');
 }
 
@@ -8970,7 +9087,8 @@ function saveEditStock(){
   var newQty = parseInt(document.getElementById('edit-qty').value)||0;
   item.qty  = newQty;
   item.cost = parseFloat(document.getElementById('edit-cost').value)||0;
-  item.mrp  = parseFloat(document.getElementById('edit-mrp').value)||0;
+  var _newMrp = parseFloat(document.getElementById('edit-mrp').value)||0;
+  if(_newMrp !== (parseFloat(item.mrp)||0)){ item.mrp = _newMrp; item.mrpAt = Date.now(); }   // MRP sirf tab "naya" stamp hota hai jab sach me badla ho
   LS.sync('stock', stockItems);
   // FIX #4: Qty badli toh stockMovLog mein ADJUST entry dalo
   var diff = newQty - oldQty;
@@ -10205,6 +10323,10 @@ function initApp(){
   // date(s) are pending get sent, for admin OR staff device, whoever is open.
   // See checkAutoTelegramBackup() for implementation.
   setInterval(updSS,30000);
+  // Invoice screen khuli ho to doosre device ke Hold drafts har ~20s mein (chhota delta) check ho jayein
+  setInterval(function(){
+    if(currentPage === 'invoice' && document.visibilityState !== 'hidden') _syncHeldQuick(false);
+  }, 20000);
   setInterval(checkDateChange,60000);  // Checks every 60s; also triggers 8:30 AM backup catch-up
   // ── SMART SYNC: pull every 5 minutes (not 20s) to save Firebase quota ──
   // 5 min × 2 devices × 8 hrs = ~192 reads/day vs old 5,760 reads/day
@@ -11588,7 +11710,9 @@ async function silentPull(){
       // taaki wo gaayab na ho.
       var cloudStockIds = new Set(d.stock.map(function(s){ return String(s.id); }));
       var localOnlyStock = stockItems.filter(function(s){ return !cloudStockIds.has(String(s.id)); });
-      var mergedStock = d.stock.concat(localOnlyStock);
+      var _localStockById = {};
+      stockItems.forEach(function(s){ _localStockById[String(s.id)] = s; });
+      var mergedStock = d.stock.map(function(c){ return _mergeStockRec(_localStockById[String(c.id)], c); }).concat(localOnlyStock);
       if(JSON.stringify(mergedStock) !== JSON.stringify(stockItems)){
         stockItems = mergedStock; LS.setL('stock', stockItems); changed = true;
       }
@@ -13661,7 +13785,8 @@ function savePurchase(){
   if(existing){
     existing.qty += qty;
     if(rate > 0) existing.cost = rate; // update cost
-    if(manualMrp > 0) existing.mrp = manualMrp; // sirf jab manual price likha ho — warna item ka price waisa hi rahega
+    // sirf jab manual price likha ho aur wo sach me alag ho — warna item ka price (aur uska mrpAt stamp) waisa hi rahega
+    if(manualMrp > 0 && manualMrp !== existing.mrp){ existing.mrp = manualMrp; existing.mrpAt = Date.now(); }
     if(category && category !== 'Other') existing.category = category; // update category if explicitly selected
     LS.sync('stock', stockItems);
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se stock aayi — supplier '+supplier+' se +'+qty+' pcs'+(notes?' ('+notes+')':'')});
@@ -13677,6 +13802,7 @@ function savePurchase(){
       qty: qty,
       cost: rate,
       mrp: manualMrp > 0 ? manualMrp : Math.round(rate * 1.16),   // manual price ho to wahi, warna purchase rate par 16% markup
+      mrpAt: Date.now(),
       addedOn: date || nowDate()
     });
     LS.sync('stock', stockItems);
@@ -13983,12 +14109,12 @@ function saveEditPurchase(){
     if(siNew){
       siNew.qty += qty;
       if(rate > 0) siNew.cost = rate;
-      if(manualMrp > 0) siNew.mrp = manualMrp;   // sirf jab manual price likha ho
+      if(manualMrp > 0 && manualMrp !== siNew.mrp){ siNew.mrp = manualMrp; siNew.mrpAt = Date.now(); }   // sirf jab manual price likha ho
       if(category && category !== 'Other') siNew.category = category;
     } else {
       stockItems.unshift({
         id: Date.now()+2, name:item, category:category||'Other', size:'Mix Size',
-        qty:qty, cost:rate, mrp:(manualMrp > 0 ? manualMrp : Math.round(rate*1.16)), addedOn:date||nowDate()
+        qty:qty, cost:rate, mrp:(manualMrp > 0 ? manualMrp : Math.round(rate*1.16)), mrpAt:Date.now(), addedOn:date||nowDate()
       });
     }
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty,
