@@ -1441,6 +1441,8 @@ input[type=tel], textarea, select {
               <div class="ig"><label>Rate Rs./piece</label><input type="number" id="pur-rate" placeholder="0" inputmode="numeric"/></div>
               <div class="ig"><label>Freight Rs.</label><input type="number" id="pur-freight" value="0" inputmode="numeric"/></div>
             </div>
+            <div class="ig"><label>Selling Price Rs. (Manual &mdash; optional)</label><input type="number" id="pur-mrp" placeholder="Khaali = Rate + 16% auto" inputmode="numeric"/>
+              <div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;margin-top:3px;line-height:1.5;">Khaali chhodo to naye item ka price <b>purchase rate + 16%</b> auto set hoga. Yahan likhoge to <b>wahi manual price</b> stock me set hoga.</div></div>
             <div class="row2">
               <div class="ig"><label>Payment Mode</label>
                 <select id="pur-paymode" style="font-family:Arial,sans-serif;">
@@ -2333,6 +2335,7 @@ input[type=tel], textarea, select {
         <div class="ig"><label>Rate Rs./piece</label><input type="number" id="epur-rate" inputmode="numeric" oninput="onEPurPartialChange()"/></div>
         <div class="ig"><label>Freight Rs.</label><input type="number" id="epur-freight" inputmode="numeric" oninput="onEPurPartialChange()"/></div>
       </div>
+      <div class="ig"><label>Selling Price Rs. (Manual &mdash; optional)</label><input type="number" id="epur-mrp" placeholder="Khaali = stock ka price waisa hi rahega" inputmode="numeric"/></div>
       <div class="ig"><label>Payment Status</label>
         <select id="epur-paystatus" style="font-family:Arial,sans-serif;" onchange="onEPurPayStatusChange()">
           <option value="Paid">&#9989; Paid</option>
@@ -13548,6 +13551,7 @@ function initPurchaseForm(){
   document.getElementById('pur-item').value = '';
   document.getElementById('pur-qty').value = '';
   document.getElementById('pur-rate').value = '';
+  var _pm = document.getElementById('pur-mrp'); if(_pm) _pm.value = '';
   document.getElementById('pur-freight').value = '0';
   document.getElementById('pur-notes').value = '';
   // Reset category dropdown
@@ -13600,6 +13604,7 @@ function savePurchase(){
   var qty = parseInt(document.getElementById('pur-qty').value)||0;
   var rate = parseFloat(document.getElementById('pur-rate').value)||0;
   var freight = parseFloat(document.getElementById('pur-freight').value)||0;
+  var manualMrp = parseFloat((document.getElementById('pur-mrp')||{}).value)||0;   // manual selling price (optional)
   var notes = document.getElementById('pur-notes').value.trim();
   var payMode = document.getElementById('pur-paymode') ? document.getElementById('pur-paymode').value : 'Cash';
   var payStatus = document.getElementById('pur-paystatus') ? document.getElementById('pur-paystatus').value : 'Paid';
@@ -13656,6 +13661,7 @@ function savePurchase(){
   if(existing){
     existing.qty += qty;
     if(rate > 0) existing.cost = rate; // update cost
+    if(manualMrp > 0) existing.mrp = manualMrp; // sirf jab manual price likha ho — warna item ka price waisa hi rahega
     if(category && category !== 'Other') existing.category = category; // update category if explicitly selected
     LS.sync('stock', stockItems);
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty, ref:'Purchase - '+supplier, note:'Purchase se stock aayi — supplier '+supplier+' se +'+qty+' pcs'+(notes?' ('+notes+')':'')});
@@ -13670,7 +13676,7 @@ function savePurchase(){
       size: 'Mix Size',
       qty: qty,
       cost: rate,
-      mrp: Math.round(rate * 1.5),
+      mrp: manualMrp > 0 ? manualMrp : Math.round(rate * 1.16),   // manual price ho to wahi, warna purchase rate par 16% markup
       addedOn: date || nowDate()
     });
     LS.sync('stock', stockItems);
@@ -13873,6 +13879,7 @@ function editPurchase(id){
   document.getElementById('epur-qty').value = p.qty || 0;
   document.getElementById('epur-rate').value = p.rate || 0;
   document.getElementById('epur-freight').value = p.freight || 0;
+  var _em = document.getElementById('epur-mrp'); if(_em) _em.value = '';   // blank: stock ka price tabhi badlega jab yahan likho
   var pm = document.getElementById('epur-paymode'); if(pm) pm.value = p.payMode || 'Cash';
   // Form me sirf 'purchase ke time diya paisa' dikhao — supplier payment / advance wala hissa nahi (warna edit par double count hota hai)
   var _ePaid = p.paidAmount || 0, _eSt = p.payStatus || 'Paid';
@@ -13933,6 +13940,7 @@ function saveEditPurchase(){
   var qty = parseInt(document.getElementById('epur-qty').value)||0;
   var rate = parseFloat(document.getElementById('epur-rate').value)||0;
   var freight = parseFloat(document.getElementById('epur-freight').value)||0;
+  var manualMrp = parseFloat((document.getElementById('epur-mrp')||{}).value)||0;   // manual selling price (optional)
   var notes = document.getElementById('epur-notes').value.trim();
   var payMode = document.getElementById('epur-paymode') ? document.getElementById('epur-paymode').value : p.payMode;
   var payStatus = document.getElementById('epur-paystatus') ? document.getElementById('epur-paystatus').value : p.payStatus;
@@ -13975,11 +13983,12 @@ function saveEditPurchase(){
     if(siNew){
       siNew.qty += qty;
       if(rate > 0) siNew.cost = rate;
+      if(manualMrp > 0) siNew.mrp = manualMrp;   // sirf jab manual price likha ho
       if(category && category !== 'Other') siNew.category = category;
     } else {
       stockItems.unshift({
         id: Date.now()+2, name:item, category:category||'Other', size:'Mix Size',
-        qty:qty, cost:rate, mrp:Math.round(rate*1.5), addedOn:date||nowDate()
+        qty:qty, cost:rate, mrp:(manualMrp > 0 ? manualMrp : Math.round(rate*1.16)), addedOn:date||nowDate()
       });
     }
     stockMovLog.push({id:Date.now()+Math.random(), date:date||nowDate(), type:'IN', item:item, qty:qty,
@@ -16976,11 +16985,11 @@ function _odApply(inv, plan){
     paidInvs.push({invNo:ci.invNo, paid:row.pay});
     records.push({
       id: base + idx, date: date, receiptNo: rcptNo,
-      custName: inv.custName, custPhone: inv.custPhone || '',
+      custName: inv.custName, custPhone: inv.custPhone || ci.custPhone || '',   // manual receipt jaisa: phone khaali ho to customer ke purane invoice se
       invNo: ci.invNo, pendingAmt: row.pend, paidAmt: row.pay, discountAmt: 0,
       remainingAmt: Math.max(0, _odRound((parseFloat(ci.total)||0) - ci.paidAmount)),
       payMode: mode, cashAmt: mode==='Split' ? c : 0, upiAmt: mode==='Split' ? u : 0,
-      notes: 'Auto receipt \u2014 Invoice ' + (inv.invNo||'') + ' banate waqt extra amount purane baaki me jama kiya',
+      notes: '',   // manual receipt jaisa: receipt par koi extra Note line nahi
       savedAt: nowIso, batchId: batchId, batchMode: plan.mode,
       batchDueBefore: dueBefore, batchRemaining: Math.max(0, _odRound(dueBefore - paidTotal))
     });
