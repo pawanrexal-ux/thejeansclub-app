@@ -2714,6 +2714,7 @@ function schedulePush(){
   }
   // ── STAFF: sirf apni invoices push kare (alag path pe) ──
   if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
+    pushStaffHeldDelta();   // Hold drafts turant (debounce ke bina) bhejo
     scheduleStaffInvoicePush();
     return;
   }
@@ -2755,6 +2756,7 @@ function scheduleStaffInvoicePush(){
 // chhota delta (sirf naye/badle/delete hue drafts) admin wale hi change-log par jaata hai,
 // jahan se har device (admin ya staff) _deltaSync() se use utha leta hai.
 var _heldPushBusy = false, _heldPushAgain = false;
+function pushHeldNow(){ return pushStaffHeldDelta(); }   // admin + staff dono ke liye turant (debounce ke bina) Hold push
 async function pushStaffHeldDelta(){
   var fbUrl = getFirebaseUrl();
   if(!SYNC_KEY || !fbUrl) return;
@@ -2787,7 +2789,7 @@ async function pushStaffHeldDelta(){
       }
     });
     if(deltaItems.length){
-      var entry = { ts: Date.now(), by: DEVICE_ID, items: deltaItems };
+      var entry = { ts: {'.sv':'timestamp'}, by: DEVICE_ID, items: deltaItems };   // server time — device clock skew se entry miss nahi hogi
       var key = Date.now() + '_' + Math.random().toString(36).slice(2,8);
       var res = await fetch(getChangesPath() + '/' + key + '.json', {
         method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
@@ -3382,7 +3384,14 @@ function getChangesPath(){
 // zyada use kiye. Yehi mechanism hai jo stock qty ko bhi invoices/returns ki
 // tarah turant, sabhi devices par sync karta hai.
 var _lastDeltaSyncOK = true;   // Telegram backup ko pata chale ki fresh sync sach me hua ya nahi
-async function _deltaSync(){
+var _deltaSyncInflight = null;
+function _deltaSync(){
+  // Ek time par ek hi delta fetch — baar-baar click/poll par requests stack nahi hongi
+  if(_deltaSyncInflight) return _deltaSyncInflight;
+  _deltaSyncInflight = _deltaSyncRun().then(function(r){ _deltaSyncInflight = null; return r; }, function(e){ _deltaSyncInflight = null; throw e; });
+  return _deltaSyncInflight;
+}
+async function _deltaSyncRun(){
   var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
   var res = await fetch(q);
   if(!res.ok){ _lastDeltaSyncOK = false; return 0; }
@@ -3558,7 +3567,7 @@ async function pushCloud(){
 
     if(deltaItems.length){
       var changeKey = Date.now() + '_' + Math.random().toString(36).slice(2,8);
-      var changeEntry = { ts: Date.now(), by: DEVICE_ID, items: deltaItems };
+      var changeEntry = { ts: {'.sv':'timestamp'}, by: DEVICE_ID, items: deltaItems };   // server time — device clock skew se entry miss nahi hogi
       var res = await fetch(getChangesPath() + '/' + changeKey + '.json', {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
@@ -3905,7 +3914,7 @@ function applyDeltaItems(items){
 }
 
 var _lastManualPull = 0;
-var PULL_MIN_GAP = 15000; // min 15s between manual pulls
+var PULL_MIN_GAP = 3000; // min 3s between manual pulls
 
 async function pullCloud(){
   var fbUrl = getFirebaseUrl();
@@ -3942,7 +3951,7 @@ async function pullCloud(){
           applyPulledData(d);
           _hasFullData = true;
           localStorage.setItem('ac_hasFullData', '1');
-          _lastChangeTs = d.ts || Date.now();
+          _lastChangeTs = Math.max(0, (d.ts || Date.now()) - 300000);   // 5 min safety overlap (clock skew)
           localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
           _seedPushSnapshotFromCurrentData(); // taaki agla push sirf naya data bheje, sab kuch dobara nahi
           showToast('✓ Poora data load ho gaya (' + invoices.length + ' invoices)');
@@ -4006,6 +4015,9 @@ function forcSync(){
     navTo('settings', null);
     return;
   }
+  // Hold invoices ke liye turant fast-path: pehle apne drafts push, phir naye changes pull —
+  // pullCloud() ke 15s rate-limit / bhaari merge ka intezaar nahi.
+  try{ pushHeldNow().then(function(){ return _deltaSync(); }).then(function(){ renderHeldBadge(); }).catch(function(){}); }catch(e){}
   if(typeof CURRENT_ROLE !== 'undefined' && CURRENT_ROLE === 'staff'){
     // Staff: pehle apni invoices push karo, phir admin data pull karo
     // Is tarah staff ka data erase nahi hoga
@@ -6159,7 +6171,7 @@ function navTo(page, el, mi){
     if(_leavingForm && page !== 'invoice' && page !== 'preview' && editingInvId === null && !isInvoiceFormBlank()){
       var _snap = snapshotCurrentInvoice();
       heldInvoices.push(_snap);
-      LS.sync('heldInvoices', heldInvoices);   // Firebase sync
+      LS.sync('heldInvoices', heldInvoices); pushHeldNow();   // Firebase sync
       renderHeldBadge();
       window._previewOnlyActive = false;
       setTimeout(function(){
@@ -6593,7 +6605,7 @@ function holdCurrentInvoice(){
   if(isInvoiceFormBlank()){ showToast('Invoice khaali hai — hold karne ko kuch nahi'); return; }
   var snap = snapshotCurrentInvoice();
   heldInvoices.push(snap);
-  LS.sync('heldInvoices', heldInvoices); // Firebase sync — doosre device par bhi dikhega
+  LS.sync('heldInvoices', heldInvoices); pushHeldNow(); // Firebase sync — doosre device par bhi dikhega
   editingInvId = null;
   items=[]; itemIdCounter=1;
   initInvoice();
@@ -6612,7 +6624,7 @@ var _lastHeldQuickSync = 0;
 function _syncHeldQuick(force){
   try{
     if(!SYNC_KEY || !getFirebaseUrl() || !navigator.onLine) return;
-    if(!force && Date.now() - _lastHeldQuickSync < 15000) return;   // 15s throttle
+    if(!force && Date.now() - _lastHeldQuickSync < 4000) return;   // 4s throttle
     _lastHeldQuickSync = Date.now();
     _deltaSync().catch(function(){});   // sirf naye changes (chhota download); applyDeltaItems screen refresh karta hai
   }catch(e){}
@@ -6662,7 +6674,7 @@ function resumeHeldInvoice(heldId){
     heldInvoices.push(snapshotCurrentInvoice());
   }
   heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
-  LS.sync('heldInvoices', heldInvoices);
+  LS.sync('heldInvoices', heldInvoices); pushHeldNow();
 
   editingInvId = null;
   document.getElementById('invNo').value = genInvNo();
@@ -6705,7 +6717,7 @@ function resumeHeldInvoice(heldId){
 function deleteHeldInvoice(heldId){
   if(!confirm('Ye held invoice delete karna hai? Wapas nahi milega.')) return;
   heldInvoices = heldInvoices.filter(function(x){ return x.heldId!==heldId; });
-  LS.sync('heldInvoices', heldInvoices);
+  LS.sync('heldInvoices', heldInvoices); pushHeldNow();
   renderHeldBadge();
   renderHeldInvoicesList();
   showToast('Held invoice delete ho gaya');
@@ -10324,9 +10336,6 @@ function initApp(){
   // See checkAutoTelegramBackup() for implementation.
   setInterval(updSS,30000);
   // Invoice screen khuli ho to doosre device ke Hold drafts har ~20s mein (chhota delta) check ho jayein
-  setInterval(function(){
-    if(currentPage === 'invoice' && document.visibilityState !== 'hidden') _syncHeldQuick(false);
-  }, 20000);
   setInterval(checkDateChange,60000);  // Checks every 60s; also triggers 8:30 AM backup catch-up
   // ── SMART SYNC: pull every 5 minutes (not 20s) to save Firebase quota ──
   // 5 min × 2 devices × 8 hrs = ~192 reads/day vs old 5,760 reads/day
