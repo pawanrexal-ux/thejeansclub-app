@@ -1001,6 +1001,31 @@ input[type=tel], textarea, select {
           </div>
         </div>
 
+        <!-- PURANE BAAKI KA PAYMENT (sirf tab dikhta hai jab customer ka purana baaki ho aur status Paid ho) -->
+        <div class="card" id="oldDueCard" style="display:none;"><div class="card-head"><div class="card-icon">&#128178;</div><div class="card-title">Purane Baaki ka Payment (Optional)</div></div>
+          <div class="card-body">
+            <div id="od-info" style="background:#fff3e0;border:1px solid #ffd4a0;color:#c45e00;padding:9px 12px;margin-bottom:10px;font-family:Arial,sans-serif;font-size:13px;"></div>
+            <div class="ig">
+              <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Customer ne Total Diya (&#8377;) &mdash; invoice + purana baaki</label>
+              <div class="iw"><span class="ip">&#8377;</span><input type="number" id="odTotalRecv" placeholder="Khaali = sirf is invoice ka payment" inputmode="numeric" oninput="onOldDueChange()"/></div>
+            </div>
+            <div id="od-summary"></div>
+            <div id="od-modeBox" style="display:none;">
+              <div class="ig">
+                <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Purane baaki wale amount ka Payment Mode</label>
+                <select id="odMode" onchange="onOldDueModeChange()"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Bank">Bank Transfer</option><option value="Split">Split (Cash+UPI)</option></select>
+              </div>
+              <div id="od-splitBox" style="display:none;">
+                <div style="font-size:11px;font-weight:700;color:var(--g);margin-bottom:8px;font-family:Arial,sans-serif;">Split: <span id="od-splitHint" style="color:#546e7a;font-weight:600;"></span></div>
+                <div class="row2">
+                  <div class="ig"><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">Cash (&#8377;)</label><input type="number" id="odCash" placeholder="0" inputmode="numeric"/></div>
+                  <div class="ig"><label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);display:block;margin-bottom:4px;font-family:Arial,sans-serif;">UPI (&#8377;)</label><input type="number" id="odUpi" placeholder="0" inputmode="numeric"/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="bottom-bar" style="gap:6px;">
           <button class="btn btn-outline" onclick="clearInvoice()" style="flex-shrink:0;">Clear</button>
           <button class="btn btn-outline" onclick="holdCurrentInvoice()" style="flex-shrink:0;white-space:nowrap;padding:9px 10px;" title="Is invoice ko park karke naya customer shuru karein">&#128190; Hold</button>
@@ -7435,6 +7460,22 @@ function buildPreview(inv){
       +'<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-bottom:none;background:#ffe0b2;">'
       +'<span style="font-family:Arial,sans-serif;color:#bf360c;font-weight:800;letter-spacing:.5px;">TOTAL OUTSTANDING</span>'
       +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px;color:#bf360c;white-space:nowrap;">'+fmt(_pdTotal)+'</span></div>';
+  }
+
+  // ── PURANE BAAKI ME JAMA (auto receipt) — sirf us invoice par dikhta hai jisme extra amount liya gaya tha ──
+  if(inv.prevDuePaid && (parseFloat(inv.prevDuePaid.amount)||0) > 0){
+    var _pp = inv.prevDuePaid;
+    var _ppList = (_pp.invs||[]).map(function(x){ return escH(x.invNo); }).join(', ');
+    var _remAfter = Math.round((Math.max(0,(parseFloat(inv.total)||0)-(parseFloat(inv.paidAmount)||0)) + (parseFloat(inv.prevDue)||0))*100)/100;
+    prevDueHtml = '<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-top:1px dashed #d4c9a8;border-bottom:none;background:#fff3e0;align-items:flex-start;">'
+      +'<span style="font-family:Arial,sans-serif;color:#c45e00;font-weight:800;line-height:1.5;">&#9203; Previous Pending Amounts'+(_ppList?'<br><span style="font-size:8px;font-weight:600;color:#9a6a00;">('+_ppList+')</span>':'')+'</span>'
+      +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#c45e00;white-space:nowrap;">'+fmt(_pp.before)+'</span></div>'
+      +'<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-bottom:none;background:#e8f5e9;align-items:flex-start;">'
+      +'<span style="font-family:Arial,sans-serif;color:#1b5e20;font-weight:800;line-height:1.5;">&#10004; Purane Baaki me Jama'+(_pp.receiptNo?'<br><span style="font-size:8px;font-weight:600;color:#2e7d32;">(Receipt '+escH(_pp.receiptNo)+')</span>':'')+'</span>'
+      +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;color:#1b5e20;white-space:nowrap;">- '+fmt(_pp.amount)+'</span></div>'
+      +'<div class="inv-tot-row" style="font-size:12px;padding:8px 4px;border-bottom:none;background:#ffe0b2;">'
+      +'<span style="font-family:Arial,sans-serif;color:#bf360c;font-weight:800;letter-spacing:.5px;">'+(_remAfter>0?'TOTAL OUTSTANDING':'ALL CLEAR')+'</span>'
+      +'<span style="font-family:Arial,sans-serif;font-weight:800;font-size:14px;color:#bf360c;white-space:nowrap;">'+fmt(_remAfter)+'</span></div>';
   }
 
   // ── Profit Analysis (ADMIN ONLY — never part of #invPrint, so it never shows in PDF/WhatsApp/print) ──
@@ -16845,6 +16886,274 @@ function saveStaffPerms(){
 
 
 
+
+
+// ═══════════ PURANE BAAKI KA AUTO PAYMENT (OLD-DUE EXTRA PAYMENT) ═══════════
+// Customer ka purana baaki hai aur wo naya maal lekar invoice se zyada amount de raha hai:
+//   e.g. purana baaki 10,000 + naya invoice 25,000, customer ne diya 32,000
+//   => invoice 25,000 Paid, bacha 7,000 apne-aap purane baaki me jama (auto Payment Receipt),
+//      purane invoices ka due update, customer ka baaki 3,000 reh jata hai.
+// Ye pura feature existing functions ko WRAP karke jodta hai — purana logic waisa hi rehta hai.
+function _odRound(n){ return Math.round((parseFloat(n)||0)*100)/100; }
+
+// Form se plan banata hai. null = koi extra payment nahi, {error} = galat input, warna plan object.
+function _odPlan(fd){
+  if(typeof editingInvId !== 'undefined' && editingInvId !== null) return null;   // edit mode me nahi
+  if(!fd || fd.ps !== 'Paid') return null;                                       // sirf Paid invoice par
+  var recvEl = document.getElementById('odTotalRecv');
+  var recv = _odRound(recvEl ? recvEl.value : 0);
+  if(!(recv > 0)) return null;
+  var d = getCustPrevDue(fd.custName, null, null);
+  if(d.amount <= 0) return null;                                                 // purana baaki hai hi nahi
+  var total = _odRound(fd.total);
+  var extra = _odRound(recv - total);
+  if(extra < 0){
+    return {error:'\u26a0\ufe0f Customer ne Rs.'+recv+' diya hai jo invoice total Rs.'+total+' se kam hai. Field khaali chhodo, ya Payment Status "Partial" rakho.'};
+  }
+  if(extra === 0) return null;
+  if(extra > d.amount + 0.001){
+    return {error:'\u26a0\ufe0f Purana baaki sirf Rs.'+d.amount+' hai, lekin extra amount Rs.'+extra+' hai. Total received kam karein.'};
+  }
+  var modeEl = document.getElementById('odMode');
+  var mode = (modeEl && modeEl.value) || 'Cash';
+  var cash = 0, upi = 0;
+  if(mode === 'Split'){
+    cash = _odRound((document.getElementById('odCash')||{}).value);
+    upi  = _odRound((document.getElementById('odUpi')||{}).value);
+    if(cash < 0 || upi < 0 || (cash <= 0 && upi <= 0)){
+      return {error:'\u26a0\ufe0f Purane baaki ke Split me Cash aur UPI amount daalein.'};
+    }
+    if(Math.abs(_odRound(cash+upi) - extra) > 0.5){
+      return {error:'\u26a0\ufe0f Split: Cash + UPI = Rs.'+_odRound(cash+upi)+' lekin purane baaki me jama hone wala amount Rs.'+extra+' hai.'};
+    }
+    upi = _odRound(extra - cash);
+  } else if(mode === 'Cash'){ cash = extra; }
+  else { upi = extra; }   // UPI / Bank
+  return {extra:extra, recv:recv, mode:mode, cash:cash, upi:upi, dueBefore:d.amount};
+}
+
+// Plan ko apply karta hai: purane invoices oldest-first me adjust + auto Payment Receipt (batch format).
+// Existing "Payment Receipt" (saveBatchPayment) jaisa hi record banta hai, isliye receipts list/reports me normal dikhta hai.
+function _odApply(inv, plan){
+  var nm = String(inv.custName||'').trim().toLowerCase();
+  var cands = invoices.filter(function(i){
+    if(!i || i.id === inv.id) return false;
+    if(String(i.custName||'').trim().toLowerCase() !== nm) return false;
+    if(!(i.payStatus==='Pending' || i.payStatus==='Partial')) return false;
+    return _odRound((parseFloat(i.total)||0) - (parseFloat(i.paidAmount)||0)) > 0;
+  });
+  cands.sort(function(a,b){
+    var c = String(a.invDate||'').localeCompare(String(b.invDate||''));
+    return c !== 0 ? c : ((a.id||0) - (b.id||0));
+  });
+  var rem = plan.extra, dueBefore = 0, rows = [];
+  cands.forEach(function(ci){
+    var pend = _odRound((parseFloat(ci.total)||0) - (parseFloat(ci.paidAmount)||0));
+    dueBefore = _odRound(dueBefore + pend);
+    var pay = _odRound(Math.min(pend, Math.max(0, rem)));
+    rem = _odRound(rem - pay);
+    if(pay > 0) rows.push({inv:ci, pend:pend, pay:pay});
+  });
+  if(!rows.length) return null;
+  var paidTotal = rows.reduce(function(s,r){ return _odRound(s + r.pay); }, 0);
+  var date = inv.invDate || nowDate();
+  var rcptNo = genReceiptNo(date);
+  var base = Date.now(), batchId = 'B' + base, nowIso = new Date().toISOString();
+  var cashLeft = plan.cash, records = [], paidInvs = [];
+  rows.forEach(function(row, idx){
+    var ci = row.inv;
+    ci.paidAmount = _odRound((parseFloat(ci.paidAmount)||0) + row.pay);
+    if(_odRound((parseFloat(ci.total)||0) - ci.paidAmount) <= 0){ ci.payStatus = 'Paid'; ci.paidAmount = ci.total; }
+    else { ci.payStatus = 'Partial'; }
+    ci.savedAt = nowIso;   // dusre device par merge me yeh version jite
+    var c = 0, u = 0, mode = plan.mode;
+    if(plan.mode === 'Split'){
+      c = _odRound(Math.min(cashLeft, row.pay));
+      cashLeft = _odRound(cashLeft - c);
+      u = _odRound(row.pay - c);
+      mode = (c>0 && u>0) ? 'Split' : (c>0 ? 'Cash' : 'UPI');
+    }
+    paidInvs.push({invNo:ci.invNo, paid:row.pay});
+    records.push({
+      id: base + idx, date: date, receiptNo: rcptNo,
+      custName: inv.custName, custPhone: inv.custPhone || '',
+      invNo: ci.invNo, pendingAmt: row.pend, paidAmt: row.pay, discountAmt: 0,
+      remainingAmt: Math.max(0, _odRound((parseFloat(ci.total)||0) - ci.paidAmount)),
+      payMode: mode, cashAmt: mode==='Split' ? c : 0, upiAmt: mode==='Split' ? u : 0,
+      notes: 'Auto receipt \u2014 Invoice ' + (inv.invNo||'') + ' banate waqt extra amount purane baaki me jama kiya',
+      savedAt: nowIso, batchId: batchId, batchMode: plan.mode,
+      batchDueBefore: dueBefore, batchRemaining: Math.max(0, _odRound(dueBefore - paidTotal))
+    });
+  });
+  for(var k = records.length - 1; k >= 0; k--) pendingPayments.unshift(records[k]);
+  LS.sync('invoices', invoices);
+  LS.sync('pendingPayments', pendingPayments);
+  return {amount:paidTotal, receiptNo:rcptNo, mode:plan.mode, before:dueBefore, remaining:Math.max(0, _odRound(dueBefore - paidTotal)), invs:paidInvs, date:date};
+}
+
+// ── UI: card tabhi dikhe jab customer ka purana baaki ho aur status Paid ho ──
+function onOldDueChange(){
+  var card = document.getElementById('oldDueCard');
+  if(!card) return;
+  var nameEl = document.getElementById('custName');
+  var ps = (document.getElementById('invPayStatus')||{}).value;
+  var editing = (typeof editingInvId !== 'undefined' && editingInvId !== null);
+  var d = (editing || !nameEl) ? {amount:0, invs:[]} : getCustPrevDue(nameEl.value, null, null);
+  var show = !editing && ps === 'Paid' && d.amount > 0;
+  card.style.display = show ? 'block' : 'none';
+  if(!show) return;
+  var info = document.getElementById('od-info');
+  if(info) info.innerHTML = '\u23f3 Is customer ka purana baaki: <strong>' + fmt(d.amount) + '</strong>';
+  var recvEl = document.getElementById('odTotalRecv');
+  var recv = _odRound(recvEl ? recvEl.value : 0);
+  var total = getCurrentInvTotal();
+  var sum = document.getElementById('od-summary');
+  var modeBox = document.getElementById('od-modeBox');
+  var modeEl = document.getElementById('odMode');
+  var okExtra = 0, html = '', color = '#546e7a', bg = '#f5f5f5', bd = '#e0e0e0';
+  if(!(recv > 0)){
+    html = 'Khaali chhodoge to sirf is invoice ka payment hoga. Zyada diya ho to upar total amount daalo.';
+  } else if(recv < total - 0.001){
+    html = '\u26a0\ufe0f Diya hua amount invoice total (' + fmt(total) + ') se kam hai. Field khaali chhodo ya Status "Partial" rakho.';
+    color = '#c62828'; bg = '#ffebee'; bd = '#ffcdd2';
+  } else {
+    var extra = _odRound(recv - total);
+    if(extra <= 0){
+      html = 'Exact invoice amount \u2014 purane baaki me kuch jama nahi hoga.';
+    } else if(extra > d.amount + 0.001){
+      html = '\u26a0\ufe0f Extra ' + fmt(extra) + ' hai lekin purana baaki sirf ' + fmt(d.amount) + ' hai. Amount kam karein.';
+      color = '#c62828'; bg = '#ffebee'; bd = '#ffcdd2';
+    } else {
+      okExtra = extra;
+      color = '#1b5e20'; bg = '#e8f5e9'; bd = '#c8e6c9';
+      html = '<div style="display:flex;justify-content:space-between;"><span>Is invoice ka total</span><strong>' + fmt(total) + '</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;"><span>Purane baaki me jama (auto receipt)</span><strong>' + fmt(extra) + '</strong></div>'
+        + '<div style="display:flex;justify-content:space-between;border-top:1px dashed #a5d6a7;margin-top:4px;padding-top:4px;"><span>Customer ka baaki bachega</span><strong>' + fmt(Math.max(0, _odRound(d.amount - extra))) + '</strong></div>';
+    }
+  }
+  if(sum){ sum.style.cssText = 'font-size:12px;font-family:Arial,sans-serif;padding:9px 12px;margin-bottom:10px;line-height:1.6;border:1px solid ' + bd + ';background:' + bg + ';color:' + color + ';'; sum.innerHTML = html; }
+  if(modeBox) modeBox.style.display = okExtra > 0 ? 'block' : 'none';
+  if(okExtra > 0 && modeEl){
+    var pm = (document.getElementById('invPayMode')||{}).value || 'Cash';
+    if(!modeEl.getAttribute('data-touched')) modeEl.value = (pm === 'Split') ? 'Cash' : pm;   // default: invoice wala mode
+    var sp = document.getElementById('od-splitBox');
+    if(sp) sp.style.display = modeEl.value === 'Split' ? 'block' : 'none';
+    var hint = document.getElementById('od-splitHint');
+    if(hint) hint.textContent = '(Cash + UPI = ' + fmt(okExtra) + ')';
+  }
+}
+function onOldDueModeChange(){
+  var modeEl = document.getElementById('odMode');
+  if(modeEl) modeEl.setAttribute('data-touched', '1');
+  onOldDueChange();
+}
+function _odReset(){
+  ['odTotalRecv','odCash','odUpi'].forEach(function(id){ var el = document.getElementById(id); if(el) el.value = ''; });
+  var m = document.getElementById('odMode'); if(m){ m.value = 'Cash'; m.removeAttribute('data-touched'); }
+  var c = document.getElementById('oldDueCard'); if(c) c.style.display = 'none';
+}
+
+// ── WRAPPERS (existing functions ka kaam waisa hi, upar se naya step) ──
+(function(){
+  var _calcTotals = calcTotals;
+  calcTotals = function(){ var r = _calcTotals.apply(this, arguments); try{ onOldDueChange(); }catch(e){} return r; };
+
+  var _updPrev = updateCustPrevDueBox;
+  updateCustPrevDueBox = function(){ var r = _updPrev.apply(this, arguments); try{ onOldDueChange(); }catch(e){} return r; };
+
+  var _onStatus = onPayStatusChange;
+  onPayStatusChange = function(){ var r = _onStatus.apply(this, arguments); try{ onOldDueChange(); }catch(e){} return r; };
+
+  var _onMode = onPayModeChange;
+  onPayModeChange = function(){ var r = _onMode.apply(this, arguments); try{ onOldDueChange(); }catch(e){} return r; };
+
+  var _init = initInvoice;
+  initInvoice = function(){ var r = _init.apply(this, arguments); try{ _odReset(); }catch(e){} return r; };
+
+  // Hold / Resume: extra-amount field bhi draft ke saath save + wapas aaye
+  var _snap = snapshotCurrentInvoice;
+  snapshotCurrentInvoice = function(){
+    var s = _snap.apply(this, arguments);
+    try{
+      s.odRecv  = (document.getElementById('odTotalRecv')||{}).value || '';
+      s.odMode  = (document.getElementById('odMode')||{}).value || 'Cash';
+      s.odCash  = (document.getElementById('odCash')||{}).value || '';
+      s.odUpi   = (document.getElementById('odUpi')||{}).value || '';
+    }catch(e){}
+    return s;
+  };
+  var _resume = resumeHeldInvoice;
+  resumeHeldInvoice = function(heldId){
+    var h = (heldInvoices || []).find(function(x){ return x.heldId === heldId; });
+    var r = _resume.apply(this, arguments);
+    try{
+      _odReset();
+      if(h && h.odRecv){
+        document.getElementById('odTotalRecv').value = h.odRecv;
+        document.getElementById('odMode').value = h.odMode || 'Cash';
+        document.getElementById('odCash').value = h.odCash || '';
+        document.getElementById('odUpi').value = h.odUpi || '';
+        document.getElementById('odMode').setAttribute('data-touched', '1');
+      }
+      setTimeout(onOldDueChange, 30);
+    }catch(e){}
+    return r;
+  };
+
+  // collectFormData: valid plan ho to fd.oldDuePay me jod do (galat input par save roko)
+  var _collect = collectFormData;
+  collectFormData = function(){
+    var fd = _collect.apply(this, arguments);
+    if(!fd) return fd;
+    var plan = _odPlan(fd);
+    if(plan && plan.error){ showToast(plan.error); return null; }
+    if(plan) fd.oldDuePay = plan;
+    return fd;
+  };
+
+  // Save & New: pehle ek baar confirm (paise ka maamla hai)
+  var _saveNew = saveAndNew;
+  saveAndNew = function(){
+    var fd = collectFormData();
+    if(!fd) return;
+    if(fd.oldDuePay){
+      var p = fd.oldDuePay;
+      var msg = 'Customer: ' + fd.custName + '\n\nInvoice total: Rs.' + fd.total + '\nPurane baaki me jama: Rs.' + p.extra + ' (' + p.mode + ')\nTotal received: Rs.' + p.recv + '\n\nAuto Payment Receipt banegi aur purana baaki update hoga.\nConfirm?';
+      if(!confirm(msg)) return;
+    }
+    return _saveNew.apply(this, arguments);
+  };
+
+  // persistInvoice: invoice save hone ke baad auto receipt + purane invoices update
+  var _persist = persistInvoice;
+  persistInvoice = function(fd){
+    return _persist.apply(this, arguments).then(function(inv){
+      if(fd && fd.oldDuePay && inv){
+        try{
+          var res = _odApply(inv, fd.oldDuePay);
+          if(res){
+            var d2 = getCustPrevDue(inv.custName, inv.id, null);
+            if(d2.amount > 0){
+              inv.prevDue = d2.amount;
+              inv.prevDueInvs = d2.invs.map(function(x){ return {invNo:x.invNo, due:x.due}; });
+            } else { delete inv.prevDue; delete inv.prevDueInvs; }
+            inv.prevDuePaid = res;   // invoice par "purane baaki me jama" dikhane ke liye
+            LS.sync('invoices', invoices);
+            setTimeout(function(){
+              showToast('\ud83d\udcb0 Purane baaki me ' + fmt(res.amount) + ' jama \u2014 Receipt ' + res.receiptNo + ' ban gayi. Baaki: ' + fmt(res.remaining));
+            }, 1800);
+          } else {
+            showToast('\u26a0\ufe0f Purane baaki ka koi pending invoice nahi mila \u2014 receipt nahi bani');
+          }
+        } catch(e){
+          console.error('[OldDue] auto receipt error:', e);
+          showToast('\u26a0\ufe0f Invoice save ho gayi lekin purane baaki ka auto receipt nahi ban paya \u2014 Payment Receipt se manually banayein');
+        }
+      }
+      return inv;
+    });
+  };
+})();
 
 </script>
 
