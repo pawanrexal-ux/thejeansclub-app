@@ -2757,56 +2757,88 @@ function scheduleStaffInvoicePush(){
 // jahan se har device (admin ya staff) _deltaSync() se use utha leta hai.
 var _heldPushBusy = false, _heldPushAgain = false;
 function pushHeldNow(){ return pushStaffHeldDelta(); }   // admin + staff dono ke liye turant (debounce ke bina) Hold push
+// ── HOLD INVOICES: dedicated chhota node (/thejeans/KEY/held) ──
+// Hold drafts chhote hote hain, isliye unhe change-log (ts-pointer) se nahi, ek alag chhote node se sync
+// karte hain: har draft ek child (id -> record). Push = PATCH (sirf badle/delete hue drafts), Pull = poora
+// node ek GET me (kuch KB) — isliye device ki ghadi (clock skew) ya pointer ka koi asar nahi, aur Sync dabate hi
+// sab drafts aa jaate hain. Dono admin aur staff isi se push/pull karte hain.
+function getHeldPath(){ return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/held'; }
+function _heldSnapGet(){ try{ return JSON.parse(localStorage.getItem('ac_heldSnap') || '{}'); }catch(e){ return {}; } }
+function _heldSnapSet(o){ try{ localStorage.setItem('ac_heldSnap', JSON.stringify(o)); }catch(e){} }
+function _heldId(h){ if(h && !h.id) h.id = h.heldId; return String(h && (h.id || h.heldId)); }
+function _heldKey(id){ return String(id).replace(/[.#$\/\[\]]/g, '_'); }
+
 async function pushStaffHeldDelta(){
   var fbUrl = getFirebaseUrl();
-  if(!SYNC_KEY || !fbUrl) return;
-  if(!navigator.onLine) return;
-  if(!_IDB_ENGINE.isReady()) return;
+  if(!SYNC_KEY || !fbUrl || !navigator.onLine || !_IDB_ENGINE.isReady()) return;
   if(_heldPushBusy){ _heldPushAgain = true; return; }
   _heldPushBusy = true;
   try{
-    // stale-memory guard: memory khaali par local DB mein drafts hon to unhe delete mat bhejo
-    var _lsH = LS.get('heldInvoices');
-    if(!heldInvoices.length && Array.isArray(_lsH) && _lsH.length) heldInvoices = _lsH;
-    var snap = _getPushSnapshot();
-    if(!snap.heldInvoices) snap.heldInvoices = {};
-    var deltaItems = [], seen = {};
-    heldInvoices.forEach(function(rec){
-      if(!rec) return;
-      if(!rec.id) rec.id = rec.heldId;
-      var rid = String(rec.id);
-      seen[rid] = true;
-      var h = _quickHash(JSON.stringify(rec));
-      if(snap.heldInvoices[rid] !== h){
-        deltaItems.push({ t:'heldInvoices', id:rec.id, op:'up', rec:rec });
-        snap.heldInvoices[rid] = h;
-      }
+    var snap = _heldSnapGet(), patch = {}, n = 0, newSnap = {}, seen = {};
+    (heldInvoices || []).forEach(function(h){
+      if(!h) return;
+      var id = _heldId(h), k = _heldKey(id), hs = _quickHash(JSON.stringify(h));
+      seen[k] = true; newSnap[k] = hs;
+      if(snap[k] !== hs){ patch[k] = h; n++; }
     });
-    Object.keys(snap.heldInvoices).forEach(function(oldId){
-      if(!seen[oldId]){
-        deltaItems.push({ t:'heldInvoices', id:oldId, op:'del' });
-        delete snap.heldInvoices[oldId];
-      }
-    });
-    if(deltaItems.length){
-      var entry = { ts: {'.sv':'timestamp'}, by: DEVICE_ID, items: deltaItems };   // server time — device clock skew se entry miss nahi hogi
-      var key = Date.now() + '_' + Math.random().toString(36).slice(2,8);
-      var res = await fetch(getChangesPath() + '/' + key + '.json', {
-        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
-      });
-      if(res.ok){
-        _savePushSnapshot(snap);
-        console.log('[StaffSync] Held delta pushed — ' + deltaItems.length + ' change(s)');
-      } else {
-        console.log('[StaffSync] Held delta push failed:', res.status);
-      }
+    Object.keys(snap).forEach(function(k){ if(!seen[k]){ patch[k] = null; n++; } });   // locally deleted/resumed
+    if(n){
+      var res = await fetch(getHeldPath() + '.json', { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(patch) });
+      if(res.ok){ _heldSnapSet(newSnap); console.log('[Held] pushed ' + n + ' change(s)'); }
+      else console.log('[Held] push failed:', res.status);
     }
   }catch(e){
-    console.log('[StaffSync] Held delta push error:', e);
+    console.log('[Held] push error:', e);
   }finally{
     _heldPushBusy = false;
     if(_heldPushAgain){ _heldPushAgain = false; setTimeout(pushStaffHeldDelta, 800); }
   }
+}
+
+// Cloud ke Hold drafts local ke saath merge karo (ek GET). Sync button, auto-sync aur Held popup — sab yahi chalate hain.
+async function pullHeldNode(){
+  var fbUrl = getFirebaseUrl();
+  if(!SYNC_KEY || !fbUrl || !navigator.onLine) return 0;
+  var res = await fetch(getHeldPath() + '.json?t=' + Date.now());
+  if(!res.ok) return 0;
+  var cloud = (await res.json()) || {};
+  var snap = _heldSnapGet(), changed = 0;
+  var local = {};
+  (heldInvoices || []).forEach(function(h){ if(h) local[_heldKey(_heldId(h))] = h; });
+  var out = [];
+  Object.keys(cloud).forEach(function(k){
+    var c = cloud[k]; if(!c) return;
+    if(!c.id) c.id = c.heldId;
+    var l = local[k];
+    if(l){
+      // local me pending (unpushed) badlaav ho to local rakho, warna cloud version
+      var pending = snap[k] !== undefined && snap[k] !== _quickHash(JSON.stringify(l));
+      out.push(pending ? l : c);
+      if(!pending && JSON.stringify(l) !== JSON.stringify(c)) changed++;
+      if(!pending) snap[k] = _quickHash(JSON.stringify(c));
+    } else if(snap[k] !== undefined){
+      // is device ne ise delete/resume kiya hai, push pending hai — dobara zinda mat karo
+    } else {
+      out.push(c); snap[k] = _quickHash(JSON.stringify(c)); changed++;
+    }
+  });
+  Object.keys(local).forEach(function(k){
+    if(cloud[k]) return;
+    if(snap[k] !== undefined){ delete snap[k]; changed++; }   // doosre device par delete/resume ho chuka — yahan se bhi hatao
+    else out.push(local[k]);                                    // naya local draft, abhi push nahi hua — rakho
+  });
+  _heldSnapSet(snap);
+  if(changed){
+    heldInvoices = out;
+    LS.setL('heldInvoices', heldInvoices);
+    try{
+      renderHeldBadge();
+      var hm = document.getElementById('heldInvoicesModal');
+      if(hm && hm.classList.contains('show')) renderHeldInvoicesList();
+    }catch(e){}
+  }
+  if(out.some(function(h){ return !snap[_heldKey(_heldId(h))]; })) pushStaffHeldDelta();   // naye local drafts bhej do
+  return changed;
 }
 
 async function pushStaffInvoices(){
@@ -3358,7 +3390,7 @@ function getSyncPath(){
 // baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog','heldInvoices'];
+var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog'];   // heldInvoices ab alag /held node se sync hote hain (pullHeldNode/pushStaffHeldDelta)
 // Har device ki apni permanent pehchaan. Delta change-log mein har entry par `by` likha jaata hai taaki
 // device apni hi bheji hui entries ko dobara apply na kare (stale overwrite se bachne ke liye).
 var DEVICE_ID = (function(){
@@ -3388,10 +3420,29 @@ var _deltaSyncInflight = null;
 function _deltaSync(){
   // Ek time par ek hi delta fetch — baar-baar click/poll par requests stack nahi hongi
   if(_deltaSyncInflight) return _deltaSyncInflight;
-  _deltaSyncInflight = _deltaSyncRun().then(function(r){ _deltaSyncInflight = null; return r; }, function(e){ _deltaSyncInflight = null; throw e; });
+  _deltaSyncInflight = _deltaSyncRun().then(function(r){ return pullHeldNode().catch(function(){}).then(function(){ return r; }); }).then(function(r){ _deltaSyncInflight = null; return r; }, function(e){ _deltaSyncInflight = null; throw e; });
   return _deltaSyncInflight;
 }
 async function _deltaSyncRun(){
+  // ── ONE-TIME POINTER RESET (clock-skew fix) ──
+  // Purane code mein "kahan tak changes dekhe" pointer device ki apni ghadi se set hota tha. Agar kisi device ki
+  // ghadi aage thi to pointer server ke time se aage chala jaata tha aur naye changes miss ho jaate the.
+  // Ab server ka asli time ek baar pooch kar pointer ko sahi jagah le aate hain (max 10 min peeche).
+  try{
+    if(localStorage.getItem('ac_ptrV3') !== '1' && SYNC_KEY && getFirebaseUrl()){
+      var _sr = await fetch(getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/srvtime.json', {
+        method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({'.sv':'timestamp'}) });
+      if(_sr.ok){
+        var _srv = await _sr.json();
+        if(typeof _srv === 'number' && _srv > 0){
+          _lastChangeTs = Math.min(_lastChangeTs, _srv - 600000);
+          if(_lastChangeTs < 0) _lastChangeTs = 0;
+          localStorage.setItem('ac_lastChangeTs', String(_lastChangeTs));
+          localStorage.setItem('ac_ptrV3', '1');
+        }
+      }
+    }
+  }catch(e){}
   var q = getChangesPath() + '.json?orderBy="ts"&startAt=' + (_lastChangeTs + 1) + '&t=' + Date.now();
   var res = await fetch(q);
   if(!res.ok){ _lastDeltaSyncOK = false; return 0; }
