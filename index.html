@@ -6951,8 +6951,10 @@ function updateItem(id, field, val){
   if(field==='name'){
     item.name=val;
     if(val.length>0) showAC(id,val); else hideAC(id);
+    refreshRateHint(id);
   } else if(field==='qty'){
     item.qty=parseInt(val)||1;
+    refreshRateHint(id);
   } else if(field==='price'){
     // Manual price entry - treat as origPrice
     var newP = parseFloat(val)||0;
@@ -6962,6 +6964,7 @@ function updateItem(id, field, val){
     } else {
       item.price = newP;
     }
+    refreshRateHint(id);
   } else if(field==='gst'){
     item.gstPct = parseFloat(val)||0;
     // Recalculate base price from origPrice
@@ -6976,6 +6979,32 @@ function updateItem(id, field, val){
     renderItems();
   }
   calcTotals();
+}
+
+// ── RATE-KAM HINT (sirf entry screen par — invoice preview/PDF/print/share me kabhi nahi jaata) ──
+// Agar item ka bill-rate stock ke set rate (MRP) se kam hai to item ke neeche dikhao kitna rupees kam hua.
+function _stockRateFor(name){
+  var n = String(name||'').trim().toLowerCase();
+  if(!n) return null;
+  var s = (stockItems||[]).find(function(x){ return String(x.name||'').trim().toLowerCase() === n && (parseFloat(x.mrp)||0) > 0; });
+  return s ? (parseFloat(s.mrp)||0) : null;
+}
+function rateHintHtml(item){
+  var set = _stockRateFor(item.name);
+  var cur = parseFloat(item.origPrice || item.price) || 0;   // jo rate input box me dikh raha hai (GST sahit)
+  if(set === null || cur <= 0 || cur >= set - 0.004) return '';
+  var per = Math.round((set - cur) * 100) / 100;
+  var qty = item.qty || 1;
+  var tot = Math.round(per * qty * 100) / 100;
+  return '\u2193 Set rate '+fmt(set)+' se <b>'+fmt(per)+' kam</b>'+(qty > 1 ? ' &times; '+qty+' = <b>'+fmt(tot)+' kam</b>' : '');
+}
+function refreshRateHint(id){
+  var el = document.getElementById('rh-'+id);
+  var item = items.find(function(i){ return i.id === id; });
+  if(!el || !item) return;
+  var h = rateHintHtml(item);
+  el.innerHTML = h;
+  el.style.display = h ? 'block' : 'none';
 }
 
 function renderItems(){
@@ -7010,6 +7039,9 @@ function renderItems(){
     html += '</select>';
     html += '<button class="del-btn" onclick="removeItem('+iid+')">x</button>';
     html += '</div>';
+    // Rate kam hint (screen-only, PDF me nahi)
+    var _rh = rateHintHtml(item);
+    html += '<div id="rh-'+iid+'" class="rate-hint no-print" style="'+(_rh?'':'display:none;')+'font-size:11px;color:#c0392b;font-family:Arial,sans-serif;padding:0 4px 4px;grid-column:1/-1;font-weight:600;">'+_rh+'</div>';
     // Show base price hint if GST applied
     if(item.gstPct > 0 && basePrice > 0){
       html += '<div style="font-size:10px;color:#1565c0;font-family:Arial,sans-serif;padding:0 4px 4px;grid-column:1/-1;">';
