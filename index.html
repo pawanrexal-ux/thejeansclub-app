@@ -1058,6 +1058,7 @@ input[type=tel], textarea, select {
             <button class="btn btn-green" onclick="downloadPDF()">&#8595; PDF</button>
             <button class="btn btn-gold" onclick="exportInvExcel()">&#128202; Excel</button>
             <button class="btn btn-wa" onclick="shareWA()">&#128172; WhatsApp</button>
+            <button class="btn btn-gold" id="notifyCustBtn" onclick="notifyCustomer()">&#128276; Notify Customer</button>
           </span>
           <button class="btn btn-outline" onclick="goBack()">&#8592; Back</button>
         </div>
@@ -2084,6 +2085,7 @@ input[type=tel], textarea, select {
             <div class="ig"><label>Facebook Page Name</label><input type="text" id="set-fb" placeholder="The Jeans Club"/></div>
             <div class="ig"><label>Website URL</label><input type="text" id="set-web" placeholder="www.thejeansclubb.com"/></div>
             <div class="ig"><label>Email Address</label><input type="text" id="set-email" placeholder="thejeansclubb@gmail.com"/></div>
+            <div class="ig"><label>Customer Invoice Link &mdash; App ka public URL (jahan ye app hosted hai)</label><input type="text" id="set-invlink" placeholder="https://thejeansclub-website.vercel.app"/></div>
             <button class="btn btn-green btn-full" onclick="saveSettings()">Save Settings</button>
           </div>
         </div>
@@ -6203,6 +6205,7 @@ function saveSettings(){
     fb:document.getElementById('set-fb')?document.getElementById('set-fb').value:'',
     web:document.getElementById('set-web')?document.getElementById('set-web').value:'',
     email:document.getElementById('set-email')?document.getElementById('set-email').value:'',
+    invLink:document.getElementById('set-invlink')?document.getElementById('set-invlink').value.trim():'',
     mktPts:[1,2,3,4,5,6].map(function(n){
       var el = document.getElementById('set-mkt'+n);
       return el ? el.value.trim() : '';
@@ -9776,6 +9779,180 @@ async function shareWA(inv){
   window.open(url,'_blank','noopener,noreferrer');
 }
 
+// ═══════════════ CUSTOMER NOTIFICATION (WhatsApp message + invoice download link) ═══════════════
+// Invoice save hone ke baad "Notify Customer" dabao -> customer ke mobile par WhatsApp message
+// khulta hai: Invoice No, Amount, Download link + Settings me set kiye social media IDs.
+// Link customer ko ek simple invoice page par le jaata hai jahan se woh PDF download kar sakta hai.
+// Public copy Firebase me /thejeans_public_invoices/<random-token> par rakhi jaati hai —
+// sirf invoice dikhane layak data (profit / stock / kisi aur customer ka kuch nahi).
+function _pubTokMap(){ try{ return JSON.parse(localStorage.getItem('ac_pubinv_tokens')||'{}'); }catch(e){ return {}; } }
+function _pubTokFor(invNo){
+  var m=_pubTokMap();
+  if(!m[invNo]){
+    var a=new Uint8Array(9);
+    (window.crypto||window.msCrypto).getRandomValues(a);
+    m[invNo]=Array.prototype.map.call(a,function(b){ return ('0'+b.toString(16)).slice(-2); }).join('');
+    try{ localStorage.setItem('ac_pubinv_tokens',JSON.stringify(m)); }catch(e){}
+  }
+  return m[invNo];
+}
+function _buildPubInvRecord(inv){
+  return {
+    v:1,
+    invNo:inv.invNo, invDate:inv.invDate, custName:inv.custName||'',
+    items:(inv.items||[]).filter(function(i){ return i.name||i.price>0; }).map(function(i){
+      return {n:i.name||'-', q:i.qty||0, p:i.price||0};
+    }),
+    totalGst:parseFloat(inv.totalGst)||0,
+    total:parseFloat(inv.total)||0,
+    paid:parseFloat(inv.paidAmount)||0,
+    payStatus:inv.payStatus||'', payMode:inv.payMode||'',
+    biz:{name:SETTINGS.biz||'The Jeans House', ph:SETTINGS.ph||'', addr:SETTINGS.addr||'', gst:SETTINGS.gst||'',
+         ig:SETTINGS.ig||'', fb:SETTINGS.fb||'', web:SETTINGS.web||'', email:SETTINGS.email||''},
+    at:new Date().toISOString()
+  };
+}
+async function _publishInvForCustomer(inv){
+  var fb=getFirebaseUrl();
+  if(!fb) throw new Error('NOFB');
+  var tok=_pubTokFor(inv.invNo);
+  var r=await fetch(fb+'/thejeans_public_invoices/'+tok+'.json',{
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_buildPubInvRecord(inv))
+  });
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return tok;
+}
+function _custInvLink(tok){
+  var base=(SETTINGS.invLink||'').trim();
+  if(!base && (location.protocol==='http:'||location.protocol==='https:')) base=location.origin+location.pathname;
+  if(!base) return '';
+  if(!/^https?:\/\//i.test(base)) base='https://'+base;
+  base=base.replace(/[?#].*$/,'');
+  var host=getFirebaseUrl().replace(/^https?:\/\//,'').replace(/\/.*$/,'');
+  return base+'?inv='+tok+'&fb='+encodeURIComponent(host);
+}
+async function notifyCustomer(inv){
+  var i=inv||currentInv;
+  if(!i||i.isPreview){ showToast('Pehle invoice save karein','warn'); return; }
+  var ph=(i.custPhone||'').replace(/\D/g,'');
+  if(ph.length>10) ph=ph.slice(-10);
+  if(ph.length!==10){ showToast('Is invoice me valid 10-digit customer mobile number nahi hai','warn'); return; }
+  if(!getFirebaseUrl()){ showToast('Pehle Settings me Firebase URL set karein','warn'); return; }
+  var btn=document.getElementById('notifyCustBtn');
+  if(btn){ btn.disabled=true; btn.innerHTML='Link ban raha hai...'; }
+  // Popup blocker se bachne ke liye window pehle (tap ke turant baad) kholo, link baad me daalo
+  var w=null; try{ w=window.open('','_blank'); }catch(e){}
+  try{
+    var tok=await _publishInvForCustomer(i);
+    var link=_custInvLink(tok);
+    if(!link){ if(w) w.close(); showToast('Settings me "Customer Invoice Link" (app ka website URL) daalein','warn'); return; }
+    var soc=[];
+    var igH=String(SETTINGS.ig||'').replace(/^@/,'').replace(/^https?:\/\/(www\.)?instagram\.com\//,'').replace(/\/$/,'');
+    if(igH) soc.push('Instagram: instagram.com/'+igH);
+    if(SETTINGS.fb) soc.push('Facebook: '+String(SETTINGS.fb).replace(/^https?:\/\/(www\.)?facebook\.com\//,''));
+    if(SETTINGS.web) soc.push('Website: '+String(SETTINGS.web).replace(/^https?:\/\//,''));
+    var msg='*'+(SETTINGS.biz||'The Jeans Club')+'*\n\nNamaste '+(i.custName||'Customer')+',\nAapka invoice generate ho gaya hai.\n\n'
+      +'Invoice No: *'+i.invNo+'*\nAmount: *Rs.'+Math.round(i.total||0).toLocaleString('en-IN')+'*\n\n'
+      +'Invoice download karne ke liye yahan click karein:\n'+link+'\n\n'
+      +'Dhanyavaad!'
+      +(soc.length?'\n\n――――――――――\nHumse jude rahein:\n'+soc.join('\n'):'');
+    var url='https://wa.me/91'+ph+'?text='+encodeURIComponent(msg);
+    if(w) w.location.href=url; else window.location.href=url;
+  }catch(e){
+    if(w) try{ w.close(); }catch(_){}
+    console.error('[notifyCustomer]',e);
+    showToast('Link nahi ban paya ('+(e&&e.message?e.message:'error')+') — internet / Firebase rules check karein','error');
+  }finally{
+    if(btn){ btn.disabled=false; btn.innerHTML='&#128276; Notify Customer'; }
+  }
+}
+
+// ── Customer side: ?inv=<token>&fb=<firebase host> par ye simple invoice page khulta hai (login nahi) ──
+function _isCustInvMode(){ try{ return !!new URLSearchParams(location.search).get('inv'); }catch(e){ return false; } }
+async function _custInvBoot(){
+  var qs=new URLSearchParams(location.search);
+  var tok=(qs.get('inv')||'').replace(/[^a-zA-Z0-9]/g,'');
+  var host=(qs.get('fb')||'').trim();
+  var ov=document.createElement('div');
+  ov.id='custInvView';
+  ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;background:#f4f1ea;overflow:auto;-webkit-overflow-scrolling:touch;font-family:Arial,sans-serif;';
+  document.body.appendChild(ov);
+  document.title='Invoice';
+  var say=function(t){ ov.innerHTML='<div style="padding:70px 20px;text-align:center;color:#555;font-size:15px;">'+t+'</div>'; };
+  say('Invoice load ho rahi hai...');
+  if(!tok || !/^[a-z0-9.\-]+\.(firebaseio\.com|firebasedatabase\.app)$/i.test(host)){ say('Invoice link sahi nahi hai.'); return; }
+  try{
+    var r=await fetch('https://'+host+'/thejeans_public_invoices/'+tok+'.json');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    var d=await r.json();
+    if(!d||!d.invNo){ say('Invoice nahi mili. Kripya dukaan se sampark karein.'); return; }
+    _custInvRender(ov,d);
+  }catch(e){ console.error(e); say('Invoice load nahi ho payi. Internet check karke dobara try karein.'); }
+}
+function _custInvRender(ov,d){
+  var b=d.biz||{};
+  var e=function(x){ return escH(String(x==null?'':x)); };
+  var money=function(n){ return 'Rs.'+Math.round(n||0).toLocaleString('en-IN'); };
+  var dt=d.invDate?new Date(d.invDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'';
+  var rows=(d.items||[]).map(function(x){
+    return '<tr>'
+      +'<td style="padding:10px 4px;border-bottom:1px solid #e6e0cf;font-size:14px;">'+e(x.n)+'<div style="font-size:11px;color:#888;margin-top:2px;">@ '+money(x.p)+'</div></td>'
+      +'<td style="padding:10px 4px;border-bottom:1px solid #e6e0cf;text-align:center;font-size:14px;">'+e(x.q)+'</td>'
+      +'<td style="padding:10px 4px;border-bottom:1px solid #e6e0cf;text-align:right;font-size:14px;">'+money((x.q||0)*(x.p||0))+'</td></tr>';
+  }).join('');
+  var st=d.payStatus||'';
+  var bal=Math.max(0,(d.total||0)-(d.paid||0));
+  var isPaid=(st==='Paid');
+  var badge=st?'<span style="background:'+(isPaid?'#dff3e4':'#fdecd2')+';color:'+(isPaid?'#1b7a34':'#b8650a')+';font-weight:700;font-size:13px;padding:6px 14px;border-radius:6px;">'+e(st)+'</span>':'';
+  var igH=String(b.ig||'').replace(/^@/,'').replace(/^https?:\/\/(www\.)?instagram\.com\//,'').replace(/\/$/,'');
+  var web=String(b.web||'').trim().replace(/^https?:\/\//,'');
+  var soc=[];
+  if(igH) soc.push('Instagram: <a href="https://instagram.com/'+encodeURIComponent(igH)+'" style="color:#1a3a2a;">instagram.com/'+e(igH)+'</a>');
+  if(b.fb) soc.push('Facebook: '+e(String(b.fb).replace(/^https?:\/\/(www\.)?facebook\.com\//,'')));
+  if(web) soc.push('Website: <a href="https://'+e(web)+'" style="color:#1a3a2a;">'+e(web)+'</a>');
+  var socH=soc.length?'<div style="margin:14px 4px 0;font-size:12px;line-height:1.9;color:#444;"><b>Humse jude rahein:</b><br>'+soc.join('<br>')+'</div>':'';
+  window._custInvData=d;
+  ov.innerHTML=
+    '<div style="background:#1e4535;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,.25);">'
+      +'<div style="max-width:820px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+        +'<div style="min-width:0;"><div style="font-size:18px;font-weight:700;">'+e(b.name||'The Jeans Club')+'</div>'
+        +'<div style="font-size:13px;opacity:.9;margin-top:2px;">Invoice '+e(d.invNo)+' | '+money(d.total)+'</div></div>'
+        +'<button id="custDlBtn" onclick="_custInvDownload()" style="flex-shrink:0;background:#c9a23a;color:#1a1a1a;border:none;border-radius:8px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer;">&#11015; Download PDF</button>'
+      +'</div></div>'
+    +'<div style="max-width:820px;margin:0 auto;padding:14px;">'
+      +'<div id="custInvPrint" style="background:#fff;padding:20px;border:1px solid #ddd6c3;border-radius:10px;color:#111;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+          +'<div><div style="font-size:20px;font-weight:800;letter-spacing:1px;">INVOICE</div>'
+          +'<div style="font-size:13px;color:#666;margin-top:3px;">'+e(d.invNo)+' &bull; '+e(dt)+'</div></div>'+badge
+        +'</div>'
+        +'<div style="font-size:12px;color:#666;margin-top:10px;line-height:1.6;"><b style="color:#222;font-size:13px;">'+e(b.name||'The Jeans Club')+'</b>'
+          +(b.addr?'<br>'+e(b.addr):'')+(b.ph?'<br>Ph: '+e(b.ph):'')+(b.gst?'<br>GSTIN: '+e(b.gst):'')+'</div>'
+        +'<div style="font-size:14px;margin:14px 0 10px;color:#444;">Bill to: <b style="color:#111;">'+e(d.custName)+'</b></div>'
+        +'<table style="width:100%;border-collapse:collapse;">'
+          +'<thead><tr style="color:#777;font-size:13px;"><th style="text-align:left;padding:8px 4px;border-bottom:1px solid #cfc7b0;font-weight:600;">Item</th><th style="padding:8px 4px;border-bottom:1px solid #cfc7b0;font-weight:600;">Qty</th><th style="text-align:right;padding:8px 4px;border-bottom:1px solid #cfc7b0;font-weight:600;">Amount</th></tr></thead>'
+          +'<tbody>'+rows+'</tbody></table>'
+        +'<div style="margin-top:10px;font-size:14px;">'
+          +(d.totalGst>0?'<div style="display:flex;justify-content:space-between;padding:6px 4px;color:#555;"><span>Includes GST</span><span>'+money(d.totalGst)+'</span></div>':'')
+          +'<div style="display:flex;justify-content:space-between;padding:10px 4px;font-size:17px;font-weight:800;"><span>Total</span><span>'+money(d.total)+'</span></div>'
+          +(!isPaid&&bal>0?'<div style="display:flex;justify-content:space-between;padding:4px;color:#b8650a;font-weight:700;"><span>Balance Due</span><span>'+money(bal)+'</span></div>':'')
+        +'</div>'
+        +socH
+      +'</div>'
+    +'</div>';
+}
+async function _custInvDownload(){
+  var el=document.getElementById('custInvPrint'), btn=document.getElementById('custDlBtn');
+  if(!el) return;
+  var d=window._custInvData||{};
+  if(btn){ btn.disabled=true; btn.textContent='PDF ban rahi hai...'; }
+  try{
+    var pdf=await _captureElToPDF(el);
+    addWatermark(pdf, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+    pdf.save('Invoice_'+String(d.invNo||'').replace(/[^a-zA-Z0-9]+/g,'_')+'.pdf');
+  }catch(err){ console.error(err); alert('PDF nahi ban payi. Dobara try karein.'); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML='&#11015; Download PDF'; } }
+}
+
 // ===== EXCEL =====
 function xlExport(sheets,filename,sheetNames){
   sheetNames = sheetNames || sheets.map(function(_,i){ return 'Sheet'+(i+1); });
@@ -10302,6 +10479,7 @@ function loadSettings(){
   var fb=document.getElementById('set-fb');if(fb)fb.value=SETTINGS.fb||SETTINGS.biz||'The Jeans Club';
   var web=document.getElementById('set-web');if(web)web.value=SETTINGS.web||'www.thejeansclubb.com';
   var em=document.getElementById('set-email');if(em)em.value=SETTINGS.email||'';
+  var il=document.getElementById('set-invlink');if(il)il.value=SETTINGS.invLink||'';
   var DEFAULT_MKT_PTS = ['Premium quality fabrics','New & trending arrivals every day','Best rate & best wholesaler in the whole district','Latest fashion trends','Best price guarantee','Exclusive member offers'];
   var mktPts = (SETTINGS.mktPts && SETTINGS.mktPts.length) ? SETTINGS.mktPts : DEFAULT_MKT_PTS;
   for(var mi=1; mi<=6; mi++){
@@ -13763,7 +13941,7 @@ function initIndexedDBStorage() {
   });
 }
 
-initIndexedDBStorage();
+if(_isCustInvMode()){ _custInvBoot(); } else { initIndexedDBStorage(); }
 
 
 
