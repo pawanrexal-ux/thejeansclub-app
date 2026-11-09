@@ -22,6 +22,19 @@
     if(window.TJC_VIEWER_ONLY||_q.get('i')||_q.get('inv')){
       window.addEventListener('beforeinstallprompt',function(ev){ ev.preventDefault(); });
       var _m=document.getElementById('pwa-manifest'); if(_m) _m.parentNode.removeChild(_m);
+      // App ka login page / baaki screens customer ko ek pal ke liye bhi na dikhein:
+      // body ke andar sab kuch chhupa do (invoice overlay banne par ye style hata di jaati hai)
+      var _st=document.createElement('style'); _st.id='tjc-cust-hide';
+      _st.textContent='html,body{background:#f4f1ea!important}body>*:not(#custInvView):not(#viewerBlank){display:none!important}';
+      document.head.appendChild(_st);
+      // Safety: kuch bhi galat ho jaye to login page ke bajay sirf ek saaf message
+      setTimeout(function(){
+        if(document.getElementById('custInvView')||document.getElementById('viewerBlank')||!document.body) return;
+        var d=document.createElement('div'); d.id='viewerBlank';
+        d.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;background:#f4f1ea;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#555;text-align:center;padding:24px;font-size:15px;';
+        d.textContent='Invoice load nahi ho payi. Page refresh karke dobara try karein.';
+        document.body.appendChild(d);
+      },8000);
       return;
     }
   }catch(_e){}
@@ -9985,7 +9998,9 @@ function _viewerOnlyBlank(){
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;background:#f4f1ea;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;color:#555;text-align:center;padding:24px;font-size:15px;';
   ov.textContent='Invoice dekhne ke liye WhatsApp message me bheja gaya link kholein.';
+  ov.id='viewerBlank';
   document.body.appendChild(ov); document.title='Invoice';
+  var _hs=document.getElementById('tjc-cust-hide'); if(_hs) _hs.remove();
 }
 function _isCustInvMode(){ try{ var q=new URLSearchParams(location.search); return !!(q.get('i')||q.get('inv')); }catch(e){ return false; } }
 async function _custInvBoot(){
@@ -9997,6 +10012,7 @@ async function _custInvBoot(){
   ov.id='custInvView';
   ov.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483000;background:#f4f1ea;overflow:auto;-webkit-overflow-scrolling:touch;font-family:Arial,sans-serif;';
   document.body.appendChild(ov);
+  var _hs=document.getElementById('tjc-cust-hide'); if(_hs) _hs.remove();
   document.title='Invoice';
   var say=function(t){ ov.innerHTML='<div style="padding:70px 20px;text-align:center;color:#555;font-size:15px;">'+t+'</div>'; };
   say('Invoice load ho rahi hai...');
