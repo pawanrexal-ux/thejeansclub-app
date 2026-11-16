@@ -807,6 +807,35 @@ input[type=tel], textarea, select {
 .pl-month-net-val{font-family:Arial,sans-serif;font-size:16px;font-weight:800;}
 @media(max-width:680px){#pl-charts-row,#pl-bottom-row{grid-template-columns:1fr!important;}}
 </style>
+<style id="pack-css">
+/* ===== Packing Queue (Staff: blank-amount invoice + tick-out) ===== */
+.pk-wrap{max-width:760px;margin:0 auto;font-family:Arial,sans-serif;}
+.pk-note{background:#e8f5e9;border:1px solid #a5d6a7;color:#2e7d32;padding:8px 12px;margin-bottom:12px;font-size:12px;border-radius:4px;line-height:1.5;}
+.pk-h{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--mu);margin:14px 2px 8px;}
+.pk-card{background:#fff;border:1px solid #d9d4c5;border-radius:8px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+.pk-card.done{opacity:.85;border-color:#a5d6a7;}
+.pk-top{padding:10px 12px;background:#f7f4ea;border-bottom:1px solid #e6e0cd;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.pk-inv{font-weight:800;font-size:15px;color:#1a3a2a;}
+.pk-meta{font-size:12px;color:#444;line-height:1.5;}
+.pk-bar{height:6px;background:#e6e0cd;}
+.pk-bar>i{display:block;height:100%;background:#2d7a4f;width:0;transition:width .2s;}
+.pk-tbl{width:100%;border-collapse:collapse;font-size:13px;}
+.pk-tbl th{background:#1a3a2a;color:#fff;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:7px 6px;text-align:left;}
+.pk-tbl td{padding:9px 6px;border-bottom:1px solid #eee;vertical-align:middle;}
+.pk-tbl tr.pk-row{cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.pk-tbl tr.ticked td{background:#eef8f0;}
+.pk-tbl tr.ticked .pk-name{text-decoration:line-through;color:#6b7c72;}
+.pk-q{font-weight:800;text-align:center;white-space:nowrap;}
+.pk-amt{width:64px;}
+.pk-amt span{display:block;height:24px;border:1px dashed #c9c3b0;border-radius:3px;background:#faf9f4;}
+.pk-chk{width:44px;text-align:center;}
+.pk-chk span{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:2px solid #1a3a2a;border-radius:6px;background:#fff;font-size:20px;line-height:1;color:#fff;}
+.pk-tbl tr.ticked .pk-chk span{background:#2d7a4f;border-color:#2d7a4f;}
+.pk-foot{padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pk-foot .pk-tot{flex:1;font-size:12px;font-weight:700;color:#1a3a2a;min-width:90px;}
+.pk-empty{text-align:center;color:var(--mu);padding:36px 12px;font-size:13px;}
+#packNavBadge{display:none;margin-left:6px;background:#e53935;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;}
+</style>
 <style id="bill-staff-css">
 /* Naya "Staff" login (sirf invoice banane wala): baaki sab chhupa hua, sirf Send to Manager dikhta hai */
 body.bill-staff #page-dashboard{display:none!important;}
@@ -861,6 +890,7 @@ body.bill-staff #sendMgrBtn{display:inline-flex!important;}
       <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="nav-icon">&#128202;</span>Dashboard</div>
       <div class="nav-sec">Sales</div>
       <div class="nav-item" onclick="navTo('invoice',this)"><span class="nav-icon">&#128221;</span>New Invoice</div>
+      <div class="nav-item" id="navitem-packing" onclick="navTo('packing',this)"><span class="nav-icon">&#128230;</span>Packing Queue<span id="packNavBadge">0</span></div>
       <div class="nav-item" onclick="navTo('history',this)"><span class="nav-icon">&#128194;</span>Invoice History</div>
       <div class="nav-item" onclick="navTo('returns',this)"><span class="nav-icon">&#8617;</span>Return / Exchange</div>
       <div class="nav-sec">Collections &#128178;</div>
@@ -1100,6 +1130,14 @@ body.bill-staff #sendMgrBtn{display:inline-flex!important;}
             <button class="btn btn-gold" id="notifyCustBtn" onclick="notifyCustomer()">&#128276; Notify Customer</button>
           </span>
           <button class="btn btn-outline" onclick="goBack()">&#8592; Back</button>
+        </div>
+      </div>
+
+      <!-- PACKING QUEUE -->
+      <div class="page" id="page-packing">
+        <div class="pk-wrap">
+          <div class="pk-note" id="packNote"></div>
+          <div id="packList"></div>
         </div>
       </div>
 
@@ -2098,7 +2136,7 @@ body.bill-staff #sendMgrBtn{display:inline-flex!important;}
         </div>
         <div class="set-section" id="admin-billstaff-pw-section"><div class="set-head">&#129534; Staff Login (sirf Invoice banane wala)</div>
           <div class="set-body">
-            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;line-height:1.6;">Ye Staff sirf naya invoice bana sakta hai aur <b>Send to Manager</b> se Manager ko bhej sakta hai. Baaki kuch (history, stock, reports, settings) nahi dekh sakta.</p>
+            <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;line-height:1.6;">Ye Staff naya invoice bana kar <b>Send to Manager</b> se Manager ko bhej sakta hai, aur <b>Packing Queue</b> me Manager/Admin ke save kiye invoice (amount blank) dekh kar mal pack karte waqt tick kar sakta hai. Baaki kuch (history, stock, reports, settings) nahi dekh sakta.</p>
             <div id="set-bill-status" style="font-size:12px;font-family:Arial,sans-serif;margin-bottom:10px;"></div>
             <div class="ig"><label>Staff Username</label><input type="text" id="set-billUser" placeholder="Staff username" autocomplete="off"/></div>
             <div class="ig"><label>Staff Password</label><input type="password" id="set-billPw" placeholder="Staff password" autocomplete="new-password"/></div>
@@ -5736,7 +5774,7 @@ function loadStaffPerms(){
 }
 
 function staffCanAccess(page){
-  if(IS_BILL_STAFF) return (page === 'invoice' || page === 'preview');   // naya Staff: sirf invoice banana
+  if(IS_BILL_STAFF) return (page === 'invoice' || page === 'preview' || page === 'packing');   // naya Staff: sirf invoice banana
   if(CURRENT_ROLE === 'admin') return true;
   // Settings always blocked for staff
   if(page === 'settings') return false;
@@ -6083,6 +6121,7 @@ function showApp(){
   applyRoleRestrictions();
   initApp();
   try{ _startHeldWatch(); }catch(e){ console.error('[heldWatch]', e); }
+  try{ _startPackWatch(); }catch(e){ console.error('[packWatch]', e); }
   // Staff ko directly invoice page par bhejo (dashboard restricted hai)
   if(CURRENT_ROLE === 'staff') {
     setTimeout(function(){ navTo('invoice', null); }, 100);
@@ -6346,7 +6385,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice'){
@@ -6354,6 +6393,7 @@ function navTo(page, el, mi){
     else initInvoice();
     _syncHeldQuick(false);   // invoice page khulte hi doosre device ke Hold drafts check
   } else if(page!=='preview'){ window._keepInvForm = false; }
+  if(page==='packing'){ try{ packOpenPage(); }catch(e){ console.error('[Pack]', e); } }
   if(page==='invreport') renderInvReport();
   if(page==='dashboard') renderDashboard();
   // History screens ab hamesha poora local data dikhate hain (delta-sync ki wajah se complete rehta hai).
@@ -7603,6 +7643,7 @@ function persistInvoice(fd){
       window._editInvSnapshot = null;
     }
 
+    try{ packUpsertFromInvoice(inv, isEditMode); }catch(packErr){ console.error('[Pack] upsert error:', packErr); }
     checkDateChange();
     return inv;
   });
@@ -8226,6 +8267,344 @@ function _startHeldWatch(){
   }
 }
 
+// ═══════════════ PACKING QUEUE ═══════════════
+// Manager/Admin jab invoice SAVE karta hai => uska "packing slip" (sirf item naam + qty, KOI amount nahi) Firebase ke
+// chhote node /thejeans/KEY/pack me chala jata hai. Staff ko wo blank-amount, non-editable invoice dikhta hai aur
+// wo har item ko tick karke "Mark as Packed" karta hai. Packed hote hi Manager ko pata chal jata hai (aur Packed By auto bhar jata hai).
+var PACK_LS = 'ac_pack', PACK_DIRTY_LS = 'ac_pack_dirty', PACK_SEEN_LS = 'ac_pack_seen', PACK_WHO_LS = 'ac_pack_who';
+var packOrders = {}, _packDirty = {}, _packSeen = {};
+try{ packOrders = JSON.parse(localStorage.getItem(PACK_LS) || '{}') || {}; }catch(e){ packOrders = {}; }
+try{ _packDirty = JSON.parse(localStorage.getItem(PACK_DIRTY_LS) || '{}') || {}; }catch(e){ _packDirty = {}; }
+try{ _packSeen = JSON.parse(localStorage.getItem(PACK_SEEN_LS) || '{}') || {}; }catch(e){ _packSeen = {}; }
+var _packPushBusy = false, _packPushAgain = false, _packPullBusy = false, _packWatchTimer = null;
+
+function getPackPath(){ return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/pack'; }
+function _packKey(id){ return 'i' + String(id).replace(/[.#$\/\[\]]/g, '_'); }
+function _packSave(){
+  try{ localStorage.setItem(PACK_LS, JSON.stringify(packOrders)); }catch(e){}
+  try{ localStorage.setItem(PACK_DIRTY_LS, JSON.stringify(_packDirty)); }catch(e){}
+}
+function _packSeenSave(){ try{ localStorage.setItem(PACK_SEEN_LS, JSON.stringify(_packSeen)); }catch(e){} }
+function _packMarkDirty(key, flags){
+  var d = _packDirty[key] || (_packDirty[key] = {});
+  Object.keys(flags).forEach(function(f){ d[f] = flags[f]; });
+  _packSave();
+}
+function _packNorm(r, key){
+  if(!r || typeof r !== 'object') return null;
+  var items = Array.isArray(r.items) ? r.items : Object.keys(r.items || {}).map(function(k){ return r.items[k]; });
+  r.items = items.filter(function(i){ return i && i.n; });
+  r.ticks = (r.ticks && typeof r.ticks === 'object') ? r.ticks : {};
+  r.status = (r.status === 'packed') ? 'packed' : 'pending';
+  r.key = key;
+  return r;
+}
+function _packAllTicked(r){
+  if(!r.items.length) return false;
+  for(var i = 0; i < r.items.length; i++){ if(!r.ticks['k' + i]) return false; }
+  return true;
+}
+function _packTickCount(r){
+  var n = 0; for(var i = 0; i < r.items.length; i++){ if(r.ticks['k' + i]) n++; } return n;
+}
+
+// ── Manager/Admin: invoice save hote hi packing slip banao / update karo ──
+function packUpsertFromInvoice(inv, isEdit){
+  if(IS_BILL_STAFF || !inv) return;
+  var key = _packKey(inv.id);
+  var items = (inv.items || []).filter(function(i){ return i && String(i.name || '').trim() !== ''; })
+    .map(function(i){ return {n: String(i.name).trim(), q: Number(i.qty) || 0}; });
+  if(!items.length) return;
+  var old = packOrders[key];
+  // purani date ka invoice edit ho raha ho aur uska packing slip hai hi nahi => naya slip mat banao
+  if(!old && isEdit && inv.invDate !== nowDate()) return;
+  // same invoice number ka koi aur (purani id wala) slip ho to hata do
+  Object.keys(packOrders).forEach(function(k){
+    if(k !== key && String(packOrders[k].invNo) === String(inv.invNo)){ delete packOrders[k]; _packMarkDirty(k, {del:true}); }
+  });
+  var changed = !old || JSON.stringify(old.items) !== JSON.stringify(items);
+  var rec = {
+    key: key, id: inv.id, invNo: inv.invNo, invDate: inv.invDate, custName: inv.custName || '',
+    billedBy: inv.billedBy || '', items: items,
+    createdAt: old ? old.createdAt : new Date().toISOString(), createdBy: getRoleLabel(),
+    updatedAt: new Date().toISOString(),
+    ticks: (old && !changed) ? old.ticks : {},
+    status: (old && !changed) ? old.status : 'pending',
+    packedBy: (old && !changed) ? (old.packedBy || '') : '',
+    packedAt: (old && !changed) ? (old.packedAt || '') : ''
+  };
+  packOrders[key] = rec;
+  _packMarkDirty(key, {meta:true, isNew:!old, reset:!!(old && changed)});
+  _packUpdateBadge();
+  packPushDirty();
+}
+function packRemoveByInvoiceId(id){
+  var key = _packKey(id);
+  if(!packOrders[key]) return;
+  delete packOrders[key];
+  _packMarkDirty(key, {del:true});
+  _packUpdateBadge();
+  packPushDirty();
+}
+
+// ── Firebase push (sirf dirty records, PATCH) ──
+async function packPushDirty(){
+  var fb = getFirebaseUrl();
+  if(!SYNC_KEY || !fb || !navigator.onLine) return;
+  if(_packPushBusy){ _packPushAgain = true; return; }
+  _packPushBusy = true;
+  try{
+    var keys = Object.keys(_packDirty);
+    for(var i = 0; i < keys.length; i++){
+      var k = keys[i], d = _packDirty[k], r = packOrders[k], snap = JSON.stringify(d), res;
+      if(d.del){
+        res = await fetch(getPackPath() + '/' + k + '.json', {method:'DELETE'});
+      } else if(!r){
+        delete _packDirty[k]; continue;
+      } else {
+        var body = {};
+        if(d.meta){
+          body.id = r.id; body.invNo = r.invNo; body.invDate = r.invDate; body.custName = r.custName;
+          body.billedBy = r.billedBy || ''; body.items = r.items; body.createdAt = r.createdAt;
+          body.createdBy = r.createdBy; body.updatedAt = r.updatedAt;
+          if(d.isNew) body.status = 'pending';
+          if(d.reset){ body.ticks = null; body.status = 'pending'; body.packedBy = null; body.packedAt = null; }
+        }
+        if(d.prog){
+          body.ticks = Object.keys(r.ticks).length ? r.ticks : null;
+          body.status = r.status; body.packedBy = r.packedBy || null; body.packedAt = r.packedAt || null;
+        }
+        res = await fetch(getPackPath() + '/' + k + '.json', {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+      }
+      if(res && res.ok){
+        if(JSON.stringify(_packDirty[k]) === snap) delete _packDirty[k];   // is dauran naya badlaav aaya ho to dirty rehne do
+      } else { console.log('[Pack] push failed:', res && res.status); }
+    }
+    _packSave();
+  }catch(e){
+    console.log('[Pack] push error:', e);
+  }finally{
+    _packPushBusy = false;
+    if(_packPushAgain){ _packPushAgain = false; setTimeout(packPushDirty, 800); }
+  }
+}
+
+// ── Firebase pull: poora pack node ek GET me, local ke pending badlaav safe rakhte hue merge ──
+async function packPull(){
+  var fb = getFirebaseUrl();
+  if(!SYNC_KEY || !fb || !navigator.onLine || _packPullBusy) return false;
+  _packPullBusy = true;
+  var fresh = [], newlyPacked = [];
+  try{
+    var res = await fetch(getPackPath() + '.json?t=' + Date.now());
+    if(!res.ok) return false;
+    var cloud = (await res.json()) || {};
+    var prevStatus = {}; Object.keys(packOrders).forEach(function(k){ prevStatus[k] = packOrders[k].status; });
+    var next = {};
+    Object.keys(cloud).forEach(function(k){
+      var c = _packNorm(cloud[k], k); if(!c) return;
+      var d = _packDirty[k], l = packOrders[k];
+      if(d && d.del) return;
+      if(d && l){
+        if(d.meta){
+          ['id','invNo','invDate','custName','billedBy','items','createdAt','createdBy','updatedAt'].forEach(function(f){ c[f] = l[f]; });
+          if(d.reset){ c.ticks = l.ticks; c.status = l.status; c.packedBy = l.packedBy; c.packedAt = l.packedAt; }
+        }
+        if(d.prog){ c.ticks = l.ticks; c.status = l.status; c.packedBy = l.packedBy; c.packedAt = l.packedAt; }
+      }
+      next[k] = c;
+      if(!_packSeen[k] && c.status === 'pending') fresh.push(c);
+      if(prevStatus[k] !== 'packed' && c.status === 'packed' && !(d && d.prog)) newlyPacked.push(c);
+    });
+    // cloud me nahi hai: agar hamara naya (abhi push nahi hua) slip hai to rakho, warna hata do
+    Object.keys(packOrders).forEach(function(k){
+      if(!cloud[k] && _packDirty[k] && _packDirty[k].meta && !_packDirty[k].del) next[k] = packOrders[k];
+    });
+    packOrders = next;
+    _packSave();
+
+    // Manager/Admin: purane packed slips saaf karo + Packed By invoice me bhar do
+    if(!IS_BILL_STAFF){
+      var cutoff = Date.now() - 3*24*3600*1000, invDirty = false;
+      Object.keys(packOrders).forEach(function(k){
+        var r = packOrders[k];
+        if(r.status === 'packed' && r.packedAt && new Date(r.packedAt).getTime() < cutoff){
+          delete packOrders[k]; _packMarkDirty(k, {del:true}); return;
+        }
+        if(r.status === 'packed' && r.packedBy && prevStatus[k] !== 'packed'){
+          var inv = (invoices || []).find(function(i){ return String(i.id) === String(r.id); });
+          if(inv && !inv.packedBy){ inv.packedBy = r.packedBy; invDirty = true; }
+        }
+      });
+      if(invDirty){ try{ LS.sync('invoices', invoices); }catch(e){} }
+      packPushDirty();
+    }
+    _packUpdateBadge();
+    if(currentPage === 'packing') renderPacking();
+    try{ _packNotify(fresh, newlyPacked); }catch(ne){ console.log('[Pack] notify error:', ne); }
+    return true;
+  }catch(e){
+    console.log('[Pack] pull error:', e);
+    return false;
+  }finally{
+    _packPullBusy = false;
+  }
+}
+
+function _packNotify(fresh, newlyPacked){
+  if(IS_BILL_STAFF){
+    if(fresh.length && currentPage !== 'packing'){
+      _showPackBanner(fresh);
+      try{ if(navigator.vibrate) navigator.vibrate([200,100,200]); }catch(e){}
+    } else if(fresh.length){
+      fresh.forEach(function(c){ _packSeen[c.key] = 1; }); _packSeenSave();
+      showToast('📦 Naya invoice pack karne ke liye aaya');
+    }
+  } else {
+    newlyPacked.forEach(function(c){
+      showToast('✅ Invoice ' + (c.invNo || '') + ' (' + (c.custName || '') + ') pack ho gaya' + (c.packedBy ? ' — ' + c.packedBy : ''));
+    });
+  }
+}
+function _showPackBanner(fresh){
+  var b = document.getElementById('packBanner');
+  if(!b){
+    b = document.createElement('div'); b.id = 'packBanner';
+    b.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:9500;width:max-content;max-width:92vw;background:#1565c0;color:#fff;border-radius:10px;padding:10px 12px;box-shadow:0 6px 20px rgba(0,0,0,.35);font-family:Arial,sans-serif;font-size:13px;display:flex;align-items:center;gap:10px;';
+    document.body.appendChild(b);
+  }
+  var pend = Object.keys(packOrders).filter(function(k){ return packOrders[k].status === 'pending'; }).length;
+  b.innerHTML = '';
+  var t = document.createElement('span'); t.textContent = '📦 ' + fresh.length + ' naya invoice pack karna hai (total pending: ' + pend + ')'; b.appendChild(t);
+  var go = document.createElement('button'); go.textContent = 'Dekhein';
+  go.style.cssText = 'background:#fff;color:#0d47a1;border:none;border-radius:6px;padding:7px 12px;font-weight:700;font-size:12px;cursor:pointer;flex-shrink:0;';
+  go.onclick = function(){ b.remove(); navTo('packing', null); }; b.appendChild(go);
+  var x = document.createElement('button'); x.textContent = '✕';
+  x.style.cssText = 'background:none;border:none;color:#fff;font-size:16px;cursor:pointer;flex-shrink:0;padding:0 2px;';
+  x.onclick = function(){ fresh.forEach(function(c){ _packSeen[c.key] = 1; }); _packSeenSave(); b.remove(); }; b.appendChild(x);
+}
+
+function _packUpdateBadge(){
+  var n = 0; Object.keys(packOrders).forEach(function(k){ if(packOrders[k].status === 'pending') n++; });
+  var el = document.getElementById('packNavBadge');
+  if(el){ el.textContent = n; el.style.display = n ? 'inline-block' : 'none'; }
+}
+
+// ── Page ──
+function packOpenPage(){
+  var note = document.getElementById('packNote');
+  if(note) note.innerHTML = IS_BILL_STAFF
+    ? '📦 <b>Pack karne wale invoices.</b> Amount blank hai (staff ko nahi dikhta). Mal invoice ke hisaab se pack karte hue har item ko <b>tick</b> karein; saare tick hone par <b>Mark as Packed</b> dabayein.'
+    : '📦 <b>Packing status.</b> Jo invoice aap save karte hain wo Staff ko blank-amount ke saath dikhta hai. Yahan dekh sakte hain kitna pack ho chuka hai.';
+  Object.keys(packOrders).forEach(function(k){ _packSeen[k] = 1; }); _packSeenSave();
+  var pb = document.getElementById('packBanner'); if(pb) pb.remove();
+  renderPacking();
+  packPushDirty();
+  packPull();
+}
+function renderPacking(){
+  var box = document.getElementById('packList'); if(!box) return;
+  var all = Object.keys(packOrders).map(function(k){ return packOrders[k]; });
+  var dayAgo = Date.now() - 24*3600*1000;
+  var pend = all.filter(function(r){ return r.status === 'pending'; })
+    .sort(function(a,b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });   // pehle aaya, pehle pack
+  var done = all.filter(function(r){ return r.status === 'packed' && (!r.packedAt || new Date(r.packedAt).getTime() >= dayAgo); })
+    .sort(function(a,b){ return String(b.packedAt || '').localeCompare(String(a.packedAt || '')); });
+  var h = '';
+  if(!pend.length) h += '<div class="pk-empty">✅ Abhi pack karne ke liye koi invoice nahi hai.<br><span style="font-size:11px;">Naya invoice aate hi yahan dikhega.</span></div>';
+  else h += '<div class="pk-h">Pack karna baaki (' + pend.length + ')</div>' + pend.map(_packCardHtml).join('');
+  if(done.length) h += '<div class="pk-h">Pack ho chuke — pichhle 24 ghante (' + done.length + ')</div>' + done.map(_packCardHtml).join('');
+  box.innerHTML = h;
+}
+function _packCardHtml(r){
+  var done = r.status === 'packed', n = _packTickCount(r), tot = r.items.length, qtySum = 0;
+  var rows = r.items.map(function(it, i){
+    qtySum += Number(it.q) || 0;
+    var on = !!r.ticks['k' + i];
+    return '<tr class="pk-row' + (on ? ' ticked' : '') + '"' + (done ? '' : ' onclick="packToggle(\'' + r.key + '\',' + i + ')"') + '>'
+      + '<td style="width:26px;color:#777;">' + (i + 1) + '</td>'
+      + '<td class="pk-name">' + escH(it.n) + '</td>'
+      + '<td class="pk-q">' + (Number(it.q) || 0) + '</td>'
+      + '<td class="pk-amt"><span></span></td>'
+      + '<td class="pk-chk"><span>' + (on ? '&#10003;' : '') + '</span></td></tr>';
+  }).join('');
+  var dt = r.invDate || '';
+  var foot;
+  if(done){
+    foot = '<div class="pk-tot">✅ Packed' + (r.packedBy ? ' by ' + escH(r.packedBy) : '') + (r.packedAt ? ' · ' + escH(new Date(r.packedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})) : '') + '</div>'
+      + '<button class="btn btn-outline" style="padding:8px 12px;font-size:11px;" onclick="packReopen(\'' + r.key + '\')">↩ Wapas kholein</button>';
+  } else {
+    foot = '<div class="pk-tot">Total Qty: ' + qtySum + ' &nbsp;·&nbsp; ' + n + '/' + tot + ' tick</div>'
+      + '<button class="btn btn-green" style="padding:10px 14px;' + (n === tot ? '' : 'opacity:.5;') + '" onclick="packMarkDone(\'' + r.key + '\')">&#128230; Mark as Packed</button>';
+  }
+  if(!IS_BILL_STAFF){
+    foot += '<button class="btn btn-outline" style="padding:8px 10px;font-size:11px;" onclick="packDelete(\'' + r.key + '\')">&#128465;</button>';
+  }
+  return '<div class="pk-card' + (done ? ' done' : '') + '">'
+    + '<div class="pk-top"><div><div class="pk-inv">Invoice ' + escH(String(r.invNo || '')) + '</div>'
+    + '<div class="pk-meta">Customer: <b>' + escH(r.custName || '-') + '</b></div></div>'
+    + '<div class="pk-meta" style="text-align:right;">' + escH(String(dt)) + (r.billedBy ? '<br>Billed by: ' + escH(r.billedBy) : '') + '</div></div>'
+    + '<div class="pk-bar"><i style="width:' + (tot ? Math.round(n * 100 / tot) : 0) + '%"></i></div>'
+    + '<table class="pk-tbl"><thead><tr><th>#</th><th>Item</th><th style="text-align:center;">Qty</th><th>Amount</th><th style="text-align:center;">Pack</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div class="pk-foot">' + foot + '</div></div>';
+}
+
+// ── Staff actions ──
+function packToggle(key, idx){
+  var r = packOrders[key]; if(!r || r.status === 'packed') return;
+  var k = 'k' + idx;
+  if(r.ticks[k]) delete r.ticks[k]; else r.ticks[k] = true;
+  r.updatedAt = new Date().toISOString();
+  _packMarkDirty(key, {prog:true});
+  renderPacking();
+  packPushDirty();
+}
+function packMarkDone(key){
+  var r = packOrders[key]; if(!r || r.status === 'packed') return;
+  if(!_packAllTicked(r)){ showToast('⚠️ Pehle saare items tick karein (' + _packTickCount(r) + '/' + r.items.length + ')'); return; }
+  var names = []; try{ names = _invWhoNames(); }catch(e){}
+  var last = ''; try{ last = localStorage.getItem(PACK_WHO_LS) || ''; }catch(e){}
+  _whoModal('Mal kisne pack kiya?', last, names, function(v){
+    v = String(v || '').trim();
+    if(!v){ showToast('Pack karne wale ka naam likhein'); return; }
+    try{ localStorage.setItem(PACK_WHO_LS, v); }catch(e){}
+    r.status = 'packed'; r.packedBy = v; r.packedAt = new Date().toISOString();
+    _packMarkDirty(key, {prog:true});
+    _packUpdateBadge(); renderPacking(); packPushDirty();
+    showToast('📦 Invoice ' + (r.invNo || '') + ' pack ho gaya' + (navigator.onLine ? '' : ' (offline — net aate hi chala jayega)'));
+  });
+}
+function packReopen(key){
+  var r = packOrders[key]; if(!r) return;
+  r.status = 'pending'; r.packedBy = ''; r.packedAt = '';
+  _packMarkDirty(key, {prog:true});
+  _packUpdateBadge(); renderPacking(); packPushDirty();
+}
+function packDelete(key){
+  if(IS_BILL_STAFF) return;
+  var r = packOrders[key]; if(!r) return;
+  if(!confirm('Invoice ' + (r.invNo || '') + ' ko Packing Queue se hata dein? (Invoice delete nahi hogi)')) return;
+  delete packOrders[key]; _packMarkDirty(key, {del:true});
+  _packUpdateBadge(); renderPacking(); packPushDirty();
+}
+
+// ── Auto refresh (Staff 15s, Manager/Admin 30s) ──
+function _packWatchTick(){
+  if(sessionStorage.getItem('ac_logged') !== 'yes') return;
+  if(document.visibilityState === 'hidden') return;
+  packPushDirty();
+  packPull();
+}
+function _startPackWatch(){
+  _packUpdateBadge();
+  setTimeout(_packWatchTick, 3000);
+  if(!_packWatchTimer){
+    _packWatchTimer = setInterval(_packWatchTick, IS_BILL_STAFF ? 15000 : 30000);
+    document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') _packWatchTick(); });
+    window.addEventListener('online', function(){ _packWatchTick(); });
+  }
+}
+
 // Settings: Staff (invoice-only) login — sirf Admin
 function _fillBillStaffSettings(){
   var ba = getBillStaffAuth();
@@ -8298,6 +8677,7 @@ function deleteInv(id){
   }
   invoices = invoices.filter(function(i){return i.id!==id;});
   LS.sync('invoices', invoices);
+  try{ packRemoveByInvoiceId(id); }catch(e){}
   renderHistory();
   showToast('✓ Invoice deleted — stock restored');
 }
