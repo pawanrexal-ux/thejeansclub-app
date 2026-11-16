@@ -834,6 +834,10 @@ input[type=tel], textarea, select {
 .pk-foot{padding:10px 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .pk-foot .pk-tot{flex:1;font-size:12px;font-weight:700;color:#1a3a2a;min-width:90px;}
 .pk-empty{text-align:center;color:var(--mu);padding:36px 12px;font-size:13px;}
+.pk-fold{margin-bottom:12px;}
+.pk-fh{display:flex;align-items:center;gap:8px;background:#1a3a2a;color:#fff;border-radius:8px;padding:11px 12px;cursor:pointer;font-size:13px;font-weight:700;-webkit-tap-highlight-color:transparent;}
+.pk-fh .pk-fc{margin-left:auto;font-size:11px;font-weight:400;opacity:.9;text-align:right;line-height:1.4;}
+.pk-fb{padding-top:10px;}
 #packNavBadge{display:none;margin-left:6px;background:#e53935;color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;}
 </style>
 <style id="bill-staff-css">
@@ -8204,12 +8208,17 @@ function sendToManager(){
   snap.sentToManager = true;
   snap.sentBy = snap.billedBy;
   snap.sentAt = new Date().toISOString();
+  if(window._sendingToMgr) return;
+  window._sendingToMgr = true;
   heldInvoices.push(snap);
-  LS.sync('heldInvoices', heldInvoices); pushHeldNow();
+  // LS.sync nahi, LS.setL: Hold ka apna chhota /held node hai; LS.sync poora staff-invoice push (heavy) trigger karke send ko slow kar deta tha
+  LS.setL('heldInvoices', heldInvoices);
   editingInvId = null; items = []; itemIdCounter = 1;
   initInvoice();
   renderHeldBadge();
   showToast('📨 ' + custName + ' ka bill Manager ko bhej diya' + (navigator.onLine ? '' : ' (offline — internet aate hi chala jayega)'));
+  window._sendingToMgr = false;
+  setTimeout(function(){ try{ pushHeldNow(); }catch(e){} }, 0);   // network background me, UI turant free
 }
 
 // Manager / Admin: Staff se aaye bills ka dhyan rakho (har 30s sirf chhota /held node check hota hai)
@@ -8276,6 +8285,35 @@ var packOrders = {}, _packDirty = {}, _packSeen = {};
 try{ packOrders = JSON.parse(localStorage.getItem(PACK_LS) || '{}') || {}; }catch(e){ packOrders = {}; }
 try{ _packDirty = JSON.parse(localStorage.getItem(PACK_DIRTY_LS) || '{}') || {}; }catch(e){ _packDirty = {}; }
 try{ _packSeen = JSON.parse(localStorage.getItem(PACK_SEEN_LS) || '{}') || {}; }catch(e){ _packSeen = {}; }
+var _packOpen = {}, _packFolderOpen = {};
+var PACK_KEEP_DAYS = 7;   // aaj + pichhle 6 din = 1 hafte ka record; usse purana apne-aap erase
+function _ymd(d){ var m = d.getMonth() + 1, dd = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (dd < 10 ? '0' : '') + dd; }
+function _packDateKey(r){
+  if(r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.invDate || ''))) return String(r.invDate);
+  var d = r && r.createdAt ? new Date(r.createdAt) : new Date();
+  return _ymd(isNaN(d.getTime()) ? new Date() : d);
+}
+function _packCutoffKey(){ var d = new Date(); d.setDate(d.getDate() - (PACK_KEEP_DAYS - 1)); return _ymd(d); }
+function _packExpired(r){ return _packDateKey(r) < _packCutoffKey(); }
+function _packPurgeOld(){
+  var n = 0;
+  Object.keys(packOrders).forEach(function(k){
+    if(_packExpired(packOrders[k])){ delete packOrders[k]; _packMarkDirty(k, {del:true}); n++; }
+  });
+  if(n) packPushDirty();
+  return n;
+}
+function packFolderToggle(dk){
+  var cur = _packFolderOpen[dk];
+  if(cur === undefined) cur = _packFolderDefault(dk);
+  _packFolderOpen[dk] = !cur;
+  renderPacking();
+}
+function _packFolderDefault(dk){
+  if(dk === _ymd(new Date())) return true;
+  return Object.keys(packOrders).some(function(k){ return _packDateKey(packOrders[k]) === dk && packOrders[k].status === 'pending'; });   // pending wala folder band na rahe
+}
+function packExpand(key){ _packOpen[key] = !_packOpen[key]; renderPacking(); }
 var _packPushBusy = false, _packPushAgain = false, _packPullBusy = false, _packWatchTimer = null;
 
 function getPackPath(){ return getFirebaseUrl() + '/thejeans/' + SYNC_KEY + '/pack'; }
@@ -8337,6 +8375,17 @@ function packUpsertFromInvoice(inv, isEdit){
   _packMarkDirty(key, {meta:true, isNew:!old, reset:!!(old && changed)});
   _packUpdateBadge();
   packPushDirty();
+}
+// Packed By naam invoice me bharo (Manager/Admin device par). force=true => jo naam pehle se ho use bhi badal do
+function packApplyToInvoice(r, force){
+  if(IS_BILL_STAFF || !r || r.status !== 'packed' || !r.packedBy) return false;
+  var inv = (invoices || []).find(function(i){ return String(i.id) === String(r.id); });
+  if(!inv) return false;
+  if(inv.packedBy && !force) return false;
+  if(inv.packedBy === r.packedBy) return false;
+  inv.packedBy = r.packedBy;
+  try{ if(currentInv && String(currentInv.id) === String(inv.id)){ currentInv.packedBy = r.packedBy; if(currentPage === 'preview') buildPreview(currentInv); } }catch(e){}
+  return true;
 }
 function packRemoveByInvoiceId(id){
   var key = _packKey(id);
@@ -8404,6 +8453,7 @@ async function packPull(){
     Object.keys(cloud).forEach(function(k){
       var c = _packNorm(cloud[k], k); if(!c) return;
       var d = _packDirty[k], l = packOrders[k];
+      if(_packExpired(c)){ _packMarkDirty(k, {del:true}); return; }   // 1 hafte se purana — erase
       if(d && d.del) return;
       if(d && l){
         if(d.meta){
@@ -8425,20 +8475,19 @@ async function packPull(){
 
     // Manager/Admin: purane packed slips saaf karo + Packed By invoice me bhar do
     if(!IS_BILL_STAFF){
-      var cutoff = Date.now() - 3*24*3600*1000, invDirty = false;
+      var invDirty = false;
       Object.keys(packOrders).forEach(function(k){
         var r = packOrders[k];
-        if(r.status === 'packed' && r.packedAt && new Date(r.packedAt).getTime() < cutoff){
-          delete packOrders[k]; _packMarkDirty(k, {del:true}); return;
-        }
         if(r.status === 'packed' && r.packedBy && prevStatus[k] !== 'packed'){
-          var inv = (invoices || []).find(function(i){ return String(i.id) === String(r.id); });
-          if(inv && !inv.packedBy){ inv.packedBy = r.packedBy; invDirty = true; }
+          // abhi pack hua (status badla) => naam hamesha invoice me; pehli baar load par sirf khaali ho to
+          if(packApplyToInvoice(r, prevStatus[k] !== undefined)) invDirty = true;
         }
       });
       if(invDirty){ try{ LS.sync('invoices', invoices); }catch(e){} }
       packPushDirty();
     }
+    _packPurgeOld();
+    packPushDirty();
     _packUpdateBadge();
     if(currentPage === 'packing') renderPacking();
     try{ _packNotify(fresh, newlyPacked); }catch(ne){ console.log('[Pack] notify error:', ne); }
@@ -8494,8 +8543,8 @@ function _packUpdateBadge(){
 function packOpenPage(){
   var note = document.getElementById('packNote');
   if(note) note.innerHTML = IS_BILL_STAFF
-    ? '📦 <b>Pack karne wale invoices.</b> Amount blank hai (staff ko nahi dikhta). Mal invoice ke hisaab se pack karte hue har item ko <b>tick</b> karein; saare tick hone par <b>Mark as Packed</b> dabayein.'
-    : '📦 <b>Packing status.</b> Jo invoice aap save karte hain wo Staff ko blank-amount ke saath dikhta hai. Yahan dekh sakte hain kitna pack ho chuka hai.';
+    ? '📦 <b>Pack karne wale invoices</b> date ke folder mein hain. Invoice par tap karke list kholein, har item ko <b>tick</b> karein; saare tick hone par <b>Mark as Packed</b> dabayein. <i>Sirf pichhle 7 din ka record rehta hai, purana apne-aap hat jaata hai.</i>'
+    : '📦 <b>Packing status.</b> Jo invoice aap save karte hain wo Staff ko blank-amount ke saath dikhta hai. Date ke folder mein dekh sakte hain kitna pack ho chuka hai. <i>Sirf pichhle 7 din ka record rehta hai, purana apne-aap hat jaata hai.</i>';
   Object.keys(packOrders).forEach(function(k){ _packSeen[k] = 1; }); _packSeenSave();
   var pb = document.getElementById('packBanner'); if(pb) pb.remove();
   renderPacking();
@@ -8504,17 +8553,34 @@ function packOpenPage(){
 }
 function renderPacking(){
   var box = document.getElementById('packList'); if(!box) return;
-  var all = Object.keys(packOrders).map(function(k){ return packOrders[k]; });
-  var dayAgo = Date.now() - 24*3600*1000;
-  var pend = all.filter(function(r){ return r.status === 'pending'; })
-    .sort(function(a,b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });   // pehle aaya, pehle pack
-  var done = all.filter(function(r){ return r.status === 'packed' && (!r.packedAt || new Date(r.packedAt).getTime() >= dayAgo); })
-    .sort(function(a,b){ return String(b.packedAt || '').localeCompare(String(a.packedAt || '')); });
-  var h = '';
-  if(!pend.length) h += '<div class="pk-empty">✅ Abhi pack karne ke liye koi invoice nahi hai.<br><span style="font-size:11px;">Naya invoice aate hi yahan dikhega.</span></div>';
-  else h += '<div class="pk-h">Pack karna baaki (' + pend.length + ')</div>' + pend.map(_packCardHtml).join('');
-  if(done.length) h += '<div class="pk-h">Pack ho chuke — pichhle 24 ghante (' + done.length + ')</div>' + done.map(_packCardHtml).join('');
-  box.innerHTML = h;
+  _packPurgeOld();
+  var groups = {};
+  Object.keys(packOrders).forEach(function(k){
+    var r = packOrders[k], dk = _packDateKey(r);
+    (groups[dk] = groups[dk] || []).push(r);
+  });
+  var dates = Object.keys(groups).sort().reverse();   // naya din upar
+  if(!dates.length){
+    box.innerHTML = '<div class="pk-empty">✅ Abhi koi invoice nahi hai.<br><span style="font-size:11px;">Naya invoice aate hi uski date ke folder mein dikhega.</span></div>';
+    return;
+  }
+  var today = _ymd(new Date());
+  box.innerHTML = dates.map(function(dk){
+    var list = groups[dk];
+    var pend = list.filter(function(r){ return r.status === 'pending'; })
+      .sort(function(a,b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });   // pehle aaya, pehle pack
+    var done = list.filter(function(r){ return r.status === 'packed'; })
+      .sort(function(a,b){ return String(b.packedAt || '').localeCompare(String(a.packedAt || '')); });
+    var open = _packFolderOpen[dk]; if(open === undefined) open = _packFolderDefault(dk);
+    var p = dk.split('-'), dobj = new Date(+p[0], +p[1] - 1, +p[2]);
+    var label = dobj.toLocaleDateString('en-IN', {weekday:'short', day:'2-digit', month:'short', year:'numeric'}) + (dk === today ? ' · Aaj' : '');
+    var cnt = list.length + ' invoice' + (pend.length ? ' · <span style="color:#ffd54f;">' + pend.length + ' baaki</span>' : ' · ✅ sab packed');
+    return '<div class="pk-fold"><div class="pk-fh" onclick="packFolderToggle(\'' + dk + '\')">'
+      + '<span style="font-size:18px;">' + (open ? '&#128194;' : '&#128193;') + '</span><span>' + escH(label) + '</span>'
+      + '<span class="pk-fc">' + cnt + '</span></div>'
+      + (open ? '<div class="pk-fb">' + pend.concat(done).map(_packCardHtml).join('') + '</div>' : '')
+      + '</div>';
+  }).join('');
 }
 function _packCardHtml(r){
   var done = r.status === 'packed', n = _packTickCount(r), tot = r.items.length, qtySum = 0;
@@ -8540,10 +8606,15 @@ function _packCardHtml(r){
   if(!IS_BILL_STAFF){
     foot += '<button class="btn btn-outline" style="padding:8px 10px;font-size:11px;" onclick="packDelete(\'' + r.key + '\')">&#128465;</button>';
   }
+  var open = !!_packOpen[r.key];
+  var head = '<div class="pk-top" style="cursor:pointer;align-items:center;flex-wrap:nowrap;" onclick="packExpand(\'' + r.key + '\')">'
+    + '<div><div class="pk-inv">' + (done ? '✅ ' : '') + 'Invoice ' + escH(String(r.invNo || '')) + '</div>'
+    + '<div class="pk-meta"><b>' + escH(r.custName || '-') + '</b></div></div>'
+    + '<div style="font-size:18px;color:#1a3a2a;flex-shrink:0;">' + (open ? '&#9650;' : '&#9660;') + '</div></div>';
+  if(!open) return '<div class="pk-card' + (done ? ' done' : '') + '">' + head + '</div>';
   return '<div class="pk-card' + (done ? ' done' : '') + '">'
-    + '<div class="pk-top"><div><div class="pk-inv">Invoice ' + escH(String(r.invNo || '')) + '</div>'
-    + '<div class="pk-meta">Customer: <b>' + escH(r.custName || '-') + '</b></div></div>'
-    + '<div class="pk-meta" style="text-align:right;">' + escH(String(dt)) + (r.billedBy ? '<br>Billed by: ' + escH(r.billedBy) : '') + '</div></div>'
+    + head
+    + '<div class="pk-meta" style="padding:6px 12px;display:flex;justify-content:space-between;border-bottom:1px solid #eee;"><span>' + escH(String(dt)) + '</span><span>' + (r.billedBy ? 'Billed by: ' + escH(r.billedBy) : '') + '</span></div>'
     + '<div class="pk-bar"><i style="width:' + (tot ? Math.round(n * 100 / tot) : 0) + '%"></i></div>'
     + '<table class="pk-tbl"><thead><tr><th>#</th><th>Item</th><th style="text-align:center;">Qty</th><th>Amount</th><th style="text-align:center;">Pack</th></tr></thead><tbody>' + rows + '</tbody></table>'
     + '<div class="pk-foot">' + foot + '</div></div>';
@@ -8570,6 +8641,7 @@ function packMarkDone(key){
     try{ localStorage.setItem(PACK_WHO_LS, v); }catch(e){}
     r.status = 'packed'; r.packedBy = v; r.packedAt = new Date().toISOString();
     _packMarkDirty(key, {prog:true});
+    if(packApplyToInvoice(r, true)){ try{ LS.sync('invoices', invoices); }catch(e){} }   // Manager/Admin khud pack mark kare to bhi invoice me naam aaye
     _packUpdateBadge(); renderPacking(); packPushDirty();
     showToast('📦 Invoice ' + (r.invNo || '') + ' pack ho gaya' + (navigator.onLine ? '' : ' (offline — net aate hi chala jayega)'));
   });
