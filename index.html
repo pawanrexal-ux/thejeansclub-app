@@ -852,6 +852,11 @@ body.bill-staff #sendMgrBtn{display:inline-flex!important;}
 body.bill-staff #ig-invNo,
 body.bill-staff #gstTypeRow,
 body.bill-staff #t-gst-box,
+body.bill-staff #custPrevDueBox,
+body.bill-staff #ig-packedBy,
+body.bill-staff #discRow,
+body.bill-staff #discTotRow,
+body.bill-staff #noteCard,
 body.bill-staff #payCard,
 body.bill-staff #oldDueCard,
 body.bill-staff .item-row > select,
@@ -973,13 +978,13 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
           <button class="btn btn-outline" id="heldInvBtn" onclick="openHeldInvoicesModal()" style="margin-left:auto;flex-shrink:0;padding:6px 10px;font-size:11px;display:none;">&#128190; Held (<span id="heldInvCount">0</span>)</button>
           </div>
           <div class="card-body">
-            <div class="row2">
+            <div class="row2" id="invRow1">
               <div class="ig" id="ig-invNo"><label>Invoice No.</label><input type="text" id="invNo" placeholder="TJH/APR25/001"/></div>
               <div class="ig"><label>Date</label><input type="date" id="invDate"/></div>
             </div>
-            <div class="row2">
-              <div class="ig"><label>Billed By</label><input type="text" id="invBilledBy" list="invNamesList" placeholder="Bill kisne banaya" autocomplete="off"/></div>
-              <div class="ig"><label>Packed By</label><input type="text" id="invPackedBy" list="invNamesList" placeholder="Mal kisne pack kiya" autocomplete="off"/></div>
+            <div class="row2" id="invRow2">
+              <div class="ig" id="ig-billedBy"><label>Billed By</label><input type="text" id="invBilledBy" list="invNamesList" placeholder="Bill kisne banaya" autocomplete="off"/></div>
+              <div class="ig" id="ig-packedBy"><label>Packed By</label><input type="text" id="invPackedBy" list="invNamesList" placeholder="Mal kisne pack kiya" autocomplete="off"/></div>
             </div>
             <datalist id="invNamesList"></datalist>
           </div>
@@ -1000,13 +1005,13 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
           </div>
         </div>
         <div class="tot-box">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <div id="discRow" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
             <label style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);white-space:nowrap;font-family:Arial,sans-serif;">Discount Rs.</label>
             <input type="number" id="discount" value="0" inputmode="numeric" oninput="calcTotals()" style="flex:1;padding:7px 9px;"/>
           </div>
           <hr/>
           <div class="tot-row"><span class="tl" style="font-family:Arial,sans-serif;color:#546e7a;">Subtotal</span><span class="tv" id="t-sub" style="font-family:Arial,sans-serif;font-weight:700;color:#37474f;">Rs.0</span></div>
-          <div class="tot-row"><span class="tl" style="font-family:Arial,sans-serif;">Discount</span><span class="tv" id="t-disc" style="color:var(--red);font-family:Arial,sans-serif;font-weight:700;">-Rs.0</span></div>
+          <div class="tot-row" id="discTotRow"><span class="tl" style="font-family:Arial,sans-serif;">Discount</span><span class="tv" id="t-disc" style="color:var(--red);font-family:Arial,sans-serif;font-weight:700;">-Rs.0</span></div>
           <div id="gstTypeRow" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
             <label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);white-space:nowrap;font-family:Arial,sans-serif;">GST Type</label>
             <select id="inv-gst-type" onchange="calcTotals()" style="flex:1;padding:6px 8px;font-size:12px;font-family:Arial,sans-serif;border:1px solid var(--bdr);background:var(--ow);">
@@ -1017,7 +1022,7 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
           <div id="t-gst-box" style="display:none;"></div>
           <div class="tot-row grand"><span class="tl" style="font-family:Arial,sans-serif;font-weight:700;">TOTAL</span><span class="tv" id="t-total" style="font-family:Arial,sans-serif;font-weight:700;color:#c9a84c;">Rs.0</span></div>
         </div>
-        <div class="card"><div class="card-head"><div class="card-icon">&#128172;</div><div class="card-title">Note</div></div><div class="card-body"><textarea id="invNote" placeholder="Thank you for shopping!"></textarea></div></div>
+        <div class="card" id="noteCard"><div class="card-head"><div class="card-icon">&#128172;</div><div class="card-title">Note</div></div><div class="card-body"><textarea id="invNote" placeholder="Thank you for shopping!"></textarea></div></div>
         <div class="card" id="payCard"><div class="card-head"><div class="card-icon">&#128179;</div><div class="card-title">Payment Mode &amp; Status</div></div>
           <div class="card-body">
             <div class="row2">
@@ -5742,7 +5747,15 @@ var CURRENT_ROLE = 'admin'; // 'admin' or 'staff'  (internal 'staff' = ab screen
 var IS_BILL_STAFF = false;
 function getRoleLabel(){ return CURRENT_ROLE==='admin' ? 'Admin' : (IS_BILL_STAFF ? 'Staff' : 'Manager'); }
 function getRoleKey(){ return CURRENT_ROLE==='admin' ? 'admin' : (IS_BILL_STAFF ? 'billstaff' : 'manager'); }
-function _syncBillStaffClass(){ try{ document.body.classList.toggle('bill-staff', !!IS_BILL_STAFF); }catch(e){} }
+function _syncBillStaffClass(){ try{ document.body.classList.toggle('bill-staff', !!IS_BILL_STAFF); _arrangeInvForm(); }catch(e){} }
+// Staff ke liye Billed By, Date ke bagal me (Invoice No. ki jagah); Manager/Admin ke liye purani jagah (Packed By ke saath)
+function _arrangeInvForm(){
+  var b = document.getElementById('ig-billedBy'), r1 = document.getElementById('invRow1'),
+      r2 = document.getElementById('invRow2'), pk = document.getElementById('ig-packedBy');
+  if(!b || !r1 || !r2 || !pk) return;
+  if(IS_BILL_STAFF){ if(b.parentNode !== r1) r1.appendChild(b); }
+  else { if(b.parentNode !== r2) r2.insertBefore(b, pk); }
+}
 var STAFF_AUTH_DEFAULT = {user:'staff', pass:'staff@123'};
 
 // Staff ke liye restricted pages - in pages ko staff nahi dekh sakta
