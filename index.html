@@ -15951,7 +15951,7 @@ function renderSupLedger(){
     box.innerHTML = html; box.scrollTop = 0; return;
   }
 
-  var th = 'padding:9px 5px;font-size:10px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#3a3226;font-family:Arial,sans-serif;';
+  var th = 'padding:9px 5px;font-size:10px;letter-spacing:.3px;text-transform:uppercase;color:#fff;background:#14213d;font-family:Arial,sans-serif;';
   html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">'
     +'<thead><tr><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:center;">Qty</th>'
     +'<th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead><tbody>';
@@ -15968,6 +15968,7 @@ function renderSupLedger(){
         +'<td style="'+td+'"><div style="font-weight:700;color:var(--gd);font-size:14px;">&#128230; '+escH(p.item||'-')+'</div>'
         +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' &times; '+fmt(p.rate||0)+((p.freight>0)?' + frt '+fmt(p.freight):'')+'</div>'
         +(p.advanceAdjusted>0 ? '<div style="font-size:11.5px;color:#2e7d32;font-weight:700;">Advance adjust: '+fmt(p.advanceAdjusted)+'</div>' : '')
+        +(_supLedRemark(e) ? '<div style="font-size:11.5px;color:#7a5c12;font-style:italic;margin-top:3px;">&#128221; Remark: '+escH(_supLedRemark(e))+'</div>' : '')
         +'</td>'
         +'<td style="'+td+'text-align:center;font-weight:700;">'+(p.qty||0)+'</td>'
         +'<td style="'+td+'text-align:right;font-weight:700;">'+fmt(e.bill)+'</td>'
@@ -15977,14 +15978,15 @@ function renderSupLedger(){
       var r = e.o;
       html += '<tr style="background:#f7f4ff;">'
         +'<td style="'+td+'"><div style="font-weight:700;color:#5c35b5;font-size:14px;">&#128176; '+(r.orphan ? 'Supplier Payment / Advance (receipt is naam se nahi mili)' : 'Payment '+escH(r.spNo||''))+'</div>'
-        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+((r.supplier && _supKey(r.supplier)!==_supKey(name))?' | naam: '+escH(r.supplier):'')+'</div></td>'
+        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+((r.supplier && _supKey(r.supplier)!==_supKey(name))?' | naam: '+escH(r.supplier):'')+'</div>'
+        +(_supLedRemark(e) ? '<div style="font-size:11.5px;color:#7a5c12;font-style:italic;margin-top:3px;">&#128221; Remark: '+escH(_supLedRemark(e))+'</div>' : '')+'</td>'
         +'<td style="'+td+'text-align:center;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;color:var(--mu);">-</td>'
         +'<td style="'+td+'text-align:right;font-weight:700;color:#5c35b5;">'+fmt(e.paid)+'</td>'
         +'<td style="'+td+'text-align:right;">'+_supBalHtml(e.bal)+'</td></tr>';
     }
   });
-  var tf = 'padding:10px 5px;font-size:13.5px;font-weight:800;background:#efe9d8;border-top:2px solid #3a3226;';
+  var tf = 'padding:10px 5px;font-size:13.5px;font-weight:800;background:#efe9d8;border-top:2px solid #14213d;';
   html += '<tr><td style="'+tf+'">TOTAL</td><td style="'+tf+'text-align:center;">'+tQty+'</td>'
     +'<td style="'+tf+'text-align:right;">'+fmt(tBill)+'</td><td style="'+tf+'text-align:right;color:#5c35b5;">'+fmt(tPaid)+'</td>'
     +'<td style="'+tf+'text-align:right;">'+_supBalHtml(closing, true)+'</td></tr>';
@@ -16029,21 +16031,139 @@ function downloadSupLedgerExcel(){
   aoa.push(['Closing Balance', _supBalTxt(D.closing)]);
   aoa.push([]);
   var headRow = aoa.length;
-  aoa.push(['Date','Type','Details','Qty','Purchase (Rs)','Paid (Rs)','Balance (Rs)','Balance Status']);
+  aoa.push(['Date','Type','Details','Remarks','Qty','Purchase (Rs)','Paid (Rs)','Balance (Rs)','Balance Status']);
   function stat(b){ return b>0.004 ? 'Baaki' : (b<-0.004 ? 'Advance' : 'Clear'); }
   if(D.rg.from){
-    aoa.push([_supFmtD(D.rg.from)+' se pehle','Opening','Opening Balance','','','',Math.abs(D.opening),stat(D.opening)]);
+    aoa.push([_supFmtD(D.rg.from)+' se pehle','Opening','Opening Balance','','','','',Math.abs(D.opening),stat(D.opening)]);
   }
   D.rows.forEach(function(e){
-    aoa.push([_supFmtD(e.date), e.t==='P'?'Purchase':'Payment', _supLedDetailTxt(e), e.qty||'', e.bill||'', e.paid||'', Math.abs(e.bal), stat(e.bal)]);
+    aoa.push([_supFmtD(e.date), e.t==='P'?'Purchase':'Payment', _supLedDetailTxt(e), _supLedRemark(e), e.qty||'', e.bill||'', e.paid||'', Math.abs(e.bal), stat(e.bal)]);
   });
-  aoa.push(['','TOTAL','',D.tQty,D.tBill,D.tPaid,Math.abs(D.closing),stat(D.closing)]);
+  aoa.push(['','TOTAL','','',D.tQty,D.tBill,D.tPaid,Math.abs(D.closing),stat(D.closing)]);
   var ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{wch:16},{wch:11},{wch:58},{wch:8},{wch:15},{wch:15},{wch:15},{wch:15}];
+  ws['!cols'] = [{wch:16},{wch:11},{wch:50},{wch:34},{wch:8},{wch:15},{wch:15},{wch:15},{wch:15}];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
   XLSX.writeFile(wb, _supLedFileName(D,'xlsx'));
   showToast('Ledger Excel downloaded!');
+}
+
+// ===== Professional Supplier Ledger sheet (PDF) — navy/gold, logo + Remarks =====
+function _supLedRemark(e){ return String((e && e.o && e.o.notes) || '').trim(); }
+function _supLedPdfHtml(D, biz, W){
+  var NAVY = '#14213d', GOLD = '#b8964e', SOFT = '#faf6ec', PAIDC = '#1f5f8b';
+  var S = (typeof SETTINGS!=='undefined' && SETTINGS) ? SETTINGS : {};
+  function balC(b){ b = Math.round(b*100)/100; return b>0.004 ? '#b4530a' : (b<-0.004 ? '#2e7d32' : '#1e6e3a'); }
+  function balH(b){
+    b = Math.round(b*100)/100;
+    var t = b>0.004 ? 'Baaki' : (b<-0.004 ? 'Advance' : 'Clear');
+    return '<div style="font-weight:700;color:'+balC(b)+';">'+_supRsN(Math.abs(b))+'</div>'
+      +'<div style="font-size:9.5px;letter-spacing:.6px;text-transform:uppercase;color:'+balC(b)+';">'+t+'</div>';
+  }
+  function badge(txt, bg, fg){ return '<span style="display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.9px;padding:2px 6px;border-radius:2px;background:'+bg+';color:'+fg+';margin-bottom:3px;">'+txt+'</span>'; }
+  var today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  var hasLogo = (typeof LOGO_URL!=='undefined') && LOGO_URL && String(LOGO_URL).indexOf('data:image')===0;
+  var logo = hasLogo
+    ? '<img src="'+LOGO_URL+'" alt="" style="width:66px;height:66px;object-fit:contain;display:block;"/>'
+    : '<div style="width:66px;height:66px;border-radius:50%;background:'+NAVY+';color:'+GOLD+';font:700 24px/66px Georgia,serif;text-align:center;">JH</div>';
+  var contact = [S.addr, S.ph?('Ph: '+S.ph):'', S.gst?('GSTIN: '+S.gst):''].filter(Boolean).join('  |  ');
+  var cCol = balC(D.closing);
+  var cColDark = D.closing>0.004 ? '#ffd27a' : '#9be3ad';
+
+  var th = 'padding:10px 7px;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#fff;background:'+NAVY+';border-bottom:2px solid '+GOLD+';font-weight:700;';
+  var td = 'padding:9px 7px;border-bottom:1px solid #e4e0d4;font-size:13px;vertical-align:top;color:#1c1c1c;';
+
+  var body = '';
+  if(D.rg.from){
+    body += '<tr class="brk" style="background:#f3efe2;"><td style="'+td+'font-weight:700;" colspan="6">Opening Balance <span style="font-weight:400;font-size:11px;color:#555;">('+escH(_supFmtD(D.rg.from))+' se pehle ka)</span></td>'
+      +'<td style="'+td+'text-align:right;">'+balH(D.opening)+'</td></tr>';
+  }
+  D.rows.forEach(function(e,i){
+    var bg = i%2 ? '#fcfbf7' : '#fff', det, rem = _supLedRemark(e);
+    if(e.t==='P'){
+      var p = e.o;
+      det = badge('PURCHASE','#e8edf7',NAVY)
+        +'<div style="font-weight:700;font-size:14px;">'+escH(p.item||'-')+'</div>'
+        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+(p.qty||0)+' x '+_supRsN(p.rate||0)+((p.freight>0)?' + frt '+_supRsN(p.freight):'')+'</div>'
+        +(p.advanceAdjusted>0 ? '<div style="font-size:11.5px;color:#2e7d32;font-weight:700;">Advance adjust: '+_supRsN(p.advanceAdjusted)+'</div>' : '');
+    } else {
+      var r = e.o; bg = '#fbf6ea';
+      det = badge('PAYMENT','#f3e7c7','#7a5c12')
+        +'<div style="font-weight:700;font-size:14px;color:#7a5c12;">'+(r.orphan ? 'Supplier Payment / Advance' : escH(r.spNo||'Payment'))+'</div>'
+        +'<div style="font-size:11.5px;color:#555;margin-top:2px;">'+escH(r.payMode||'')+(r.ref?' | '+escH(r.ref):'')+'</div>';
+    }
+    body += '<tr class="brk" style="background:'+bg+';">'
+      +'<td style="'+td+'font-size:12px;">'+escH(_supFmtD(e.date))+'</td>'
+      +'<td style="'+td+'">'+det+'</td>'
+      +'<td style="'+td+'font-size:12px;color:#5a4a1f;font-style:italic;word-wrap:break-word;">'+(rem?escH(rem):'<span style="color:#bbb;font-style:normal;">-</span>')+'</td>'
+      +'<td style="'+td+'text-align:center;font-weight:700;">'+(e.qty||'-')+'</td>'
+      +'<td style="'+td+'text-align:right;font-weight:700;">'+(e.bill?_supRsN(e.bill):'-')+'</td>'
+      +'<td style="'+td+'text-align:right;font-weight:700;color:'+PAIDC+';">'+(e.paid>0?_supRsN(e.paid):'-')+'</td>'
+      +'<td style="'+td+'text-align:right;">'+balH(e.bal)+'</td></tr>';
+  });
+  var tf = 'padding:11px 7px;font-size:14px;font-weight:800;background:#ece4cc;border-top:2px solid '+NAVY+';';
+  body += '<tr class="brk"><td style="'+tf+'" colspan="3">TOTAL</td>'
+    +'<td style="'+tf+'text-align:center;">'+D.tQty+'</td>'
+    +'<td style="'+tf+'text-align:right;">'+_supRsN(D.tBill)+'</td>'
+    +'<td style="'+tf+'text-align:right;color:'+PAIDC+';">'+_supRsN(D.tPaid)+'</td>'
+    +'<td style="'+tf+'text-align:right;">'+balH(D.closing)+'</td></tr>';
+
+  function card(l, v, c, dark, last){
+    return '<td style="width:25%;padding:12px 8px;background:'+(dark?NAVY:SOFT)+';border-top:3px solid '+GOLD+';'+(last?'':'border-right:5px solid #fff;')+'text-align:center;">'
+      +'<div style="font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;font-weight:700;color:'+(dark?GOLD:'#7a6a3a')+';">'+l+'</div>'
+      +'<div style="font-size:16px;font-weight:700;margin-top:5px;color:'+c+';">'+v+'</div></td>';
+  }
+  var lbl = 'font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;color:#7a6a3a;';
+  var cw = W - 52;
+  var html = '<div id="supLedPdfRoot" style="font-family:Arial,Helvetica,sans-serif;width:'+W+'px;padding:26px 26px 20px;box-sizing:border-box;background:#fff;color:#111;">'
+    // ---- letterhead
+    +'<table style="width:100%;border-collapse:collapse;"><tr>'
+    +'<td style="width:78px;vertical-align:middle;">'+logo+'</td>'
+    +'<td style="vertical-align:middle;padding-left:8px;">'
+      +'<div style="font-family:Georgia,\'Times New Roman\',serif;font-size:27px;font-weight:700;color:'+NAVY+';letter-spacing:.4px;">'+escH(biz)+'</div>'
+      +(contact?'<div style="font-size:10.5px;color:#666;margin-top:4px;">'+escH(contact)+'</div>':'')
+    +'</td>'
+    +'<td style="vertical-align:middle;text-align:right;">'
+      +'<div style="font-size:10px;letter-spacing:2.5px;color:#777;font-weight:700;">STATEMENT OF ACCOUNT</div>'
+      +'<div style="font-size:20px;font-weight:700;color:'+NAVY+';letter-spacing:1px;margin-top:3px;">SUPPLIER LEDGER</div>'
+      +'<div style="font-size:11px;color:#555;margin-top:4px;">Date: <b>'+today+'</b></div>'
+    +'</td></tr></table>'
+    +'<div style="height:3px;background:'+NAVY+';margin-top:12px;"></div><div style="height:1px;background:'+GOLD+';margin-top:2px;"></div>'
+    // ---- supplier + period
+    +'<table style="width:100%;border-collapse:collapse;margin:14px 0;"><tr>'
+    +'<td style="width:55%;padding:10px 14px;background:'+SOFT+';border-left:4px solid '+GOLD+';"><div style="'+lbl+'">Supplier</div>'
+      +'<div style="font-size:20px;font-weight:700;color:'+NAVY+';margin-top:3px;">'+escH(D.name)+'</div></td>'
+    +'<td style="width:45%;padding:10px 14px;background:'+SOFT+';"><div style="'+lbl+'">Statement Period</div>'
+      +'<div style="font-size:14px;font-weight:700;margin-top:3px;">'+escH(D.label)+'</div>'
+      +'<div style="font-size:11px;color:#666;margin-top:2px;">'+D.rows.length+' entr'+(D.rows.length===1?'y':'ies')+'</div></td>'
+    +'</tr></table>'
+    // ---- summary cards
+    +'<table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><tr>'
+      + card('Opening', _supBalTxt(D.opening,true), balC(D.opening))
+      + card('Total Purchase', _supRsN(D.tBill), NAVY)
+      + card('Total Paid', _supRsN(D.tPaid), PAIDC)
+      + card('Closing Balance', _supBalTxt(D.closing), cColDark, true, true)
+    +'</tr></table>'
+    // ---- ledger table
+    +'<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
+    +'<colgroup><col style="width:'+Math.round(cw*0.108)+'px"/><col style="width:'+Math.round(cw*0.255)+'px"/><col style="width:'+Math.round(cw*0.19)+'px"/>'
+    +'<col style="width:'+Math.round(cw*0.058)+'px"/><col style="width:'+Math.round(cw*0.13)+'px"/><col style="width:'+Math.round(cw*0.13)+'px"/><col style="width:'+Math.round(cw*0.129)+'px"/></colgroup>'
+    +'<thead id="supLedPdfHead"><tr><th style="'+th+'text-align:left;">Date</th><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:left;">Remarks</th>'
+    +'<th style="'+th+'text-align:center;">Qty</th><th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead>'
+    +'<tbody>'+body+'</tbody></table>'
+    // ---- closing statement
+    +'<div class="brk" style="margin-top:14px;padding:12px 14px;border:1px solid '+GOLD+';background:'+SOFT+';text-align:center;font-size:13.5px;line-height:1.7;">'
+      +'Hisaab: Opening '+escH(_supBalTxt(D.opening,true))+' + Purchase '+_supRsN(D.tBill)+' &minus; Paid '+_supRsN(D.tPaid)+' = <b style="font-size:16px;color:'+cCol+';">'+escH(_supBalTxt(D.closing))+'</b></div>'
+    // ---- signatures
+    +'<div class="brk" style="margin-top:44px;"><table style="width:100%;border-collapse:collapse;"><tr>'
+      +'<td style="width:42%;border-top:1px solid #888;text-align:center;padding-top:5px;font-size:11px;color:#555;">Supplier Signature / Stamp</td>'
+      +'<td style="width:16%;"></td>'
+      +'<td style="width:42%;border-top:1px solid #888;text-align:center;padding-top:5px;font-size:11px;color:#555;">For '+escH(biz)+' &mdash; Authorised Signatory</td>'
+    +'</tr></table></div>'
+    +'<div style="text-align:center;margin-top:16px;padding-top:8px;border-top:1px solid #e4e0d4;font-size:10px;color:#888;letter-spacing:.8px;">'
+      +'Computer generated statement &middot; '+escH(biz)+' Business Suite &middot; '+today+'</div>'
+    +'</div>';
+  return html;
 }
 
 async function downloadSupLedgerPDF(){
@@ -16055,68 +16175,7 @@ async function downloadSupLedgerPDF(){
   try{
     var biz = (typeof SETTINGS!=='undefined' && SETTINGS && SETTINGS.biz) ? SETTINGS.biz : 'The Jeans House';
     var W = 720; // css px; A4 par fit hoke text bada dikhta hai
-    var cC = D.closing>0.004 ? '#c45e00' : (D.closing<-0.004 ? '#2e7d32' : '#1e6e3a');
-    var th = 'padding:10px 8px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:#fff;background:#1a3a2a;';
-    var td = 'padding:10px 8px;border-bottom:1px solid #ddd;font-size:15px;vertical-align:top;color:#111;';
-    function balC(b){ b=Math.round(b*100)/100; return b>0.004 ? '#c45e00' : (b<-0.004 ? '#2e7d32' : '#1e6e3a'); }
-    function balH(b){
-      b = Math.round(b*100)/100;
-      var t = b>0.004 ? 'Baaki' : (b<-0.004 ? 'Advance' : 'Clear');
-      return '<div style="font-weight:700;color:'+balC(b)+';">'+_supRsN(Math.abs(b))+'</div><div style="font-size:11px;color:'+balC(b)+';">'+t+'</div>';
-    }
-    function box(l,v,c,last){
-      return '<td style="padding:10px 6px;text-align:center;'+(last?'':'border-right:1px solid #ccc;')+'"><div style="font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:#555;font-weight:700;">'+l+'</div>'
-        +'<div style="font-size:17px;font-weight:700;color:'+c+';margin-top:4px;">'+v+'</div></td>';
-    }
-    var body = '';
-    if(D.rg.from){
-      body += '<tr class="brk" style="background:#f1eee6;"><td style="'+td+'font-weight:700;" colspan="4">Opening Balance <span style="font-weight:400;font-size:12px;">('+escH(_supFmtD(D.rg.from))+' se pehle ka)</span></td><td style="'+td+'text-align:right;">'+balH(D.opening)+'</td></tr>';
-    }
-    D.rows.forEach(function(e,i){
-      var bg = e.t==='P' ? (i%2?'#fafafa':'#fff') : '#f4f0ff';
-      var det;
-      if(e.t==='P'){
-        var p = e.o;
-        det = '<div style="font-weight:700;font-size:16px;">'+escH(p.item||'-')+'</div>'
-          +'<div style="font-size:13px;color:#444;margin-top:2px;">'+escH(_supFmtD(p.date))+' | '+(p.qty||0)+' x '+_supRsN(p.rate||0)+((p.freight>0)?' + frt '+_supRsN(p.freight):'')+'</div>'
-          +(p.advanceAdjusted>0 ? '<div style="font-size:13px;color:#2e7d32;font-weight:700;">Advance adjust: '+_supRsN(p.advanceAdjusted)+'</div>' : '');
-      } else {
-        var r = e.o;
-        det = '<div style="font-weight:700;font-size:16px;color:#5c35b5;">'+(r.orphan ? 'Supplier Payment / Advance' : 'Payment '+escH(r.spNo||''))+'</div>'
-          +'<div style="font-size:13px;color:#444;margin-top:2px;">'+escH(_supFmtD(r.date))+(r.payMode?' | '+escH(r.payMode):'')+(r.ref?' | '+escH(r.ref):'')+'</div>';
-      }
-      body += '<tr class="brk" style="background:'+bg+';"><td style="'+td+'">'+det+'</td>'
-        +'<td style="'+td+'text-align:center;font-weight:700;">'+(e.qty||'-')+'</td>'
-        +'<td style="'+td+'text-align:right;font-weight:700;">'+(e.bill?_supRsN(e.bill):'-')+'</td>'
-        +'<td style="'+td+'text-align:right;color:#5c35b5;font-weight:700;">'+(e.paid>0?_supRsN(e.paid):'-')+'</td>'
-        +'<td style="'+td+'text-align:right;">'+balH(e.bal)+'</td></tr>';
-    });
-    var tf = 'padding:12px 8px;font-size:16px;font-weight:800;background:#e9e2cc;border-top:2px solid #1a3a2a;';
-    body += '<tr class="brk"><td style="'+tf+'">TOTAL</td><td style="'+tf+'text-align:center;">'+D.tQty+'</td>'
-      +'<td style="'+tf+'text-align:right;">'+_supRsN(D.tBill)+'</td><td style="'+tf+'text-align:right;color:#5c35b5;">'+_supRsN(D.tPaid)+'</td>'
-      +'<td style="'+tf+'text-align:right;">'+balH(D.closing)+'</td></tr>';
-
-    var html = '<div id="supLedPdfRoot" style="font-family:Arial,sans-serif;width:'+W+'px;padding:26px;box-sizing:border-box;background:#fff;color:#111;">'
-      +'<div style="text-align:center;margin-bottom:16px;">'
-      +'<div style="font-size:28px;font-weight:700;color:#1a3a2a;">'+escH(biz)+'</div>'
-      +'<div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#555;margin-top:4px;">Supplier Ledger</div>'
-      +'<div style="font-size:21px;font-weight:700;margin-top:8px;">'+escH(D.name)+'</div>'
-      +'<div style="font-size:15px;color:#333;margin-top:4px;">Period: <b>'+escH(D.label)+'</b></div>'
-      +'</div>'
-      +'<table style="width:100%;border-collapse:collapse;border:1px solid #ccc;margin-bottom:16px;background:#f8f6ef;"><tr>'
-      + box('Opening', _supBalTxt(D.opening,true), balC(D.opening))
-      + box('Purchase', _supRsN(D.tBill), '#1a3a2a')
-      + box('Paid', _supRsN(D.tPaid), '#5c35b5')
-      + box('Closing', _supBalTxt(D.closing), cC, true)
-      +'</tr></table>'
-      +'<table style="width:100%;border-collapse:collapse;">'
-      +'<thead id="supLedPdfHead"><tr><th style="'+th+'text-align:left;">Details</th><th style="'+th+'text-align:center;">Qty</th>'
-      +'<th style="'+th+'text-align:right;">Purchase</th><th style="'+th+'text-align:right;">Paid</th><th style="'+th+'text-align:right;">Balance</th></tr></thead>'
-      +'<tbody>'+body+'</tbody></table>'
-      +'<div class="brk" style="margin-top:14px;padding:12px;background:#fafafa;border:1px solid #ddd;text-align:center;font-size:15px;line-height:1.7;">'
-      +'Hisaab: Opening '+escH(_supBalTxt(D.opening,true))+' + Purchase '+_supRsN(D.tBill)+' &minus; Paid '+_supRsN(D.tPaid)+' = <b style="color:'+cC+';">'+escH(_supBalTxt(D.closing))+'</b></div>'
-      +'<div style="text-align:center;margin-top:14px;font-size:11px;color:#666;letter-spacing:1px;">Generated by '+escH(biz)+' Business Suite &middot; '+new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'</div>'
-      +'</div>';
+    var html = _supLedPdfHtml(D, biz, W);
 
     var wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:fixed;left:-9999px;top:0;';
