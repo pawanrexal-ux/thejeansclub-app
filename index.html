@@ -19240,17 +19240,27 @@ function _odReset(){
   window.alBack = function(){
     var sel = document.getElementById('al-acct'); if(sel) sel.value = '';
     renderAcctLedger();
-    window.scrollTo(0,0);
+    alTop();
   };
+  // scrollIntoView / window.scrollTo poore layout ko khiska deta tha (header upar chala jata tha) — ab sirf content area upar scroll hota hai
+  function alTop(){
+    var ids = ['contentArea'];
+    ids.forEach(function(i){ var e = document.getElementById(i); if(e) e.scrollTop = 0; });
+    ['main-area','app-layout'].forEach(function(c){ var e = document.querySelector('.'+c); if(e){ e.scrollTop = 0; } });
+    if(document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    if(document.body) document.body.scrollTop = 0;
+  }
+  window.alTop = alTop;
   window.alClearDates = function(){ document.getElementById('al-from').value=''; document.getElementById('al-to').value=''; renderAcctLedger(); };
   window.alPickIdx = function(i){
     var n = (window._alNames||[])[i]; if(n===undefined) return;
     var sel = document.getElementById('al-acct'); if(sel){ sel.value = n; }
     renderAcctLedger();
-    var st = document.getElementById('al-statement'); if(st && st.scrollIntoView) st.scrollIntoView({behavior:'smooth', block:'start'});
+    alTop();
   };
 
   window.renderAcctLedger = function(){
+    try{ alTop(); }catch(e){}
     var E = buildEntries();
     var names = allNames(E);
     window._alNames = names;
