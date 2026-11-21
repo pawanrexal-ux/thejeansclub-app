@@ -19237,6 +19237,11 @@ function _odReset(){
   var TYPE_CLR = {Invoice:'#1565c0', Receipt:'#2e7d32', Expense:'#c62828', Purchase:'#e65100', Supplier:'#6a1b9a'};
   function badge(t){ return '<span style="display:inline-block;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:'+(TYPE_CLR[t]||'#555')+';border-radius:3px;">'+escH(t)+'</span>'; }
 
+  window.alBack = function(){
+    var sel = document.getElementById('al-acct'); if(sel) sel.value = '';
+    renderAcctLedger();
+    window.scrollTo(0,0);
+  };
   window.alClearDates = function(){ document.getElementById('al-from').value=''; document.getElementById('al-to').value=''; renderAcctLedger(); };
   window.alPickIdx = function(i){
     var n = (window._alNames||[])[i]; if(n===undefined) return;
@@ -19274,7 +19279,7 @@ function _odReset(){
         + '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;"><span style="color:#2e7d32;">In: <b>'+fmt(c.tin)+'</b></span><span style="color:#c62828;">Out: <b>'+fmt(c.tout)+'</b></span><span style="color:#1a237e;">Balance: <b>'+fmt(c.closing)+'</b></span></div>'
         + '</div>';
     });
-    sum.innerHTML = sh;
+    sum.innerHTML = cur ? '' : sh;
 
     if(!cur){ stm.innerHTML = '<div style="text-align:center;font-size:12px;color:var(--mu);font-family:Arial,sans-serif;padding:8px;">Statement dekhne ke liye upar kisi account par tap karein.</div>'; return; }
 
@@ -19284,7 +19289,7 @@ function _odReset(){
     var thr = 'style="text-align:right;padding:7px 8px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;background:#1a3a2a;color:#fff;white-space:nowrap;"';
     var td = 'style="padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top;"';
     var tdr = 'style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;vertical-align:top;"';
-    var t = '<div style="background:#fff;border:1px solid var(--bdr);margin-top:4px;"><div style="padding:10px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:14px;border-bottom:1px solid var(--bdr);">&#127974; '+escH(label(cur))+' &mdash; Statement</div>'
+    var t = '<div style="background:#fff;border:1px solid var(--bdr);margin-top:4px;"><div style="padding:10px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:14px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;"><button class="btn btn-outline" onclick="alBack()" style="padding:6px 12px;font-size:13px;flex-shrink:0;">&#8592; Back</button><span>&#127974; '+escH(label(cur))+' &mdash; Statement</span></div>'
       + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;min-width:560px;">'
       + '<thead><tr><th '+th+'>Date</th><th '+th+'>Details</th><th '+th+'>Invoice / Ref</th><th '+thr+'>In (Cr)</th><th '+thr+'>Out (Dr)</th><th '+thr+'>Balance</th></tr></thead><tbody>';
     if(from || Math.abs(c.opening) > 0.004){
