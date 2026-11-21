@@ -937,6 +937,7 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
       <div class="nav-item" onclick="navTo('salesreport',this)"><span class="nav-icon">&#128200;</span>Sales Report</div>
       <div class="nav-item" onclick="navTo('profitreport',this)" id="navitem-profitreport"><span class="nav-icon">&#128202;</span>Item Profit</div>
 
+      <div class="nav-item" id="navitem-acctledger" onclick="navTo('acctledger',this)"><span class="nav-icon">&#127974;</span>Account Ledger</div>
       <div class="nav-item" id="navitem-pl" onclick="navTo('pnl',this)"><span class="nav-icon">&#128185;</span>P&amp;L Dashboard</div>
       <div class="nav-sec">Expenses</div>
       <div class="nav-item" onclick="navTo('expenses',this)"><span class="nav-icon">&#128181;</span>Expense Dashboard</div>
@@ -1042,6 +1043,7 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
                 <select id="invPayStatus" onchange="onPayStatusChange()"><option value="Paid">&#9989; Paid — Poora mil gaya</option><option value="Pending">&#9203; Pending — Abhi nahi mila</option><option value="Partial">&#128203; Partial — Kuch mila, kuch baaki</option></select>
               </div>
             </div>
+            <div class="ig" id="invRecvAcctWrap" style="display:none;margin-top:2px;"><label>&#127974; Paisa kiske account me aaya? (UPI / Bank)</label><select id="invRecvAcct"></select></div>
             <!-- Dynamic helper text based on status -->
             <div id="payStatusHelper" style="display:none;font-size:11px;font-family:Arial,sans-serif;padding:7px 10px;border-radius:2px;margin-bottom:2px;"></div>
             <!-- FULL PAID: Split section (only when Paid + Split mode) -->
@@ -1411,6 +1413,7 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
                 <select id="pp-payMode" onchange="onPPPayModeChange()"><option value="Cash">Cash</option><option value="UPI">UPI</option><option value="Bank">Bank Transfer</option><option value="Split">Split (Cash + UPI)</option></select>
               </div>
             </div>
+            <div class="ig" id="ppRecvAcctWrap" style="display:none;margin-top:8px;"><label>&#127974; Paisa kiske account me aaya? (UPI / Bank)</label><select id="pp-recvAcct"></select></div>
           </div>
         </div>
         <div class="card">
@@ -1995,6 +1998,25 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
       </div>
 
       <!-- ADD EXPENSE -->
+      <div class="page" id="page-acctledger">
+        <div class="card">
+          <div class="card-head"><div class="card-icon">&#127974;</div><div class="card-title">Account Ledger (UPI / Bank)</div></div>
+          <div class="card-body">
+            <div class="ig"><label>Account</label><select id="al-acct" onchange="renderAcctLedger()" style="font-family:Arial,sans-serif;"></select></div>
+            <div class="row2">
+              <div class="ig"><label>From</label><input type="date" id="al-from" onchange="renderAcctLedger()"/></div>
+              <div class="ig"><label>To</label><input type="date" id="al-to" onchange="renderAcctLedger()"/></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline" style="flex:1;" onclick="alClearDates()">Clear Dates</button>
+              <button class="btn btn-gold" style="flex:1;" onclick="acctLedgerExcel()">&#128202; Excel</button>
+            </div>
+          </div>
+        </div>
+        <div id="al-summary"></div>
+        <div id="al-statement"></div>
+      </div>
+
       <div class="page" id="page-expensenew">
         <div class="card">
           <div class="card-head"><div class="card-icon">&#128176;</div><div class="card-title">Add New Expense</div></div>
@@ -2081,6 +2103,13 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
               <span id="dataWindowLabel" style="font-size:12px;font-weight:700;color:var(--gd);font-family:Arial,sans-serif;">Sab data local mein maujood hai</span>
             </div>
             <button class="btn btn-outline btn-full" onclick="forcSync()">&#8635; Sync Now</button>
+          </div>
+        </div>
+        <div class="set-section" id="recv-acct-section"><div class="set-head">&#127974; Payment Accounts (UPI / Bank) &mdash; Ledger</div>
+          <div class="set-body">
+            <div style="font-size:12px;color:var(--mu);font-family:Arial,sans-serif;margin-bottom:10px;line-height:1.5;">Jin logon ke account me UPI / Bank ka paisa aata hai unka naam yahan add karein (jaise: Pk, Papa, Wife). Invoice, Payment Receipt, Purchase, Expense aur Pay Supplier me UPI / Bank select karne par yahi naam dropdown me dikhenge, aur har account ka alag ledger (Finance &gt; Account Ledger) ban jayega.</div>
+            <div id="recvAcctList" style="margin-bottom:10px;"></div>
+            <div class="ig"><label>Naya naam add karein</label><div style="display:flex;gap:8px;"><input type="text" id="set-recvAcctNew" placeholder="e.g. Papa" maxlength="30" style="font-family:Arial,sans-serif;flex:1;" onkeydown="if(event.key==='Enter'){addRecvAcct();}"/><button class="btn btn-green" onclick="addRecvAcct()" style="white-space:nowrap;">+ Add</button></div></div>
           </div>
         </div>
         <div class="set-section"><div class="set-head">&#128293; Firebase Sync Setup</div>
@@ -5703,7 +5732,7 @@ function openCustHist(name){
 
   var html = '';
   custInvs.forEach(function(inv){
-    var pb1 = '<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>';
+    var pb1 = '<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>'+_acctChip(inv);
     var pb2 = '<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(inv.payStatus||'Pending')+'</span>';
     var itemsList = (inv.items||[]).map(function(it){ return escH(it.name)+'  ×'+it.qty; }).join('<br>');
     var pendingAmt = inv.total - (inv.paidAmount!=null?inv.paidAmount:(inv.payStatus==='Paid'?inv.total:0));
@@ -5812,7 +5841,7 @@ function staffCanAccess(page){
   // Settings always blocked for staff
   if(page === 'settings') return false;
   // pnl, profitreport, editlog, loginlog, supplierpay, suppaypreview always blocked for staff
-  if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog') return false;
+  if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog' || page === 'acctledger') return false;
   if(page === 'supplierpay' || page === 'suppaypreview' || page === 'supplierpending' || page === 'supplierhistory') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
@@ -6394,6 +6423,165 @@ function changePassword(){
   });
 }
 
+// ===== PAYMENT RECEIVING ACCOUNTS (UPI / Bank ka paisa kiske account me aaya) =====
+function getRecvAccts(){
+  var a = (typeof SETTINGS!=='undefined' && SETTINGS && SETTINGS.recvAccts) || [];
+  return Array.isArray(a) ? a.filter(function(x){ return typeof x==='string' && x.trim(); }) : [];
+}
+function _saveRecvAccts(list){
+  SETTINGS.recvAccts = list;
+  LS.sync('settings', SETTINGS);
+}
+var _recvAcctEditIdx = null;
+function renderRecvAcctSettings(){
+  var sec = document.getElementById('recv-acct-section');
+  if(sec) sec.style.display = (CURRENT_ROLE==='admin') ? '' : 'none';
+  var box = document.getElementById('recvAcctList'); if(!box) return;
+  var list = getRecvAccts();
+  if(!list.length){
+    box.innerHTML = '<div style="padding:10px 12px;border:1px dashed var(--bdr);font-size:12px;color:var(--mu);font-family:Arial,sans-serif;text-align:center;">Abhi koi account add nahi hai. Neeche se naam add karein.</div>';
+    return;
+  }
+  box.innerHTML = list.map(function(n,i){
+    if(_recvAcctEditIdx === i){
+      return '<div style="padding:9px 12px;border:1px solid #3949ab;background:#f5f7ff;margin-bottom:6px;">'
+        +'<input type="text" id="recvAcctEditInp" maxlength="30" value="'+escH(n)+'" style="font-family:Arial,sans-serif;width:100%;margin-bottom:8px;" onkeydown="if(event.key===\'Enter\'){saveRecvAcctEdit('+i+');}"/>'
+        +'<div style="display:flex;gap:8px;">'
+        +'<button class="btn btn-green" style="padding:6px 14px;font-size:11px;flex:1;" onclick="saveRecvAcctEdit('+i+')">&#10003; Save</button>'
+        +'<button class="btn btn-outline" style="padding:6px 14px;font-size:11px;flex:1;" onclick="cancelRecvAcctEdit()">Cancel</button></div></div>';
+    }
+    return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--bdr);background:#fff;margin-bottom:6px;">'
+      +'<span style="font-family:Arial,sans-serif;font-weight:700;font-size:13px;">&#127974; '+escH(n)+'</span>'
+      +'<span style="display:flex;gap:6px;flex-shrink:0;">'
+      +'<button class="btn btn-gold" style="padding:4px 10px;font-size:10px;" onclick="startRecvAcctEdit('+i+')">&#9998; Edit</button>'
+      +'<button class="btn btn-red" style="padding:4px 10px;font-size:10px;" onclick="removeRecvAcct('+i+')">Remove</button></span></div>';
+  }).join('');
+  if(_recvAcctEditIdx !== null){ var inp = document.getElementById('recvAcctEditInp'); if(inp){ try{ inp.focus(); inp.select(); }catch(e){} } }
+}
+function startRecvAcctEdit(i){
+  if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin account list badal sakta hai'); return; }
+  _recvAcctEditIdx = i; renderRecvAcctSettings();
+}
+function cancelRecvAcctEdit(){ _recvAcctEditIdx = null; renderRecvAcctSettings(); }
+function saveRecvAcctEdit(i){
+  if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin account list badal sakta hai'); return; }
+  var list = getRecvAccts().slice(); var oldN = list[i]; if(oldN===undefined){ cancelRecvAcctEdit(); return; }
+  var inp = document.getElementById('recvAcctEditInp');
+  var newN = (inp ? inp.value : '').trim().replace(/\s+/g,' ');
+  if(!newN){ showToast('Naam khaali nahi ho sakta'); return; }
+  if(newN === oldN){ cancelRecvAcctEdit(); return; }
+  if(list.some(function(x,k){ return k!==i && x.toLowerCase()===newN.toLowerCase(); })){ showToast('Ye naam pehle se list me hai'); return; }
+  // Is naam wale purane records gino
+  var invHit = invoices.filter(function(x){ return x.recvAcct===oldN; });
+  var rcpHit = pendingPayments.filter(function(x){ return x.recvAcct===oldN; });
+  var heldHit = heldInvoices.filter(function(x){ return x.recvAcct===oldN; });
+  try{ expenses = LS.get('expenses')||expenses||[]; purchases = LS.get('purchases')||purchases||[]; supplierPayments = LS.get('supplierPayments')||supplierPayments||[]; }catch(e){}
+  var expHit = expenses.filter(function(x){ return x.recvAcct===oldN; });
+  var purHit = purchases.filter(function(x){ return x.recvAcct===oldN; });
+  var spHit = supplierPayments.filter(function(x){ return x.recvAcct===oldN; });
+  var total = invHit.length + rcpHit.length + heldHit.length + expHit.length + purHit.length + spHit.length;
+  var msg = '"'+oldN+'" ka naam "'+newN+'" karein?';
+  if(total > 0) msg += '\n\nIs naam wale '+invHit.length+' invoice aur '+rcpHit.length+' receipt me bhi naya naam ho jayega.';
+  if(!confirm(msg)) return;
+  var now = new Date().toISOString();
+  invHit.forEach(function(x){ x.recvAcct = newN; x.savedAt = now; });
+  rcpHit.forEach(function(x){ x.recvAcct = newN; x.savedAt = now; });
+  heldHit.forEach(function(x){ x.recvAcct = newN; });
+  expHit.forEach(function(x){ x.recvAcct = newN; x.savedAt = now; });
+  purHit.forEach(function(x){ x.recvAcct = newN; x.savedAt = now; });
+  spHit.forEach(function(x){ x.recvAcct = newN; x.savedAt = now; });
+  if(expHit.length) LS.sync('expenses', expenses);
+  if(purHit.length) LS.sync('purchases', purchases);
+  if(spHit.length) LS.sync('supplierPayments', supplierPayments);
+  if(invHit.length) LS.sync('invoices', invoices);
+  if(rcpHit.length) LS.sync('pendingPayments', pendingPayments);
+  if(heldHit.length){ LS.sync('heldInvoices', heldInvoices); try{ pushHeldNow(); }catch(e){} }
+  list[i] = newN;
+  _saveRecvAccts(list);
+  try{ logEdit('Settings', 'Receiving Account', [{field:'Account Name', from:oldN, to:newN}], 'Receiving account ka naam badla ('+invHit.length+' invoice, '+rcpHit.length+' receipt update)'); }catch(e){}
+  _recvAcctEditIdx = null;
+  renderRecvAcctSettings();
+  showToast('\u2705 Naam badal gaya: '+newN);
+}
+function addRecvAcct(){
+  if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin account list badal sakta hai'); return; }
+  var el = document.getElementById('set-recvAcctNew'); if(!el) return;
+  var n = el.value.trim().replace(/\s+/g,' ');
+  if(!n){ showToast('Naam likhein'); return; }
+  var list = getRecvAccts().slice();
+  if(list.some(function(x){ return x.toLowerCase()===n.toLowerCase(); })){ showToast('Ye naam pehle se list me hai'); return; }
+  list.push(n);
+  _saveRecvAccts(list);
+  el.value = '';
+  renderRecvAcctSettings();
+  showToast('\u2705 "'+n+'" add ho gaya');
+}
+function removeRecvAcct(i){
+  if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin account list badal sakta hai'); return; }
+  var list = getRecvAccts().slice(); var n = list[i]; if(n===undefined) return;
+  if(!confirm('"'+n+'" ko list se hataein?\n\nPurane invoices / receipts me ye naam waisa hi record rahega.')) return;
+  list.splice(i,1);
+  _recvAcctEditIdx = null;
+  _saveRecvAccts(list);
+  renderRecvAcctSettings();
+  showToast('Hata diya');
+}
+function fillRecvAcctSelect(selId, selVal){
+  var sel = document.getElementById(selId); if(!sel) return;
+  var cur = (selVal !== undefined) ? selVal : sel.value;
+  var list = getRecvAccts().slice();
+  if(cur && list.indexOf(cur)===-1) list.push(cur);   // hataya hua purana naam bhi dikhe, taaki edit me record na ude
+  var h = '<option value="">\u2014 Account select karein \u2014</option>';
+  list.forEach(function(n){ h += '<option value="'+escH(n)+'">'+escH(n)+'</option>'; });
+  sel.innerHTML = h;
+  sel.value = cur || '';
+}
+// Invoice form: dropdown tabhi dikhao jab UPI / Bank / Split ho aur status Pending na ho
+function toggleRecvAcct(selVal){
+  var wrap = document.getElementById('invRecvAcctWrap'); if(!wrap) return;
+  var pmEl = document.getElementById('invPayMode'), psEl = document.getElementById('invPayStatus');
+  var pm = pmEl ? pmEl.value : 'Cash', ps = psEl ? psEl.value : 'Paid';
+  var show = (getRecvAccts().length>0 || !!selVal) && ps!=='Pending' && (pm==='UPI' || pm==='Bank' || pm==='Split');
+  if(show){ fillRecvAcctSelect('invRecvAcct', selVal); wrap.style.display=''; }
+  else { wrap.style.display='none'; var s0=document.getElementById('invRecvAcct'); if(s0) s0.value=''; }
+}
+// Payment Receipt form
+function ppToggleRecvAcct(selVal){
+  var wrap = document.getElementById('ppRecvAcctWrap'); if(!wrap) return;
+  var pmEl = document.getElementById('pp-payMode');
+  var pm = pmEl ? pmEl.value : 'Cash';
+  var show = (getRecvAccts().length>0 || !!selVal) && (pm==='UPI' || pm==='Bank' || pm==='Split');
+  if(show){ fillRecvAcctSelect('pp-recvAcct', selVal); wrap.style.display=''; }
+  else { wrap.style.display='none'; var s0=document.getElementById('pp-recvAcct'); if(s0) s0.value=''; }
+}
+function recvAcctNeeded(pm, ps, upiPortion){
+  if(ps==='Pending') return false;
+  return pm==='UPI' || pm==='Bank' || (pm==='Split' && (upiPortion||0)>0);
+}
+// Chhota badge: history / receipts list me dikhane ke liye (customer wale PDF me nahi aata)
+function _acctChip(rec){
+  if(!rec || !rec.recvAcct) return '';
+  var m = rec.payMode;
+  if(!(m==='UPI' || m==='Bank' || m==='Split')) return '';
+  return ' <span class="pay-badge" style="background:#e8eaf6;color:#283593;">&#127974; '+escH(rec.recvAcct)+'</span>';
+}
+function _recvAcctBoxHtml(tot){
+  var names = Object.keys(tot).filter(function(n){ return tot[n]>0.004; });
+  if(!names.length) return '';
+  names.sort(function(a,b){ return tot[b]-tot[a]; });
+  var sum = names.reduce(function(a,n){ return a+tot[n]; },0);
+  var rows = names.map(function(n){
+    var un = (n==='__none__');
+    return '<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:13px;">'
+      +'<span style="font-weight:700;'+(un?'color:#e65100;':'')+'">'+(un?'&#9888;&#65039; Account select nahi hua (purane / bina account wale)':'&#127974; '+escH(n))+'</span>'
+      +'<span style="font-weight:700;color:#1a237e;">'+fmt(tot[n])+'</span></div>';
+  }).join('');
+  return '<div style="background:#fff;border:1px solid var(--bdr);border-left:4px solid #3949ab;padding:10px 14px;margin-bottom:8px;">'
+    +'<div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:#3949ab;margin-bottom:4px;font-family:Arial,sans-serif;">&#127974; Account-wise UPI / Bank Received</div>'
+    + rows
+    +'<div style="display:flex;justify-content:space-between;padding-top:8px;font-family:Arial,sans-serif;font-size:13px;font-weight:800;"><span>Total UPI / Bank</span><span>'+fmt(sum)+'</span></div></div>';
+}
+
 function saveSettings(){
   SETTINGS = {
     biz:document.getElementById('set-biz').value,
@@ -6406,6 +6594,7 @@ function saveSettings(){
     web:document.getElementById('set-web')?document.getElementById('set-web').value:'',
     email:document.getElementById('set-email')?document.getElementById('set-email').value:'',
     invLink:document.getElementById('set-invlink')?document.getElementById('set-invlink').value.trim():'',
+    recvAccts:getRecvAccts().slice(),
     mktPts:[1,2,3,4,5,6].map(function(n){
       var el = document.getElementById('set-mkt'+n);
       return el ? el.value.trim() : '';
@@ -6449,7 +6638,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {acctledger:'Account Ledger', dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice'){
@@ -6473,6 +6662,7 @@ function navTo(page, el, mi){
   if(page==='profitreport'){ if(!staffCanAccess('profitreport')){showToast('⛔ Access Denied — Item Profit sirf Admin ke liye hai');navTo('invoice',null);return;} ensureFullDataLoaded(renderProfitReport); }
   if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); updateDataWindowLabel(); }, 100); }
 
+  if(page==='acctledger') ensureFullDataLoaded(renderAcctLedger);
   if(page==='purchases') ensureFullDataLoaded(renderPurchaseDashboard);
   if(page==='purchaselist') ensureFullDataLoaded(renderPurchases);
   if(page==='supplierpay'){ initSupplierPayForm(); ensureFullDataLoaded(renderSupplierPayPage); }
@@ -6818,6 +7008,7 @@ function initInvoice(){
   try{ _invWhoInit(); }catch(_w){}
   var pm=document.getElementById('invPayMode'); if(pm) pm.value='Cash';
   var ps=document.getElementById('invPayStatus'); if(ps) ps.value='Paid';
+  try{ toggleRecvAcct(''); }catch(_ra){}
   var sp=document.getElementById('splitPaySection'); if(sp) sp.style.display='none';
   var ca=document.getElementById('cashAmt'); if(ca) ca.value='';
   var ua=document.getElementById('upiAmt'); if(ua) ua.value='';
@@ -6865,6 +7056,7 @@ function snapshotCurrentInvoice(){
     gstType: (document.getElementById('inv-gst-type')||{}).value || 'cgst',
     pm: document.getElementById('invPayMode').value,
     ps: document.getElementById('invPayStatus').value,
+    recvAcct: (document.getElementById('invRecvAcct')||{}).value || '',
     cashAmt: (document.getElementById('cashAmt')||{}).value || '',
     upiAmt: (document.getElementById('upiAmt')||{}).value || '',
     partialPaidAmt: (document.getElementById('partialPaidAmt')||{}).value || '',
@@ -6972,6 +7164,7 @@ function resumeHeldInvoice(heldId){
   renderItems();
 
   refreshPaymentSections();
+  try{ toggleRecvAcct(h.recvAcct||''); }catch(_ra){}
   document.getElementById('cashAmt').value = h.cashAmt || '';
   document.getElementById('upiAmt').value = h.upiAmt || '';
   var ppa=document.getElementById('partialPaidAmt'); if(ppa) ppa.value = h.partialPaidAmt || '';
@@ -7059,6 +7252,7 @@ function refreshPaymentSections(){
   updateSplitHint();
   onPartialAmtChange();
   onPartialSplitChange();
+  try{ toggleRecvAcct(); }catch(_ra){}
 }
 
 function onPayModeChange(){ refreshPaymentSections(); }
@@ -7598,6 +7792,15 @@ function collectFormData(){
   }
   // Partial case: cashAmt/upiAmt already set above in the isPartial block
 
+  // ── UPI / Bank ka paisa kiske account me aaya ──
+  var recvAcct = (document.getElementById('invRecvAcct')||{}).value || '';
+  if(!recvAcctNeeded(pm, ps, upiAmt)){ recvAcct = ''; }
+  else if(getRecvAccts().length && !recvAcct){
+    showToast('\u26a0\ufe0f UPI / Bank ka paisa kiske account me aaya \u2014 account select karein!');
+    var _raEl = document.getElementById('invRecvAcct'); if(_raEl) _raEl.focus();
+    return null;
+  }
+
   return {
     custName:custName,
     invDate:document.getElementById('invDate').value||nowDate(),
@@ -7606,7 +7809,7 @@ function collectFormData(){
     note:document.getElementById('invNote').value||'Thank you for shopping!',
     items:validItems.slice(),
     sub:sub, disc:disc, gstByRate:gstByRate, totalGst:totalGstAmt, gstType:gstType, total:total,
-    pm:pm, ps:ps, cashAmt:cashAmt, upiAmt:upiAmt, paidAmount:paidAmount,
+    pm:pm, ps:ps, cashAmt:cashAmt, upiAmt:upiAmt, paidAmount:paidAmount, recvAcct:recvAcct,
     invNoField:document.getElementById('invNo').value.trim(),
     billedBy:_invWhoBilled(),
     packedBy:_invWhoPacked()
@@ -7626,7 +7829,7 @@ function persistInvoice(fd){
       sub:fd.sub, disc:fd.disc, gstByRate:fd.gstByRate, totalGst:fd.totalGst,
       gstType:fd.gstType, total:fd.total, savedAt:new Date().toISOString(),
       paidAmount: fd.ps==='Paid' ? fd.total : fd.ps==='Partial' ? (fd.paidAmount||0) : 0,
-      billedBy:fd.billedBy||'', packedBy:fd.packedBy||''};
+      billedBy:fd.billedBy||'', packedBy:fd.packedBy||'', recvAcct:fd.recvAcct||''};
 
     // ── PENDING DUE snapshot: same customer ke purane pending/partial invoices ka baaki amount ──
     // Invoice total me add NAHI hota (sales/reports same rahenge) — sirf invoice par "Pending Due" ke naam se dikhta hai.
@@ -8098,7 +8301,7 @@ function renderHistory(){
       var ihtml='';
       invs.forEach(function(inv){
         var statusBorder = inv.payStatus==='Paid' ? '#2e7d32' : inv.payStatus==='Partial' ? '#c9a84c' : '#c0392b';
-        var pb1='<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':inv.payMode==='Split'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>';
+        var pb1='<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':inv.payMode==='Split'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>'+_acctChip(inv);
         var pb2='<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(inv.payStatus)+'</span>';
         var si=inv.payMode==='Split'?'<div style="font-size:10px;margin-top:2px;"><span class="pay-split-badge">C:'+fmt(inv.cashAmt||0)+'</span> <span class="pay-split-badge">U:'+fmt(inv.upiAmt||0)+'</span></div>':'';
         var isToday = (inv.invDate === todayDate);
@@ -8189,6 +8392,98 @@ function _invWhoLineHtml(inv){
   return '<div style="font-size:10px;color:#2e5d4a;font-family:Arial,sans-serif;margin-top:2px;">'
     +(b?'🧾 Billed: '+escH(b):'')+(b&&p?' &nbsp;·&nbsp; ':'')+(p?'📦 Packed: '+escH(p):'')+'</div>';
 }
+// ===== In-app (INTERNAL) account info — #invPrint / #ppPrint ke BAHAR hai, isliye PDF / print / WhatsApp me nahi jata =====
+function _recvAcctOptionsHtml(cur){
+  var list = getRecvAccts().slice();
+  if(cur && list.indexOf(cur)===-1) list.push(cur);
+  var h = '<option value=""'+(cur?'':' selected')+'>\u2014 Account select karein \u2014</option>';
+  list.forEach(function(n){ h += '<option value="'+escH(n)+'"'+(n===cur?' selected':'')+'>'+escH(n)+'</option>'; });
+  return h;
+}
+function _isUpiLike(m, upiPortion){ return m==='UPI' || m==='Bank' || (m==='Split' && (upiPortion||0)>0); }
+function _invAcctInfoHtml(inv){
+  // Invoice ke time jo paisa mila (receipts hata kar) — wahi UPI/Bank ho to account chahiye. Pending se baad me collect hua paisa receipt ka account hai.
+  var _recTot = (pendingPayments||[]).filter(function(r){ return r.invNo===inv.invNo; }).reduce(function(a,r){ return a + (r.paidAmt||0) + (r.discountAmt||0); }, 0);
+  var _ip = (inv.payStatus==='Paid' && !inv.paidAmount) ? (inv.total||0) : (inv.paidAmount||0);
+  var needAcct = inv.payStatus!=='Pending' && (_ip - _recTot) > 0.004 && _isUpiLike(inv.payMode, inv.upiAmt);
+  var rc = (pendingPayments||[]).filter(function(r){ return r.invNo===inv.invNo && r.recvAcct && _isUpiLike(r.payMode, r.upiAmt); });
+  if(!needAcct && !rc.length) return '';
+  var h = '';
+  if(needAcct){
+    var cur = String(inv.recvAcct||'');
+    var amtTxt = inv.payMode==='Split' ? ' <span style="color:#555;">(UPI: '+fmt(inv.upiAmt||0)+')</span>' : '';
+    h += '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #cfe3d9;font-size:13px;color:#222;">'
+      +'<div style="margin-bottom:5px;">&#127974; UPI / Bank paisa kiske account me aaya:'+amtTxt+'</div>';
+    if(getRecvAccts().length || cur){
+      h += '<select onchange="setInvRecvAcct(this.value)" style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;padding:6px 8px;max-width:100%;'+(cur?'':'border-color:#e65100;')+'">'+_recvAcctOptionsHtml(cur)+'</select>';
+      if(!cur) h += ' <span style="font-size:11px;color:#e65100;">select nahi hua</span>';
+    } else {
+      h += '<span style="font-size:11px;color:#777;">Settings me "Payment Receiving Accounts" me naam add karein.</span>';
+    }
+    h += '</div>';
+  }
+  if(rc.length){
+    h += '<div style="margin-top:8px;font-size:12px;color:#333;">&#8627; Baad ki receipts: '
+      + rc.map(function(r){ var a = (r.payMode==='Split') ? (r.upiAmt||0) : (r.paidAmt||0); return escH(r.receiptNo||'Receipt')+' &rarr; <b>'+escH(r.recvAcct)+'</b> ('+fmt(a)+')'; }).join(' &middot; ')
+      +'</div>';
+  }
+  return h;
+}
+function setInvRecvAcct(v){
+  var inv = currentInv;
+  if(!inv || inv.isPreview){ showToast('Pehle invoice save karein','warn'); return; }
+  var rec = invoices.find(function(i){ return i.id===inv.id; });
+  if(!rec){ showToast('Invoice nahi mili','warn'); return; }
+  if(CURRENT_ROLE!=='admin' && rec.invDate!==nowDate()){ showToast('\u26d4 Manager sirf aaj ke invoice me account badal sakte hain'); buildPreview(rec); return; }
+  v = String(v||'').trim();
+  if(!v){ buildPreview(rec); return; }
+  var oldV = String(rec.recvAcct||'');
+  if(v===oldV) return;
+  rec.recvAcct = v;
+  rec.savedAt = new Date().toISOString();   // dusre device pe merge me yeh version jite
+  LS.sync('invoices', invoices);
+  try{ logEdit('Invoice', rec.invNo, [{field:'Received In Account', from:oldV||'-', to:v}], 'UPI/Bank account update hua'); }catch(e){}
+  currentInv = rec; buildPreview(rec);
+  showToast('\u{1F3E6} Account: '+v);
+}
+function _rcptMetaStripHtml(r){
+  if(!r || CURRENT_ROLE==='customer') return '';
+  var m = r.payMode;
+  if(!_isUpiLike(m, r.upiAmt)) return '';
+  var cur = String(r.recvAcct||'');
+  var amt = (m==='Split') ? (r.upiAmt||0) : (r.paidAmt||0);
+  var h = '<div class="no-print" id="rcptMetaStrip" style="max-width:820px;margin:12px auto 0;border:1px solid #cfd8f3;background:#f5f7ff;padding:10px 14px;font-family:Arial,sans-serif;">'
+    +'<div style="font-size:9px;font-weight:800;letter-spacing:1.5px;color:#3949ab;margin-bottom:6px;">\u{1F512} INTERNAL \u2014 PDF AUR CUSTOMER KO NAHI DIKHTA</div>'
+    +'<div style="font-size:13px;color:#222;margin-bottom:5px;">&#127974; '+(m==='Split'?'UPI':escH(m))+' paisa ('+fmt(amt)+') kiske account me aaya:</div>';
+  if(getRecvAccts().length || cur){
+    h += '<select onchange="setRcptRecvAcct(this.value)" style="font-family:Arial,sans-serif;font-size:13px;font-weight:700;padding:6px 8px;max-width:100%;'+(cur?'':'border-color:#e65100;')+'">'+_recvAcctOptionsHtml(cur)+'</select>';
+    if(!cur) h += ' <span style="font-size:11px;color:#e65100;">select nahi hua</span>';
+  } else {
+    h += '<span style="font-size:11px;color:#777;">Settings me "Payment Receiving Accounts" me naam add karein.</span>';
+  }
+  return h + '</div>';
+}
+function setRcptRecvAcct(v){
+  var cur = currentPendingReceipt;
+  if(!cur) return;
+  var recs = cur.batchId ? pendingPayments.filter(function(x){ return x.batchId===cur.batchId; })
+                         : pendingPayments.filter(function(x){ return x.id===cur.id; });
+  if(!recs.length){ showToast('Receipt nahi mili','warn'); return; }
+  if(CURRENT_ROLE!=='admin' && cur.date!==nowDate()){ showToast('\u26d4 Manager sirf aaj ki receipt me account badal sakte hain'); buildPendingPreview(cur); return; }
+  v = String(v||'').trim();
+  if(!v){ buildPendingPreview(cur); return; }
+  var oldV = String((recs[0]||{}).recvAcct||'');
+  if(v===oldV) return;
+  var now = new Date().toISOString();
+  recs.forEach(function(x){ if(_isUpiLike(x.payMode, x.upiAmt)){ x.recvAcct = v; x.savedAt = now; } });
+  LS.sync('pendingPayments', pendingPayments);
+  try{ logEdit('Receipt', cur.receiptNo||String(cur.id), [{field:'Received In Account', from:oldV||'-', to:v}], 'UPI/Bank account update hua'); }catch(e){}
+  recs.sort(function(a,b){ return a.id-b.id; });
+  currentPendingReceipt = _batchView(recs[0]);
+  buildPendingPreview(currentPendingReceipt);
+  showToast('\u{1F3E6} Account: '+v);
+}
+
 function _invMetaStripHtml(inv){
   if(!inv || inv.isPreview || CURRENT_ROLE==='customer') return '';
   var b=String(inv.billedBy||'').trim(), p=String(inv.packedBy||'').trim();
@@ -8198,7 +8493,7 @@ function _invMetaStripHtml(inv){
     +'<div style="display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13px;color:#222;align-items:center;">'
     +'<div>🧾 Billed By: <b>'+(b?escH(b):dash)+'</b></div>'
     +'<div>📦 Packed By: <b>'+(p?escH(p):dash)+'</b> <button class="btn btn-outline" style="padding:3px 9px;font-size:10px;margin-left:6px;" onclick="setInvPackedBy()">&#9998; '+(p?'Change':'Set')+'</button></div>'
-    +'</div></div>';
+    +'</div>'+_invAcctInfoHtml(inv)+'</div>';
 }
 function _whoModal(title,cur,names,cb){
   var old=document.getElementById('whoModal'); if(old) old.remove();
@@ -8846,6 +9141,7 @@ function editInv(id){
     var _ep=document.getElementById('invPackedBy'); if(_ep) _ep.value = inv.packedBy || '';
     var pm = document.getElementById('invPayMode'); if(pm) pm.value = inv.payMode || 'Cash';
     var ps = document.getElementById('invPayStatus'); if(ps) ps.value = inv.payStatus || 'Paid';
+    try{ toggleRecvAcct(inv.recvAcct||''); }catch(_ra){}
     // Split section
     var sp = document.getElementById('splitPaySection');
     if(sp) sp.style.display = inv.payMode==='Split' ? 'block' : 'none';
@@ -9710,6 +10006,26 @@ function renderPayments(){
   var invoicedAmt   = totalRevenue;
   var todayRevenue  = invoices.filter(function(i){ return i.invDate===todayStr; }).reduce(function(s,i){return s+i.total;},0);
 
+  // ── Account-wise UPI / Bank received (kiske account me kitna aaya) ──
+  var _acctTot = {};
+  function _acct(n, amt){ if(!(amt>0)) return; n = n || '__none__'; _acctTot[n] = (_acctTot[n]||0) + amt; }
+  filtInvoices.forEach(function(inv){
+    if(inv.payStatus === 'Pending') return;
+    var _rd = allReceiptByInv[inv.invNo] || {total:0};
+    var _ip2 = (inv.payStatus === 'Paid' && !inv.paidAmount) ? inv.total : (inv.paidAmount || 0);
+    var _op = Math.max(0, _ip2 - _rd.total);
+    if(_op <= 0) return;
+    if(inv.payMode === 'UPI' || inv.payMode === 'Bank') _acct(inv.recvAcct, _op);
+    else if(inv.payMode === 'Split'){ var _ot = (inv.cashAmt||0) + (inv.upiAmt||0); if(_ot > 0) _acct(inv.recvAcct, _op * (inv.upiAmt||0) / _ot); }
+  });
+  filtReceipts.forEach(function(r){
+    if(r.payMode === 'UPI' || r.payMode === 'Bank') _acct(r.recvAcct, r.paidAmt||0);
+    else if(r.payMode === 'Split') _acct(r.recvAcct, r.upiAmt||0);
+  });
+  filtReturns.forEach(function(r){
+    if(r.diffType === 'Extra Payment' && (r.payMode === 'UPI' || r.payMode === 'Bank')) _acct(r.recvAcct, r.diffAmount||0);
+  });
+
   // ============ RENDER IN/OUT SUMMARY ============
   var summary = document.getElementById('pay-inout-summary');
   if(summary){
@@ -9732,6 +10048,7 @@ function renderPayments(){
         +'<div style="font-size:22px;font-weight:700;font-family:Arial,sans-serif;">'+fmt(totalRevenue)+'</div>'
       +'</div>'
       +'</div>';
+    summary.innerHTML += _recvAcctBoxHtml(_acctTot);
   }
 
   var pl = document.getElementById('payList');
@@ -10280,7 +10597,7 @@ function renderSalesReport(){
           // Per-day invoices
           var dayInvs=filtered.filter(function(i){return i.invDate===d;});
           var ihtml=dayInvs.map(function(inv){
-            var pb1='<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>';
+            var pb1='<span class="pay-badge '+(inv.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(inv.payMode)+'</span>'+_acctChip(inv);
             var pb2='<span class="pay-badge '+(inv.payStatus==='Paid'?'pay-paid':inv.payStatus==='Partial'?'pay-partial':'pay-pending')+'">'+escH(inv.payStatus)+'</span>';
             return '<div style="border-bottom:1px solid var(--bdr);background:#fff;"><div style="padding:8px 12px 4px 36px;display:flex;justify-content:space-between;"><div><div style="font-weight:700;font-size:13px;font-family:Arial,sans-serif;">'+escH(inv.custName)+'</div><div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;">'+escH(inv.invNo)+'</div><div>'+pb1+' '+pb2+'</div></div><div style="text-align:right;font-weight:700;font-size:16px;color:var(--gd2);font-family:Arial,sans-serif;">'+fmt(inv.total)+'</div></div></div>';
           }).join('');
@@ -11494,6 +11811,7 @@ function loadSettings(){
     var mel = document.getElementById('set-mkt'+mi);
     if(mel) mel.value = mktPts[mi-1] || '';
   }
+  try{ renderRecvAcctSettings(); }catch(_e){}
   var tgCfg = getTelegramConfig();
   var tgTok=document.getElementById('set-tg-token'); if(tgTok) tgTok.value = tgCfg.token || '';
   var tgChat=document.getElementById('set-tg-chatid'); if(tgChat) tgChat.value = tgCfg.chatId || '';
@@ -11800,6 +12118,7 @@ function initPendingForm(){
   var _dsc = document.getElementById('pp-discAmt'); if(_dsc) _dsc.value = '';
   var _dsi = document.getElementById('pp-disc-info'); if(_dsi){ _dsi.style.display='none'; _dsi.innerHTML=''; }
   document.getElementById('pp-payMode').value = 'Cash';
+  try{ ppToggleRecvAcct(''); }catch(_ra){}
   document.getElementById('pp-notes').value = '';
   var s = document.getElementById('pp-custSugg'); if(s) s.style.display='none';
   var i = document.getElementById('pp-invList'); if(i) i.style.display='none';
@@ -11812,6 +12131,7 @@ function initPendingForm(){
 }
 
 function onPPPayModeChange(){
+  try{ ppToggleRecvAcct(); }catch(_ra){}
   var mode = document.getElementById('pp-payMode').value;
   var sf = document.getElementById('pp-split-fields');
   if(sf) sf.style.display = (mode==='Split') ? 'block' : 'none';
@@ -12123,6 +12443,14 @@ function saveBatchPayment(){
   }
   if(!custName){ showToast('Customer name required!'); return; }
   if(paidAmt<=0){ showToast('Paid amount required!'); return; }
+  var recvAcct = (document.getElementById('pp-recvAcct')||{}).value || '';
+  var _bNeedAcct = (payMode==='UPI' || payMode==='Bank' || (payMode==='Split' && upiAmt>0));
+  if(!_bNeedAcct){ recvAcct = ''; }
+  else if(getRecvAccts().length && !recvAcct){
+    showToast('\u26a0\ufe0f UPI / Bank ka paisa kiske account me aaya \u2014 account select karein!');
+    var _bRa = document.getElementById('pp-recvAcct'); if(_bRa) _bRa.focus();
+    return;
+  }
   var discAmt=ppGetDisc();
   var al=ppAllocate(paidAmt, discAmt);
   if(!al.rows.length){ showToast('⚠️ In invoices ka koi balance baaki nahi hai!'); return; }
@@ -12163,6 +12491,7 @@ function saveBatchPayment(){
       discountAmt: row.disc||0,
       remainingAmt: Math.max(0, inv.total-inv.paidAmount),
       payMode: mode,
+      recvAcct: (mode==='UPI'||mode==='Bank'||(mode==='Split'&&u>0)) ? recvAcct : '',
       cashAmt: mode==='Split'?c:0,
       upiAmt:  mode==='Split'?u:0,
       notes: notes,
@@ -12209,6 +12538,16 @@ function savePendingPayment(){
   if(!custName){showToast('Customer name required!');return;}
   if(!invNo){showToast('Invoice number required!');return;}
   if(paidAmt<=0){showToast('Paid amount required!');return;}
+
+  // ── UPI / Bank ka paisa kiske account me aaya ──
+  var recvAcct = (document.getElementById('pp-recvAcct')||{}).value || '';
+  var _ppNeedAcct = (payMode==='UPI' || payMode==='Bank' || (payMode==='Split' && upiAmt>0));
+  if(!_ppNeedAcct){ recvAcct = ''; }
+  else if(getRecvAccts().length && !recvAcct){
+    showToast('\u26a0\ufe0f UPI / Bank ka paisa kiske account me aaya \u2014 account select karein!');
+    var _ppRa = document.getElementById('pp-recvAcct'); if(_ppRa) _ppRa.focus();
+    return;
+  }
 
   // Overpayment validation — paidAmt cannot exceed actual remaining balance
   var discAmt1 = ppGetDisc();
@@ -12258,6 +12597,7 @@ function savePendingPayment(){
     discountAmt: inv ? (discAmt1||0) : 0,
     remainingAmt: inv ? Math.max(0, inv.total - inv.paidAmount) : 0,
     payMode: payMode,
+    recvAcct: recvAcct,
     cashAmt: payMode==='Split' ? cashAmt : 0,
     upiAmt:  payMode==='Split' ? upiAmt  : 0,
     notes: document.getElementById('pp-notes').value,
@@ -12420,7 +12760,8 @@ function buildPendingPreview(r){
     +'<img src="data:image/png;base64,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" style="width:60px;height:60px;display:block;margin:0 auto;"/>'
     +'</div>'
     +'<div style="height:5px;background:linear-gradient(90deg,'+rcptColor+'88,'+rcptColor+'cc,'+rcptColor+');"></div>'
-    +'</div>';
+    +'</div>'
+    +_rcptMetaStripHtml(r);
 }
 
 function groupPendingByCustomer(pendInvs){
@@ -12655,7 +12996,7 @@ function renderPendingReceipts(){
         var liveInv=invoices.find(function(i){return i.invNo===r.invNo;});
         var liveRemaining=liveInv?Math.max(0,liveInv.total-(liveInv.paidAmount||0)):(r.remainingAmt||0);
         var isSplit=(r.payMode==='Split');
-        var modeBadge=isSplit?'<span class="pay-badge pay-cash">Cash</span> <span class="pay-badge pay-upi">UPI</span>':'<span class="pay-badge '+(r.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(r.payMode)+'</span>';
+        var modeBadge=isSplit?'<span class="pay-badge pay-cash">Cash</span> <span class="pay-badge pay-upi">UPI</span>':'<span class="pay-badge '+(r.payMode==='Cash'?'pay-cash':'pay-upi')+'">'+escH(r.payMode)+'</span>'+_acctChip(r);
         var splitLine=isSplit?'<div style="font-size:10px;color:var(--mu);font-family:Arial,sans-serif;margin-top:2px;">C: '+fmt(r.cashAmt||0)+' + U: '+fmt(r.upiAmt||0)+'</div>':'';
         var isToday=(r.date===todayDate);
         var editBtn=(CURRENT_ROLE==='admin' || isToday)?'<button class="btn btn-gold" style="padding:4px 9px;font-size:9px;" data-action="editr" data-rid="'+r.id+'">✏️ Edit</button>':'';
@@ -12843,6 +13184,7 @@ function editReceipt(id){
     document.getElementById('pp-paidAmt').value = r.paidAmt || '';
     var _ed = document.getElementById('pp-discAmt'); if(_ed) _ed.value = r.discountAmt || '';
     document.getElementById('pp-payMode').value = r.payMode || 'Cash';
+    try{ ppToggleRecvAcct(r.recvAcct||''); }catch(_ra){}
     document.getElementById('pp-notes').value = r.notes || '';
     // Split fields
     var sf = document.getElementById('pp-split-fields');
@@ -13193,6 +13535,8 @@ function saveExpense(){
   var notes = document.getElementById('exp-notes').value.trim();
 
   if(amount <= 0){ showToast('Amount required!'); return; }
+  var recvAcct = outAcctRead('exp', payMode, 0, 'Paid');
+  if(recvAcct === null){ showToast('\u26a0\ufe0f Kis account se payment hua \u2014 account select karein!'); return; }
 
   var expense = {
     id: Date.now(),
@@ -13201,6 +13545,7 @@ function saveExpense(){
     desc: desc || category,
     amount: amount,
     payMode: payMode,
+    recvAcct: recvAcct,
     notes: notes,
     savedAt: new Date().toISOString()
   };
@@ -13237,6 +13582,7 @@ function editExpense(id){
   document.getElementById('eexp-desc').value = exp.desc && exp.desc!==exp.category ? exp.desc : '';
   document.getElementById('eexp-amount').value = exp.amount || 0;
   var pm = document.getElementById('eexp-paymode'); if(pm) pm.value = exp.payMode || 'Cash';
+  try{ toggleOutAcct('eexp', exp.recvAcct); }catch(e){}
   document.getElementById('eexp-notes').value = exp.notes || '';
   document.getElementById('editExpenseModal').classList.add('show');
 }
@@ -13260,6 +13606,8 @@ function saveEditExpense(){
   var notes = document.getElementById('eexp-notes').value.trim();
 
   if(amount <= 0){ showToast('Amount required!'); return; }
+  var recvAcct = outAcctRead('eexp', payMode, 0, 'Paid');
+  if(recvAcct === null){ showToast('\u26a0\ufe0f Kis account se payment hua \u2014 account select karein!'); return; }
 
   var old = { date:exp.date, category:exp.category, desc:exp.desc, amount:exp.amount, payMode:exp.payMode, notes:exp.notes };
 
@@ -13268,6 +13616,7 @@ function saveEditExpense(){
   exp.desc = desc || category;
   exp.amount = amount;
   exp.payMode = payMode;
+  exp.recvAcct = recvAcct;
   exp.notes = notes;
   exp.editedAt = new Date().toISOString();
 
@@ -15034,6 +15383,8 @@ function savePurchase(){
   if(!item){ showToast('Item name required!'); return; }
   if(qty <= 0){ showToast('Qty required!'); return; }
   if(rate <= 0){ showToast('Rate required!'); return; }
+  var recvAcct = outAcctRead('pur', payMode, 0, payStatus);
+  if(recvAcct === null){ showToast('\u26a0\ufe0f Kis account se payment hua \u2014 account select karein!'); return; }
 
   var totalCost = (qty * rate) + freight;
 
@@ -15062,6 +15413,7 @@ function savePurchase(){
     totalCost: totalCost,
     payMode: payMode,
     payStatus: payStatus,
+    recvAcct: recvAcct,
     paidAmount: paidAmount,
     directPaidAmount: paidAmount, // Amount paid at purchase creation (not via supplier payment later)
     notes: notes,
@@ -15305,6 +15657,7 @@ function editPurchase(id){
   document.getElementById('epur-freight').value = p.freight || 0;
   var _em = document.getElementById('epur-mrp'); if(_em) _em.value = '';   // blank: stock ka price tabhi badlega jab yahan likho
   var pm = document.getElementById('epur-paymode'); if(pm) pm.value = p.payMode || 'Cash';
+  setTimeout(function(){ try{ toggleOutAcct('epur', p.recvAcct); }catch(e){} }, 0);
   // Form me sirf 'purchase ke time diya paisa' dikhao — supplier payment / advance wala hissa nahi (warna edit par double count hota hai)
   var _ePaid = p.paidAmount || 0, _eSt = p.payStatus || 'Paid';
   if(p.directPaidAmount != null){
@@ -15372,6 +15725,8 @@ function saveEditPurchase(){
   if(!item){ showToast('Item name required!'); return; }
   if(qty <= 0){ showToast('Qty required!'); return; }
   if(rate <= 0){ showToast('Rate required!'); return; }
+  var recvAcct = outAcctRead('epur', payMode, 0, payStatus);
+  if(recvAcct === null){ showToast('\u26a0\ufe0f Kis account se payment hua \u2014 account select karein!'); return; }
 
   var totalCost = (qty * rate) + freight;
   var paidAmount = 0;
@@ -15430,6 +15785,7 @@ function saveEditPurchase(){
   p.qty = qty; p.rate = rate; p.freight = freight; p.totalCost = totalCost;
   p.payMode = payMode; p.payStatus = payStatus; p.paidAmount = paidAmount;
   p.directPaidAmount = paidAmount;
+  p.recvAcct = recvAcct;
   p.notes = notes;
   p.editedAt = new Date().toISOString();
   // paidAmount upar overwrite hua — purana advance adjust wapas balance me, phir naye total par dobara adjust
@@ -16502,6 +16858,7 @@ function editSPReceipt(id){
   set('sp-date', r.date || nowDate());
   set('sp-paymode', r.payMode || 'Cash');
   onSPModeChange();
+  try{ toggleOutAcct('sp', r.recvAcct); }catch(e){}
   set('sp-supplier', r.supplier);
   set('sp-ref', r.ref);
   set('sp-notes', r.notes);
@@ -16552,6 +16909,8 @@ function saveSupplierPayment(){
 
   if(!supplier){ showToast('Supplier name required!'); return; }
   if(amount <= 0){ showToast('Amount enter karein!'); return; }
+  var recvAcct = outAcctRead('sp', payMode, upiAmt, 'Paid');
+  if(recvAcct === null){ showToast('\u26a0\ufe0f Kis account se payment hua \u2014 account select karein!'); return; }
 
   // ── EDIT mode: purani payment ka asar pehle wapas karo, phir naya lagao (same receipt no.) ──
   var _editing = (_spEditId!=null) ? _spEditId : null, _editOld = null, _editIdx = -1, _bkP = null, _bkS = null;
@@ -16608,6 +16967,7 @@ function saveSupplierPayment(){
     cashAmt: payMode==='Split' ? cashAmt : 0,
     upiAmt:  payMode==='Split' ? upiAmt  : 0,
     payMode: payMode,
+    recvAcct: recvAcct,
     ref: ref,
     notes: notes,
     advanceAmt: advanceAmt,
@@ -18739,6 +19099,239 @@ function _odReset(){
       return;
     }
   });
+})();
+</script>
+
+<script>
+// ===== ACCOUNT LEDGER + PAYMENT-OUT ACCOUNT DROPDOWN (Purchase / Expense / Pay Supplier) =====
+(function(){
+  var OUT_CFG = [
+    {id:'pur',  mode:'pur-paymode',  status:'pur-paystatus'},
+    {id:'exp',  mode:'exp-paymode'},
+    {id:'sp',   mode:'sp-paymode'},
+    {id:'epur', mode:'epur-paymode', status:'epur-paystatus'},
+    {id:'eexp', mode:'eexp-paymode'}
+  ];
+  function cfgOf(id){ for(var i=0;i<OUT_CFG.length;i++){ if(OUT_CFG[i].id===id) return OUT_CFG[i]; } return null; }
+
+  window.toggleOutAcct = function(id, selVal){
+    var wrap = document.getElementById(id+'-acctWrap'); if(!wrap) return;
+    var c = cfgOf(id); if(!c) return;
+    var m = document.getElementById(c.mode), st = c.status ? document.getElementById(c.status) : null;
+    var pm = m ? m.value : 'Cash', ps = st ? st.value : 'Paid';
+    var show = (getRecvAccts().length>0 || !!selVal) && ps!=='Pending' && (pm==='UPI' || pm==='Bank' || pm==='Split');
+    if(show){ fillRecvAcctSelect(id+'-acct', selVal); wrap.style.display=''; }
+    else { wrap.style.display='none'; var s0 = document.getElementById(id+'-acct'); if(s0) s0.value=''; }
+  };
+  // null = account zaroori tha par select nahi hua; '' = zaroorat nahi; warna account ka naam
+  window.outAcctRead = function(id, pm, upiPortion, ps){
+    var needed = ps!=='Pending' && (pm==='UPI' || pm==='Bank' || (pm==='Split' && (upiPortion||0)>0));
+    if(!needed) return '';
+    var el = document.getElementById(id+'-acct');
+    var v = el ? el.value : '';
+    if(!v && getRecvAccts().length>0) return null;
+    return v || '';
+  };
+
+  function setupOutAcctUI(){
+    OUT_CFG.forEach(function(c){
+      var m = document.getElementById(c.mode); if(!m) return;
+      if(!document.getElementById(c.id+'-acctWrap')){
+        var host = m.closest('.row2') || m.closest('.ig') || m.parentNode;
+        var d = document.createElement('div');
+        d.className = 'ig'; d.id = c.id+'-acctWrap'; d.style.display = 'none'; d.style.marginTop = '2px';
+        d.innerHTML = '<label>&#127974; Payment kis account se hua? (UPI / Bank)</label><select id="'+c.id+'-acct" style="font-family:Arial,sans-serif;"></select>';
+        if(host.parentNode) host.parentNode.insertBefore(d, host.nextSibling);
+      }
+      var fn = function(){ toggleOutAcct(c.id); };
+      m.addEventListener('change', fn);
+      if(c.status){ var st = document.getElementById(c.status); if(st) st.addEventListener('change', fn); }
+    });
+    // Form reset hone par dropdown bhi reset/refresh ho
+    [['initExpenseForm','exp'],['initPurchaseForm','pur'],['initSupplierPayForm','sp']].forEach(function(pair){
+      var orig = window[pair[0]]; if(typeof orig !== 'function') return;
+      window[pair[0]] = function(){ var r = orig.apply(this, arguments); try{ toggleOutAcct(pair[1]); }catch(e){} return r; };
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupOutAcctUI);
+  else setupOutAcctUI();
+
+  // ---------- LEDGER ----------
+  function isUpi(m,u){ return m==='UPI' || m==='Bank' || (m==='Split' && (u||0)>0); }
+  function arr(k, g){ var a; try{ a = LS.get(k); }catch(e){} return Array.isArray(a) ? a : (Array.isArray(g) ? g : []); }
+  function alDate(d){ var p=String(d||'').split('-'); return p.length===3 ? (p[2]+'-'+p[1]+'-'+p[0].slice(2)) : (d||''); }
+  function rnd(n){ return Math.round((n||0)*100)/100; }
+
+  function buildEntries(){
+    var E = [];
+    var invs = arr('invoices', typeof invoices!=='undefined'?invoices:[]);
+    var recs = arr('pendingPayments', typeof pendingPayments!=='undefined'?pendingPayments:[]);
+    var exps = arr('expenses', typeof expenses!=='undefined'?expenses:[]);
+    var purs = arr('purchases', typeof purchases!=='undefined'?purchases:[]);
+    var sps  = arr('supplierPayments', typeof supplierPayments!=='undefined'?supplierPayments:[]);
+    var recByInv = {};
+    recs.forEach(function(r){ recByInv[r.invNo] = (recByInv[r.invNo]||0) + (r.paidAmt||0) + (r.discountAmt||0); });
+
+    invs.forEach(function(inv){
+      if(inv.payStatus==='Pending') return;
+      var ip = (inv.payStatus==='Paid' && !inv.paidAmount) ? (inv.total||0) : (inv.paidAmount||0);
+      var base = ip - (recByInv[inv.invNo]||0);
+      var amt = inv.payMode==='Split' ? (inv.upiAmt||0) : ((inv.payMode==='UPI'||inv.payMode==='Bank') ? base : 0);
+      if(amt <= 0.004) return;
+      E.push({date:inv.invDate, id:inv.id, type:'Invoice', ref:inv.invNo||'', party:inv.custName||'', note:inv.payMode, acct:inv.recvAcct||'__none__', inn:rnd(amt), out:0});
+    });
+    recs.forEach(function(r){
+      if(!isUpi(r.payMode, r.upiAmt)) return;
+      var amt = r.payMode==='Split' ? (r.upiAmt||0) : (r.paidAmt||0);
+      if(amt <= 0.004) return;
+      E.push({date:r.date, id:r.id, type:'Receipt', ref:(r.receiptNo||'')+(r.invNo?' (Inv '+r.invNo+')':''), party:r.custName||'', note:r.payMode, acct:r.recvAcct||'__none__', inn:rnd(amt), out:0});
+    });
+    exps.forEach(function(e){
+      if(!(e.payMode==='UPI' || e.payMode==='Bank')) return;
+      if((e.amount||0) <= 0) return;
+      E.push({date:e.date, id:e.id, type:'Expense', ref:e.category||'', party:(e.desc && e.desc!==e.category)?e.desc:'', note:e.payMode, acct:e.recvAcct||'__none__', inn:0, out:rnd(e.amount)});
+    });
+    purs.forEach(function(pu){
+      if(!(pu.payMode==='UPI' || pu.payMode==='Bank')) return;
+      var amt = (pu.directPaidAmount!=null) ? pu.directPaidAmount : (pu.paidAmount||0);
+      if(amt <= 0.004) return;
+      E.push({date:pu.date, id:pu.id, type:'Purchase', ref:pu.item||'', party:pu.supplier||'', note:pu.payMode, acct:pu.recvAcct||'__none__', inn:0, out:rnd(amt)});
+    });
+    sps.forEach(function(sp){
+      if(!isUpi(sp.payMode, sp.upiAmt)) return;
+      var amt = sp.payMode==='Split' ? (sp.upiAmt||0) : (sp.amount||0);
+      if(amt <= 0.004) return;
+      E.push({date:sp.date, id:sp.id, type:'Supplier', ref:(sp.spNo||'')+(sp.ref?' ('+sp.ref+')':''), party:sp.supplier||'', note:sp.payMode, acct:sp.recvAcct||'__none__', inn:0, out:rnd(amt)});
+    });
+    E.sort(function(a,b){
+      var da = a.date||'', db = b.date||'';
+      if(da !== db) return da < db ? -1 : 1;
+      return (Number(a.id)||0) - (Number(b.id)||0);
+    });
+    return E;
+  }
+
+  function allNames(E){
+    var names = getRecvAccts().slice(), hasNone = false;
+    E.forEach(function(e){
+      if(e.acct==='__none__') hasNone = true;
+      else if(names.indexOf(e.acct)===-1) names.push(e.acct);
+    });
+    if(hasNone) names.push('__none__');
+    return names;
+  }
+  function label(n){ return n==='__none__' ? 'Account select nahi hua (purane entries)' : n; }
+
+  function calc(E, name, from, to){
+    var opening = 0, rows = [], tin = 0, tout = 0;
+    E.forEach(function(e){
+      if(e.acct !== name) return;
+      var d = e.date || '';
+      if(from && d < from){ opening += e.inn - e.out; return; }
+      if(to && d > to) return;
+      rows.push(e); tin += e.inn; tout += e.out;
+    });
+    return {opening:rnd(opening), rows:rows, tin:rnd(tin), tout:rnd(tout), closing:rnd(opening+tin-tout)};
+  }
+
+  var TYPE_CLR = {Invoice:'#1565c0', Receipt:'#2e7d32', Expense:'#c62828', Purchase:'#e65100', Supplier:'#6a1b9a'};
+  function badge(t){ return '<span style="display:inline-block;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:'+(TYPE_CLR[t]||'#555')+';border-radius:3px;">'+escH(t)+'</span>'; }
+
+  window.alClearDates = function(){ document.getElementById('al-from').value=''; document.getElementById('al-to').value=''; renderAcctLedger(); };
+  window.alPickIdx = function(i){
+    var n = (window._alNames||[])[i]; if(n===undefined) return;
+    var sel = document.getElementById('al-acct'); if(sel){ sel.value = n; }
+    renderAcctLedger();
+    var st = document.getElementById('al-statement'); if(st && st.scrollIntoView) st.scrollIntoView({behavior:'smooth', block:'start'});
+  };
+
+  window.renderAcctLedger = function(){
+    var E = buildEntries();
+    var names = allNames(E);
+    window._alNames = names;
+    var sel = document.getElementById('al-acct'), sum = document.getElementById('al-summary'), stm = document.getElementById('al-statement');
+    if(!sel || !sum || !stm) return;
+    var cur = sel.value;
+    var h = '<option value="">&#128202; Sabhi Accounts (Summary)</option>';
+    names.forEach(function(n){ h += '<option value="'+escH(n)+'">&#127974; '+escH(label(n))+'</option>'; });
+    sel.innerHTML = h;
+    sel.value = (cur && names.indexOf(cur)!==-1) ? cur : '';
+    cur = sel.value;
+    var from = document.getElementById('al-from').value, to = document.getElementById('al-to').value;
+
+    if(!names.length){
+      sum.innerHTML = '<div style="padding:18px;border:1px dashed var(--bdr);text-align:center;font-size:12px;color:var(--mu);font-family:Arial,sans-serif;line-height:1.6;">Abhi koi account nahi hai.<br>Settings &gt; <b>Payment Accounts</b> me naam add karein (jaise Pk, Papa, Wife). Phir UPI / Bank payment par account select karne se yahan ledger ban jayega.</div>';
+      stm.innerHTML = ''; return;
+    }
+
+    // Summary cards
+    var sh = '';
+    names.forEach(function(n, i){
+      var c = calc(E, n, from, to);
+      var un = (n==='__none__');
+      sh += '<div onclick="alPickIdx('+i+')" style="cursor:pointer;background:#fff;border:1px solid var(--bdr);border-left:4px solid '+(un?'#e65100':'#3949ab')+';padding:10px 14px;margin-bottom:8px;font-family:Arial,sans-serif;'+(cur===n?'box-shadow:0 0 0 2px #3949ab55;':'')+'">'
+        + '<div style="font-weight:800;font-size:14px;'+(un?'color:#e65100;':'')+'">'+(un?'&#9888;&#65039; ':'&#127974; ')+escH(label(n))+'</div>'
+        + '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;"><span style="color:#2e7d32;">In: <b>'+fmt(c.tin)+'</b></span><span style="color:#c62828;">Out: <b>'+fmt(c.tout)+'</b></span><span style="color:#1a237e;">Balance: <b>'+fmt(c.closing)+'</b></span></div>'
+        + '</div>';
+    });
+    sum.innerHTML = sh;
+
+    if(!cur){ stm.innerHTML = '<div style="text-align:center;font-size:12px;color:var(--mu);font-family:Arial,sans-serif;padding:8px;">Statement dekhne ke liye upar kisi account par tap karein.</div>'; return; }
+
+    var c = calc(E, cur, from, to);
+    var bal = c.opening;
+    var th = 'style="text-align:left;padding:7px 8px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;background:#1a3a2a;color:#fff;white-space:nowrap;"';
+    var thr = 'style="text-align:right;padding:7px 8px;font-size:10px;letter-spacing:.5px;text-transform:uppercase;background:#1a3a2a;color:#fff;white-space:nowrap;"';
+    var td = 'style="padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top;"';
+    var tdr = 'style="padding:7px 8px;border-bottom:1px solid #eee;text-align:right;white-space:nowrap;vertical-align:top;"';
+    var t = '<div style="background:#fff;border:1px solid var(--bdr);margin-top:4px;"><div style="padding:10px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:14px;border-bottom:1px solid var(--bdr);">&#127974; '+escH(label(cur))+' &mdash; Statement</div>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;min-width:560px;">'
+      + '<thead><tr><th '+th+'>Date</th><th '+th+'>Details</th><th '+th+'>Invoice / Ref</th><th '+thr+'>In (Cr)</th><th '+thr+'>Out (Dr)</th><th '+thr+'>Balance</th></tr></thead><tbody>';
+    if(from || Math.abs(c.opening) > 0.004){
+      t += '<tr style="background:#f5f7ff;"><td '+td+' colspan="5"><b>Opening Balance</b></td><td '+tdr+'><b>'+fmt(c.opening)+'</b></td></tr>';
+    }
+    if(!c.rows.length){
+      t += '<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--mu);">Is period me koi entry nahi</td></tr>';
+    }
+    c.rows.forEach(function(e){
+      bal = rnd(bal + e.inn - e.out);
+      t += '<tr><td '+td+'>'+escH(alDate(e.date))+'</td>'
+        + '<td '+td+'>'+badge(e.type)+'<div style="margin-top:3px;font-weight:600;">'+escH(e.party||'-')+'</div></td>'
+        + '<td '+td+'>'+escH(e.ref||'-')+'</td>'
+        + '<td '+tdr+'>'+(e.inn?'<span style="color:#2e7d32;font-weight:700;">'+fmt(e.inn)+'</span>':'')+'</td>'
+        + '<td '+tdr+'>'+(e.out?'<span style="color:#c62828;font-weight:700;">'+fmt(e.out)+'</span>':'')+'</td>'
+        + '<td '+tdr+'><b>'+fmt(bal)+'</b></td></tr>';
+    });
+    t += '<tr style="background:#f5f7ff;font-weight:800;"><td '+td+' colspan="3">Total</td><td '+tdr+'><span style="color:#2e7d32;">'+fmt(c.tin)+'</span></td><td '+tdr+'><span style="color:#c62828;">'+fmt(c.tout)+'</span></td><td '+tdr+'>'+fmt(c.closing)+'</td></tr>';
+    t += '</tbody></table></div></div>';
+    stm.innerHTML = t;
+  };
+
+  window.acctLedgerExcel = function(){
+    if(typeof XLSX === 'undefined'){ showToast('Excel library load nahi hui'); return; }
+    var E = buildEntries(), names = allNames(E);
+    if(!names.length){ showToast('Koi account entry nahi hai'); return; }
+    var from = document.getElementById('al-from').value, to = document.getElementById('al-to').value;
+    var cur = document.getElementById('al-acct').value;
+    var list = cur ? [cur] : names;
+    var wb = XLSX.utils.book_new(), used = {};
+    list.forEach(function(n){
+      var c = calc(E, n, from, to), bal = c.opening;
+      var rows = [['Account: '+label(n)], [(from||'Start')+' to '+(to||'Today')], [],
+                  ['Date','Type','Party / Details','Invoice / Ref','Mode','In (Cr)','Out (Dr)','Balance']];
+      if(from || Math.abs(c.opening) > 0.004) rows.push(['Opening Balance','','','','','','',c.opening]);
+      c.rows.forEach(function(e){
+        bal = rnd(bal + e.inn - e.out);
+        rows.push([e.date, e.type, e.party, e.ref, e.note, e.inn||'', e.out||'', bal]);
+      });
+      rows.push(['TOTAL','','','','',c.tin,c.tout,c.closing]);
+      var nm = label(n).replace(/[\[\]\:\*\?\/\\]/g,' ').slice(0,28) || 'Account';
+      var base = nm, k = 2; while(used[nm]){ nm = base.slice(0,26)+' '+k; k++; } used[nm] = 1;
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), nm);
+    });
+    XLSX.writeFile(wb, 'Account_Ledger'+(cur?('_'+label(cur).replace(/[^A-Za-z0-9]+/g,'_')):'')+'.xlsx');
+    showToast('Excel download ho gaya');
+  };
 })();
 </script>
 </body>
