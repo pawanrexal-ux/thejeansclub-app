@@ -6528,6 +6528,11 @@ function saveRecvAcctEdit(i){
   if(expHit.length) LS.sync('expenses', expenses);
   if(purHit.length) LS.sync('purchases', purchases);
   if(spHit.length) LS.sync('supplierPayments', supplierPayments);
+  try{
+    if(SETTINGS.acctOpening && SETTINGS.acctOpening[oldN]!==undefined){
+      SETTINGS.acctOpening[newN] = SETTINGS.acctOpening[oldN]; delete SETTINGS.acctOpening[oldN]; LS.sync('settings', SETTINGS);
+    }
+  }catch(e){}
   if(invHit.length) LS.sync('invoices', invoices);
   if(rcpHit.length) LS.sync('pendingPayments', pendingPayments);
   if(heldHit.length){ LS.sync('heldInvoices', heldInvoices); try{ pushHeldNow(); }catch(e){} }
@@ -19281,7 +19286,7 @@ function _odReset(){
   function label(n){ return n==='__none__' ? 'Account select nahi hua (purane entries)' : n; }
 
   function calc(E, name, from, to){
-    var opening = 0, rows = [], tin = 0, tout = 0;
+    var base = getAcctBase(name), opening = base, rows = [], tin = 0, tout = 0;
     E.forEach(function(e){
       if(e.acct !== name) return;
       var d = e.date || '';
@@ -19289,8 +19294,26 @@ function _odReset(){
       if(to && d > to) return;
       rows.push(e); tin += e.inn; tout += e.out;
     });
-    return {opening:rnd(opening), rows:rows, tin:rnd(tin), tout:rnd(tout), closing:rnd(opening+tin-tout)};
+    return {base:base, opening:rnd(opening), rows:rows, tin:rnd(tin), tout:rnd(tout), closing:rnd(opening+tin-tout)};
   }
+  // App se pehle ka starting balance (har account ka) — Settings me save hota hai
+  function getAcctBase(name){
+    if(name==='__none__') return 0;
+    var m = (typeof SETTINGS!=='undefined' && SETTINGS && SETTINGS.acctOpening) || {};
+    var v = Number(m[name]); return isNaN(v) ? 0 : v;
+  }
+  window.alSaveBase = function(){
+    if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin starting balance badal sakta hai'); return; }
+    var cur = (document.getElementById('al-acct')||{}).value; if(!cur || cur==='__none__') return;
+    var raw = String((document.getElementById('al-base')||{}).value||'').trim();
+    var n = raw==='' ? 0 : Number(raw);
+    if(isNaN(n)){ showToast('Sahi amount likhein'); return; }
+    if(!SETTINGS.acctOpening) SETTINGS.acctOpening = {};
+    if(n===0) delete SETTINGS.acctOpening[cur]; else SETTINGS.acctOpening[cur] = rnd(n);
+    LS.sync('settings', SETTINGS);
+    renderAcctLedger();
+    showToast('\u2705 Starting balance save ho gaya');
+  };
 
   var TYPE_CLR = {Invoice:'#1565c0', Receipt:'#2e7d32', Expense:'#c62828', Purchase:'#e65100', Supplier:'#6a1b9a'};
   function badge(t){ return '<span style="display:inline-block;padding:1px 6px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#fff;background:'+(TYPE_CLR[t]||'#555')+';border-radius:3px;">'+escH(t)+'</span>'; }
@@ -19345,7 +19368,7 @@ function _odReset(){
       var un = (n==='__none__');
       sh += '<div onclick="alPickIdx('+i+')" style="cursor:pointer;background:#fff;border:1px solid var(--bdr);border-left:4px solid '+(un?'#e65100':'#3949ab')+';padding:10px 14px;margin-bottom:8px;font-family:Arial,sans-serif;'+(cur===n?'box-shadow:0 0 0 2px #3949ab55;':'')+'">'
         + '<div style="font-weight:800;font-size:14px;'+(un?'color:#e65100;':'')+'">'+(un?'&#9888;&#65039; ':'&#127974; ')+escH(label(n))+'</div>'
-        + '<div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;"><span style="color:#2e7d32;">In: <b>'+fmt(c.tin)+'</b></span><span style="color:#c62828;">Out: <b>'+fmt(c.tout)+'</b></span><span style="color:#1a237e;">Balance: <b>'+fmt(c.closing)+'</b></span></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;margin-top:6px;font-size:12px;"><span style="color:#555;">Opening: <b>'+fmt(c.opening)+'</b></span><span style="color:#1a237e;text-align:right;">Closing: <b>'+fmt(c.closing)+'</b></span><span style="color:#2e7d32;">In: <b>'+fmt(c.tin)+'</b></span><span style="color:#c62828;text-align:right;">Out: <b>'+fmt(c.tout)+'</b></span></div>'
         + '</div>';
     });
     sum.innerHTML = cur ? '' : sh;
@@ -19361,9 +19384,7 @@ function _odReset(){
     var t = '<div style="background:#fff;border:1px solid var(--bdr);margin-top:4px;"><div style="padding:10px 14px;font-family:Arial,sans-serif;font-weight:800;font-size:14px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px;"><button class="btn btn-outline" onclick="alBack()" style="padding:6px 12px;font-size:13px;flex-shrink:0;">&#8592; Back</button><span>&#127974; '+escH(label(cur))+' &mdash; Statement</span></div>'
       + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;min-width:560px;">'
       + '<thead><tr><th '+th+'>Date</th><th '+th+'>Details</th><th '+th+'>Invoice / Ref</th><th '+thr+'>In (Cr)</th><th '+thr+'>Out (Dr)</th><th '+thr+'>Balance</th></tr></thead><tbody>';
-    if(from || Math.abs(c.opening) > 0.004){
-      t += '<tr style="background:#f5f7ff;"><td '+td+' colspan="5"><b>Opening Balance</b></td><td '+tdr+'><b>'+fmt(c.opening)+'</b></td></tr>';
-    }
+    t += '<tr style="background:#eef1ff;"><td '+td+' colspan="6"><b>Opening Balance: '+fmt(c.opening)+'</b> <span style="font-size:10px;color:var(--mu);">'+(from ? '('+escH(alDate(from))+' se pehle ka)' : '(shuru ka balance)')+'</span></td></tr>';
     if(!c.rows.length){
       t += '<tr><td colspan="6" style="padding:18px;text-align:center;color:var(--mu);">Is period me koi entry nahi</td></tr>';
     }
@@ -19377,8 +19398,16 @@ function _odReset(){
         + '<td '+tdr+'><b>'+fmt(bal)+'</b></td></tr>';
     });
     t += '<tr style="background:#f5f7ff;font-weight:800;"><td '+td+' colspan="3">Total</td><td '+tdr+'><span style="color:#2e7d32;">'+fmt(c.tin)+'</span></td><td '+tdr+'><span style="color:#c62828;">'+fmt(c.tout)+'</span></td><td '+tdr+'>'+fmt(c.closing)+'</td></tr>';
+    t += '<tr style="background:#1a3a2a;color:#fff;font-weight:800;"><td style="padding:9px 8px;" colspan="6">Closing Balance: '+fmt(c.closing)+' '+(to ? '<span style="font-size:10px;font-weight:400;">('+escH(alDate(to))+' tak)</span>' : '')+'</td></tr>';
     t += '</tbody></table></div></div>';
-    stm.innerHTML = t;
+    var bx = function(lbl, val, clr){ return '<div style="flex:1;min-width:0;background:#fff;border:1px solid var(--bdr);border-top:3px solid '+clr+';padding:8px 10px;font-family:Arial,sans-serif;"><div style="font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);">'+lbl+'</div><div style="font-size:15px;font-weight:800;color:'+clr+';margin-top:2px;">'+fmt(val)+'</div></div>'; };
+    var strip = '<div style="display:flex;gap:6px;margin-bottom:8px;">'+bx('Opening', c.opening, '#555')+bx('Total In', c.tin, '#2e7d32')+bx('Total Out', c.tout, '#c62828')+bx('Closing', c.closing, '#1a237e')+'</div>';
+    var baseBox = '';
+    if(cur !== '__none__' && CURRENT_ROLE === 'admin'){
+      baseBox = '<div style="background:#fff;border:1px solid var(--bdr);padding:8px 10px;margin-bottom:8px;font-family:Arial,sans-serif;"><div style="font-size:11px;color:var(--mu);margin-bottom:5px;">Starting Balance (app use karne se pehle account me jitna paisa tha)</div><div style="display:flex;gap:6px;"><input type="number" inputmode="decimal" id="al-base" value="'+(c.base||'')+'" placeholder="0" style="flex:1;min-width:0;padding:8px;border:1px solid var(--bdr);"/><button class="btn btn-gold" style="padding:8px 14px;" onclick="alSaveBase()">Save</button></div></div>';
+    }
+    var _k = t.indexOf('<div style="overflow-x:auto;">');
+    stm.innerHTML = t.slice(0,_k) + '<div style="padding:8px 8px 0;">' + strip + baseBox + '</div>' + t.slice(_k);
   };
 
   window.acctLedgerExcel = function(){
@@ -19393,12 +19422,13 @@ function _odReset(){
       var c = calc(E, n, from, to), bal = c.opening;
       var rows = [['Account: '+label(n)], [(from||'Start')+' to '+(to||'Today')], [],
                   ['Date','Type','Party / Details','Invoice / Ref','Mode','In (Cr)','Out (Dr)','Balance']];
-      if(from || Math.abs(c.opening) > 0.004) rows.push(['Opening Balance','','','','','','',c.opening]);
+      rows.push(['Opening Balance','','','','','','',c.opening]);
       c.rows.forEach(function(e){
         bal = rnd(bal + e.inn - e.out);
         rows.push([e.date, e.type, e.party, e.ref, e.note, e.inn||'', e.out||'', bal]);
       });
-      rows.push(['TOTAL','','','','',c.tin,c.tout,c.closing]);
+      rows.push(['TOTAL','','','','',c.tin,c.tout,'']);
+      rows.push(['CLOSING BALANCE','','','','','','',c.closing]);
       var nm = label(n).replace(/[\[\]\:\*\?\/\\]/g,' ').slice(0,28) || 'Account';
       var base = nm, k = 2; while(used[nm]){ nm = base.slice(0,26)+' '+k; k++; } used[nm] = 1;
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), nm);
