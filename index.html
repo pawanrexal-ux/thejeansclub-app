@@ -869,6 +869,14 @@ body.bill-staff #oldDueCard,
 body.bill-staff .item-row > select,
 body.bill-staff .item-hdr span:nth-child(6){display:none!important;}
 body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 22px 2.2fr 1fr 1.2fr 26px;}
+
+/* === Mobile header fix: page/document kabhi scroll na ho, sirf content-area scroll ho (header 3-line + back arrow hamesha dikhe) === */
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
+body,.app-layout,.main-area{overflow:hidden;overflow:clip;}
+.app-layout{height:100vh;height:100dvh;}
+.main-area{min-height:0;}
+.content-area{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+@media(max-width:768px){ .content-area{height:auto !important;flex:1 1 0;min-height:0;} }
 </style>
 </head>
 <body>
@@ -921,6 +929,7 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
       <div class="nav-sec">Collections &#128178;</div>
       <div class="nav-item" onclick="navTo('payments',this)"><span class="nav-icon">&#128179;</span>Payments Ledger</div>
       <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Dues</div>
+      <div class="nav-item" onclick="navTo('creditlimit',this)"><span class="nav-icon">&#128274;</span>Credit Limits</div>
       <div class="nav-sec">Purchase</div>
       <div class="nav-item" onclick="navTo('purchases',this)"><span class="nav-icon">&#128666;</span>Purchase Dashboard</div>
       <div class="nav-item" onclick="navTo('purchaselist',this)"><span class="nav-icon">&#128203;</span>Purchase Records</div>
@@ -2015,6 +2024,32 @@ body.bill-staff .item-hdr,body.bill-staff .item-row{grid-template-columns:24px 2
         </div>
         <div id="al-summary"></div>
         <div id="al-statement"></div>
+      </div>
+
+      <div class="page" id="page-creditlimit">
+        <div class="card">
+          <div class="card-head"><div class="card-icon">&#128274;</div><div class="card-title">Credit / Baaki Limit</div></div>
+          <div class="card-body">
+            <div style="font-family:Arial,sans-serif;font-size:11px;color:var(--mu);line-height:1.5;margin-bottom:10px;">Customer ko maximum kitna udhaar (pending / partial) de sakte ho wo yahan set karo. Limit cross hone wala invoice save karte time rok diya jayega (ya warning aayegi).</div>
+            <div class="row2">
+              <div class="ig"><label>Default Limit (&#8377;)</label><input type="number" id="cl-default" inputmode="numeric" placeholder="0 = koi limit nahi"/></div>
+              <div class="ig"><label>Limit cross hone par</label>
+                <select id="cl-mode" style="font-family:Arial,sans-serif;"><option value="block">Block karo</option><option value="warn">Sirf Warning</option></select></div>
+            </div>
+            <button class="btn btn-gold btn-full" onclick="clSaveSettings()">Save Default &amp; Rule</button>
+            <div style="font-family:Arial,sans-serif;font-size:10px;color:var(--mu);margin-top:6px;">Default limit unn sab customers par lagti hai jinki alag limit set nahi hai. <b>Block:</b> Staff invoice save nahi kar sakta, Admin confirm karke kar sakta hai. <b>Warning:</b> sabko confirm popup aata hai.</div>
+          </div>
+        </div>
+        <div id="cl-stats" class="stats-grid"></div>
+        <div class="card">
+          <div class="card-body">
+            <div class="row2">
+              <div class="ig"><label>Customer Search</label><input type="text" id="cl-search" oninput="renderCreditLimits()" placeholder="Naam ya phone"/></div>
+              <div class="ig"><label>Filter</label><select id="cl-filter" onchange="renderCreditLimits()" style="font-family:Arial,sans-serif;"><option value="">Sab customers</option><option value="due">Jinka baaki hai</option><option value="limit">Limit set hai</option><option value="over">Limit cross</option></select></div>
+            </div>
+            <div id="cl-list"></div>
+          </div>
+        </div>
       </div>
 
       <div class="page" id="page-expensenew">
@@ -5841,7 +5876,7 @@ function staffCanAccess(page){
   // Settings always blocked for staff
   if(page === 'settings') return false;
   // pnl, profitreport, editlog, loginlog, supplierpay, suppaypreview always blocked for staff
-  if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog' || page === 'acctledger') return false;
+  if(page === 'pnl' || page === 'profitreport' || page === 'editlog' || page === 'loginlog' || page === 'acctledger' || page === 'creditlimit') return false;
   if(page === 'supplierpay' || page === 'suppaypreview' || page === 'supplierpending' || page === 'supplierhistory') return false;
   return STAFF_PERMISSIONS[page] !== false; // default allow if not in defs
 }
@@ -6638,7 +6673,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {acctledger:'Account Ledger', dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {creditlimit:'Customer Credit Limits', acctledger:'Account Ledger', dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice'){
@@ -6663,6 +6698,7 @@ function navTo(page, el, mi){
   if(page==='settings') { loadSettings(); setTimeout(function(){ checkStorageHealth(); updateBackupLabel(); updateDataWindowLabel(); }, 100); }
 
   if(page==='acctledger') ensureFullDataLoaded(renderAcctLedger);
+  if(page==='creditlimit') ensureFullDataLoaded(renderCreditLimits);
   if(page==='purchases') ensureFullDataLoaded(renderPurchaseDashboard);
   if(page==='purchaselist') ensureFullDataLoaded(renderPurchases);
   if(page==='supplierpay'){ initSupplierPayForm(); ensureFullDataLoaded(renderSupplierPayPage); }
@@ -6731,6 +6767,13 @@ function nowDate(){
 }
 var _monthKeyCache = {};
 var _monthKeyCacheMonth = -1; // month rollover detect karne ke liye
+function monthKeySortVal(k){
+  var m = /^([A-Za-z]+)\.?\s+(\d{4})$/.exec(String(k||'').trim());
+  if(!m) return 0;
+  var i = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[1].slice(0,3).toLowerCase());
+  return i < 0 ? 0 : (parseInt(m[2],10)*12 + i);
+}
+function sortMonthKeysDesc(arr){ return arr.sort(function(a,b){ return monthKeySortVal(b) - monthKeySortVal(a); }); }
 function monthKey(d){
   if(!d) return '';
   // FIX: Cache month rollover pe clear karo — warna naye month ke invoices purane
@@ -9869,7 +9912,7 @@ function renderPayments(){
   expenses.forEach(function(e){ addMonth(e.date); });
   pendingPayments.forEach(function(r){ addMonth(r.date); });
   returns.forEach(function(r){ addMonth(r.date); });
-  allMonths.sort().reverse();
+  sortMonthKeysDesc(allMonths);
   var mSel = document.getElementById('pay-month');
   if(mSel){
     var cur = mSel.value;
@@ -13709,13 +13752,28 @@ function renderExpenseDashboard(){
   }
 
   // Monthly Trend Chart
+  // Months ko calendar order (purana -> naya) me, bina gap ke: har month ka sortable key YYYY-MM
   var monthMap = {};
   expenses.forEach(function(e){
-    var mk = monthKey(e.date);
-    if(mk) monthMap[mk] = (monthMap[mk]||0) + e.amount;
+    var mm = /^(\d{4})-(\d{2})/.exec(e.date || '');
+    if(!mm) return;
+    var k = mm[1] + '-' + mm[2];
+    monthMap[k] = (monthMap[k]||0) + (Number(e.amount)||0);
   });
-  var months = Object.keys(monthMap).sort();
-  var last6 = months.slice(-6);
+  var _mkeys = Object.keys(monthMap).sort();
+  var last6 = [];
+  if(_mkeys.length){
+    var _nw = new Date();
+    var _curK = _nw.getFullYear() + '-' + String(_nw.getMonth()+1).padStart(2,'0');
+    var _endK = _mkeys[_mkeys.length-1] > _curK ? _mkeys[_mkeys.length-1] : _curK;
+    var _ey = parseInt(_endK.slice(0,4),10), _em = parseInt(_endK.slice(5,7),10)-1;
+    for(var _i=5; _i>=0; _i--){
+      var _d = new Date(_ey, _em-_i, 1);
+      last6.push(_d.getFullYear() + '-' + String(_d.getMonth()+1).padStart(2,'0'));
+    }
+  }
+  var _MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var last6Labels = last6.map(function(k){ return _MN[parseInt(k.slice(5),10)-1] + ' ' + k.slice(0,4); });
   var canvas = document.getElementById('exp-trend-chart');
   if(canvas && last6.length){
     var ctx = canvas.getContext('2d');
@@ -13728,7 +13786,7 @@ function renderExpenseDashboard(){
     canvas.height = H * dpr;
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
-    var vals = last6.map(function(m){ return monthMap[m]; });
+    var vals = last6.map(function(m){ return monthMap[m] || 0; });
     var maxVal = Math.max.apply(null, vals) || 1;
     var padL=44, padR=16, padT=16, padB=40;
     var chartW = W-padL-padR, chartH = H-padT-padB;
@@ -13757,11 +13815,11 @@ function renderExpenseDashboard(){
 
       // Value label
       ctx.fillStyle='#333'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
-      ctx.fillText(fmtNum(v), x+barW/2, y-4);
+      if(v > 0) ctx.fillText(fmtNum(v), x+barW/2, y-4);
 
       // Month label
       ctx.fillStyle='#666'; ctx.font='9px Arial';
-      ctx.fillText(last6[i], x+barW/2, H-padB+14);
+      ctx.fillText(last6Labels[i], x+barW/2, H-padB+14);
     });
   } else if(canvas){
     var ctx2 = canvas.getContext('2d');
@@ -13797,7 +13855,7 @@ function renderExpenses(){
   if(!isStaff){
     var months = [];
     expenses.forEach(function(e){ var mk=monthKey(e.date); if(mk && months.indexOf(mk)===-1) months.push(mk); });
-    months.sort().reverse();
+    sortMonthKeysDesc(months);
     var mSel = document.getElementById('exp-month');
     if(mSel){
       var cur = mSel.value;
@@ -19249,6 +19307,7 @@ function _odReset(){
     ['main-area','app-layout'].forEach(function(c){ var e = document.querySelector('.'+c); if(e){ e.scrollTop = 0; } });
     if(document.scrollingElement) document.scrollingElement.scrollTop = 0;
     if(document.body) document.body.scrollTop = 0;
+    if(window.__hdrFix) window.__hdrFix();
   }
   window.alTop = alTop;
   window.alClearDates = function(){ document.getElementById('al-from').value=''; document.getElementById('al-to').value=''; renderAcctLedger(); };
@@ -19346,6 +19405,256 @@ function _odReset(){
     });
     XLSX.writeFile(wb, 'Account_Ledger'+(cur?('_'+label(cur).replace(/[^A-Za-z0-9]+/g,'_')):'')+'.xlsx');
     showToast('Excel download ho gaya');
+  };
+})();
+</script>
+
+<script>
+// Header guard: koi bhi cheez (browser, focus, tap) page ko khiska kar header (3-line + back arrow) chhupa na sake — turant wapas 0 par
+(function(){
+  function fix(){
+    try{
+      var de = document.documentElement, b = document.body;
+      if(de && de.scrollTop) de.scrollTop = 0;
+      if(b && b.scrollTop) b.scrollTop = 0;
+      if(window.scrollY || window.pageYOffset) window.scrollTo(0,0);
+      ['.app-layout','.main-area'].forEach(function(q){ var e = document.querySelector(q); if(e && (e.scrollTop || e.scrollLeft)){ e.scrollTop = 0; e.scrollLeft = 0; } });
+    }catch(e){}
+  }
+  window.addEventListener('scroll', fix, true);
+  document.addEventListener('scroll', fix, true);
+  window.addEventListener('resize', fix);
+  window.addEventListener('orientationchange', fix);
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize', fix); window.visualViewport.addEventListener('scroll', fix); }
+  document.addEventListener('focusin', function(){ setTimeout(fix, 0); setTimeout(fix, 250); }, true);
+  document.addEventListener('touchend', function(){ setTimeout(fix, 50); }, true);
+  window.__hdrFix = fix;
+})();
+</script>
+
+<script>
+// ===== CUSTOMER CREDIT LIMIT SYSTEM =====
+(function(){
+  function nm(x){ return String(x||'').trim().toLowerCase(); }
+  function r2(n){ return Math.round((n||0)*100)/100; }
+  function custs(){ return (typeof savedCustomers!=='undefined' && Array.isArray(savedCustomers)) ? savedCustomers : []; }
+  function invs(){ var a; try{ a = LS.get('invoices'); }catch(e){} return Array.isArray(a) ? a : (typeof invoices!=='undefined' ? invoices : []); }
+  function cfg(){ var S = (typeof SETTINGS!=='undefined' && SETTINGS) ? SETTINGS : {}; return {def: Number(S.defaultCreditLimit)||0, mode: S.creditMode==='warn' ? 'warn' : 'block'}; }
+
+  // customer ki apni limit: number (0 = unlimited) ya null (default lagegi)
+  window.getCustOwnLimit = function(name){
+    var k = nm(name), v = null;
+    custs().forEach(function(c){ if(nm(c.name)===k && typeof c.creditLimit==='number' && !isNaN(c.creditLimit)) v = c.creditLimit; });
+    return v;
+  };
+  // effective limit: 0 = koi limit nahi
+  window.getCustCreditLimit = function(name){
+    var own = getCustOwnLimit(name);
+    return own!==null ? own : cfg().def;
+  };
+  window.setCustCreditLimit = function(name, limit){   // limit: number ya null (reset)
+    var k = nm(name); if(!k) return;
+    var list = custs(), hit = false;
+    list.forEach(function(c){
+      if(nm(c.name)===k){
+        hit = true;
+        if(limit===null) delete c.creditLimit; else c.creditLimit = limit;
+        c.updatedAt = new Date().toISOString();
+      }
+    });
+    if(!hit && limit!==null){
+      var ph = '';
+      invs().forEach(function(i){ if(!ph && nm(i.custName)===k && i.custPhone) ph = i.custPhone; });
+      list.unshift({id:Date.now(), name:String(name).trim(), phone:ph, addr:'', creditLimit:limit, createdAt:new Date().toISOString()});
+    }
+    savedCustomers = list;
+    LS.sync('customers', savedCustomers);
+  };
+
+  function dueMap(){
+    var m = {};
+    invs().forEach(function(i){
+      if(!i || !(i.payStatus==='Pending' || i.payStatus==='Partial')) return;
+      var d = r2((parseFloat(i.total)||0) - (parseFloat(i.paidAmount)||0));
+      if(d <= 0) return;
+      var k = nm(i.custName); if(!k) return;
+      m[k] = r2((m[k]||0) + d);
+    });
+    return m;
+  }
+
+  // ---------- ENFORCEMENT ----------
+  window.creditCheckForInvoice = function(fd){
+    if(window._clSkip || !fd) return true;
+    var newDue = fd.ps==='Paid' ? 0 : (fd.ps==='Partial' ? Math.max(0, (fd.total||0) - (fd.paidAmount||0)) : (fd.total||0));
+    newDue = r2(newDue);
+    if(newDue <= 0.004) return true;                       // naya udhaar nahi bana
+    var lim = getCustCreditLimit(fd.custName);
+    if(!lim || lim <= 0) return true;                      // limit nahi
+    var cur = getCustPrevDue(fd.custName, (typeof editingInvId!=='undefined' ? editingInvId : null), null).amount;
+    var paidOld = (fd.oldDuePay && fd.oldDuePay.extra) ? Number(fd.oldDuePay.extra)||0 : 0;   // is invoice me purana baaki bhi chukaya ja raha ho
+    cur = Math.max(0, r2(cur - paidOld));
+    var after = r2(cur + newDue);
+    if(after <= lim + 0.5) return true;
+    var c = cfg();
+    var msg = '\u26d4 CREDIT LIMIT CROSS\n\nCustomer: ' + fd.custName
+      + '\nCredit limit: \u20b9' + lim
+      + '\nPehle se baaki: \u20b9' + cur
+      + '\nIs invoice ka baaki: \u20b9' + newDue
+      + '\nTotal baaki ho jayega: \u20b9' + after + ' (limit se \u20b9' + r2(after-lim) + ' zyada)';
+    var isAdmin = (typeof CURRENT_ROLE!=='undefined' && CURRENT_ROLE==='admin');
+    if(c.mode==='warn') return confirm(msg + '\n\nPhir bhi save karein?');
+    if(isAdmin) return confirm(msg + '\n\nAdmin override: phir bhi save karein?');
+    alert(msg + '\n\nIs customer ko aur udhaar nahi de sakte. Pehle payment lein ya Admin se limit badhwayein.');
+    return false;
+  };
+
+  function wrapAll(){
+    if(typeof collectFormData==='function' && !collectFormData.__cl){
+      var _c = collectFormData;
+      collectFormData = function(){
+        var fd = _c.apply(this, arguments);
+        if(!fd) return fd;
+        try{ if(!creditCheckForInvoice(fd)) return null; }catch(e){ console.error('[creditCheck]', e); }
+        return fd;
+      };
+      collectFormData.__cl = true;
+    }
+    // Preview par limit ka popup nahi — sirf save par
+    if(typeof previewOnly==='function' && !previewOnly.__cl){
+      var _p = previewOnly;
+      previewOnly = function(){ window._clSkip = true; try{ return _p.apply(this, arguments); } finally { window._clSkip = false; } };
+      previewOnly.__cl = true;
+    }
+    if(typeof updateCustPrevDueBox==='function' && !updateCustPrevDueBox.__cl){
+      var _u = updateCustPrevDueBox;
+      updateCustPrevDueBox = function(){ var r = _u.apply(this, arguments); try{ renderCustCreditBox(); }catch(e){} return r; };
+      updateCustPrevDueBox.__cl = true;
+    }
+  }
+  wrapAll();
+
+  // ---------- INVOICE FORM: limit / used / available ----------
+  window.renderCustCreditBox = function(){
+    var prev = document.getElementById('custPrevDueBox'); if(!prev) return;
+    var box = document.getElementById('custCreditBox');
+    if(!box){ box = document.createElement('div'); box.id = 'custCreditBox'; prev.parentNode.insertBefore(box, prev.nextSibling); }
+    var name = (document.getElementById('custName')||{}).value || '';
+    if(!name.trim()){ box.style.display='none'; box.innerHTML=''; return; }
+    var lim = getCustCreditLimit(name);
+    var used = getCustPrevDue(name, (typeof editingInvId!=='undefined' ? editingInvId : null), null).amount;
+    var isAdmin = (typeof CURRENT_ROLE!=='undefined' && CURRENT_ROLE==='admin');
+    var setBtn = isAdmin ? ' <a href="javascript:void(0)" onclick="clPromptSet()" style="color:#1a237e;font-weight:700;text-decoration:underline;">Set limit</a>' : '';
+    if(!lim || lim<=0){
+      if(!isAdmin){ box.style.display='none'; box.innerHTML=''; return; }
+      box.style.display='block';
+      box.innerHTML = '<div style="font-family:Arial,sans-serif;font-size:11px;color:var(--mu);margin-bottom:10px;">&#128274; Credit limit: koi nahi.'+setBtn+'</div>';
+      return;
+    }
+    var avail = r2(lim - used), pct = Math.min(100, Math.round(used/lim*100));
+    var over = avail < 0, near = !over && pct >= 80;
+    var clr = over ? '#c62828' : (near ? '#e65100' : '#2e7d32');
+    box.style.display='block';
+    box.innerHTML = '<div style="background:#fff;border:1px solid '+clr+';border-left:4px solid '+clr+';padding:9px 12px;margin-bottom:12px;font-family:Arial,sans-serif;font-size:12px;">'
+      +'<div style="display:flex;justify-content:space-between;gap:8px;"><strong>&#128274; Credit Limit: '+fmt(lim)+'</strong><span>'+setBtn+'</span></div>'
+      +'<div style="height:6px;background:#eee;margin:6px 0;"><div style="height:6px;width:'+pct+'%;background:'+clr+';"></div></div>'
+      +'<div style="display:flex;justify-content:space-between;"><span>Baaki: <b>'+fmt(used)+'</b></span><span style="color:'+clr+';"><b>'+(over ? 'Limit cross: '+fmt(-avail) : 'Bacha: '+fmt(avail))+'</b></span></div>'
+      +'</div>';
+  };
+  window.clPromptSet = function(){
+    var name = (document.getElementById('custName')||{}).value || ''; if(!name.trim()) return;
+    var own = getCustOwnLimit(name);
+    var v = prompt('"'+name.trim()+'" ki credit limit (\u20b9)\n\n\u2022 Number likho = us customer ki limit\n\u2022 0 = unlimited\n\u2022 Khali chhodo = default limit', own===null ? '' : String(own));
+    if(v===null) return;
+    v = v.trim();
+    if(v===''){ setCustCreditLimit(name, null); }
+    else { var n = Number(v); if(isNaN(n) || n<0){ showToast('Sahi amount likhein'); return; } setCustCreditLimit(name, Math.round(n)); }
+    renderCustCreditBox();
+    showToast('\u2705 Credit limit save ho gayi');
+  };
+  var nameEl = document.getElementById('custName');
+  if(nameEl){ nameEl.addEventListener('input', function(){ try{ renderCustCreditBox(); }catch(e){} }); nameEl.addEventListener('blur', function(){ try{ renderCustCreditBox(); }catch(e){} }); }
+
+  // ---------- CREDIT LIMITS PAGE ----------
+  window.clSaveSettings = function(){
+    if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin badal sakta hai'); return; }
+    var v = Number((document.getElementById('cl-default')||{}).value)||0;
+    if(v<0){ showToast('Sahi amount likhein'); return; }
+    SETTINGS.defaultCreditLimit = Math.round(v);
+    SETTINGS.creditMode = (document.getElementById('cl-mode')||{}).value==='warn' ? 'warn' : 'block';
+    LS.sync('settings', SETTINGS);
+    renderCreditLimits();
+    showToast('\u2705 Save ho gaya');
+  };
+  function entities(){
+    var map = {}, order = [];
+    function ent(name, phone){
+      var k = nm(name); if(!k) return null;
+      if(!map[k]){ map[k] = {key:k, name:String(name).trim(), phone:''}; order.push(k); }
+      if(phone && !map[k].phone) map[k].phone = phone;
+      return map[k];
+    }
+    custs().forEach(function(c){ ent(c.name, c.phone); });
+    invs().forEach(function(i){ if(i && (i.payStatus==='Pending'||i.payStatus==='Partial')) ent(i.custName, i.custPhone); });
+    return order.map(function(k){ return map[k]; });
+  }
+  window.renderCreditLimits = function(){
+    var list = document.getElementById('cl-list'); if(!list) return;
+    var c = cfg();
+    var dEl = document.getElementById('cl-default'), mEl = document.getElementById('cl-mode');
+    if(dEl && document.activeElement!==dEl) dEl.value = c.def || '';
+    if(mEl) mEl.value = c.mode;
+    var dm = dueMap(), E = entities();
+    E.forEach(function(e){
+      e.due = dm[e.key] || 0;
+      e.own = getCustOwnLimit(e.name);
+      e.lim = e.own!==null ? e.own : c.def;
+      e.over = e.lim>0 && e.due > e.lim + 0.5;
+      e.pct = e.lim>0 ? Math.min(100, Math.round(e.due/e.lim*100)) : 0;
+    });
+    var q = nm((document.getElementById('cl-search')||{}).value), f = (document.getElementById('cl-filter')||{}).value || '';
+    var overCnt = E.filter(function(e){ return e.over; }).length, withLim = E.filter(function(e){ return e.lim>0; }).length;
+    var totDue = r2(E.reduce(function(s,e){ return s + e.due; }, 0));
+    var st = document.getElementById('cl-stats');
+    if(st) st.innerHTML = '<div class="stat-card red"><div class="stat-label">Limit Cross</div><div class="stat-value">'+overCnt+'</div></div>'
+      +'<div class="stat-card gold"><div class="stat-label">Limit Wale Customers</div><div class="stat-value">'+withLim+'</div></div>'
+      +'<div class="stat-card"><div class="stat-label">Total Baaki</div><div class="stat-value">'+fmt(totDue)+'</div></div>';
+    var V = E.filter(function(e){
+      if(q && e.name.toLowerCase().indexOf(q)<0 && String(e.phone||'').indexOf(q)<0) return false;
+      if(f==='due') return e.due>0;
+      if(f==='limit') return e.lim>0;
+      if(f==='over') return e.over;
+      return true;
+    });
+    V.sort(function(a,b){ return (b.over-a.over) || (b.due-a.due) || a.name.localeCompare(b.name); });
+    window._clList = V;
+    if(!V.length){ list.innerHTML = '<div style="padding:18px;text-align:center;color:var(--mu);font-family:Arial,sans-serif;font-size:12px;">Koi customer nahi mila</div>'; return; }
+    list.innerHTML = V.slice(0,200).map(function(e,i){
+      var clr = e.over ? '#c62828' : (e.lim>0 && e.pct>=80 ? '#e65100' : '#2e7d32');
+      var tag = e.lim<=0 ? '<span style="font-size:9px;color:#777;">Limit nahi</span>' : (e.over ? '<span style="font-size:9px;color:#fff;background:#c62828;padding:1px 6px;">CROSS</span>' : (e.pct>=80 ? '<span style="font-size:9px;color:#fff;background:#e65100;padding:1px 6px;">NEAR</span>' : '<span style="font-size:9px;color:#fff;background:#2e7d32;padding:1px 6px;">OK</span>'));
+      return '<div style="border:1px solid var(--bdr);border-left:4px solid '+(e.lim>0?clr:'#bbb')+';padding:10px 12px;margin-bottom:8px;background:#fff;font-family:Arial,sans-serif;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b style="font-size:14px;">'+escH(e.name)+'</b>'+tag+'</div>'
+        +(e.phone?'<div style="font-size:11px;color:var(--mu);">'+escH(e.phone)+'</div>':'')
+        +(e.lim>0?'<div style="height:6px;background:#eee;margin:8px 0 4px;"><div style="height:6px;width:'+e.pct+'%;background:'+clr+';"></div></div>':'<div style="height:6px;"></div>')
+        +'<div style="display:flex;justify-content:space-between;font-size:12px;"><span>Baaki: <b>'+fmt(e.due)+'</b></span><span>Limit: <b>'+(e.own===0?'Unlimited':(e.lim>0?fmt(e.lim)+(e.own===null?' (default)':''):'-'))+'</b></span><span style="color:'+clr+';">'+(e.lim>0?(e.over?'Cross: '+fmt(e.due-e.lim):'Bacha: '+fmt(e.lim-e.due)):'')+'</span></div>'
+        +'<div style="display:flex;gap:6px;margin-top:8px;"><input type="number" inputmode="numeric" id="cl-in-'+i+'" value="'+(e.own===null?'':e.own)+'" placeholder="Limit (\u20b9)" style="flex:1;min-width:0;padding:8px;border:1px solid var(--bdr);"/>'
+        +'<button class="btn btn-gold" style="padding:8px 14px;" onclick="clSaveRow('+i+')">Save</button>'
+        +'<button class="btn btn-outline" style="padding:8px 10px;" onclick="clResetRow('+i+')" title="Default par wapas">&#8634;</button></div>'
+        +'</div>';
+    }).join('') + (V.length>200 ? '<div style="text-align:center;font-size:11px;color:var(--mu);padding:6px;">Pehle 200 dikh rahe hain — search use karein</div>' : '');
+  };
+  window.clSaveRow = function(i){
+    if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin limit badal sakta hai'); return; }
+    var e = (window._clList||[])[i]; if(!e) return;
+    var v = String((document.getElementById('cl-in-'+i)||{}).value||'').trim();
+    if(v===''){ setCustCreditLimit(e.name, null); showToast('Default limit lagu'); }
+    else { var n = Number(v); if(isNaN(n)||n<0){ showToast('Sahi amount likhein'); return; } setCustCreditLimit(e.name, Math.round(n)); showToast(n===0 ? '\u2705 Unlimited set' : '\u2705 Limit set: \u20b9'+Math.round(n)); }
+    renderCreditLimits();
+  };
+  window.clResetRow = function(i){
+    if(CURRENT_ROLE!=='admin'){ showToast('Sirf Admin limit badal sakta hai'); return; }
+    var e = (window._clList||[])[i]; if(!e) return;
+    setCustCreditLimit(e.name, null); renderCreditLimits(); showToast('Default limit lagu');
   };
 })();
 </script>
