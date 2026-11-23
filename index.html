@@ -931,6 +931,7 @@ body,.app-layout,.main-area{overflow:hidden;overflow:clip;}
       <div class="nav-item" onclick="navTo('pending',this)"><span class="nav-icon">&#9203;</span>Pending Dues</div>
       <div class="nav-item" onclick="navTo('creditlimit',this)"><span class="nav-icon">&#128274;</span>Credit Limits</div>
       <div class="nav-sec">Purchase</div>
+      <div class="nav-item" onclick="navTo('ordertrack',this)"><span class="nav-icon">&#128230;</span>Order Tracking <span id="ot-badge" style="display:none;margin-left:6px;background:#c62828;color:#fff;font-size:10px;padding:1px 7px;border-radius:9px;"></span></div>
       <div class="nav-item" onclick="navTo('purchases',this)"><span class="nav-icon">&#128666;</span>Purchase Dashboard</div>
       <div class="nav-item" onclick="navTo('purchaselist',this)"><span class="nav-icon">&#128203;</span>Purchase Records</div>
       <div class="nav-sec">Supplier &#127968;</div>
@@ -2052,6 +2053,34 @@ body,.app-layout,.main-area{overflow:hidden;overflow:clip;}
         </div>
       </div>
 
+      <div class="page" id="page-ordertrack">
+        <div id="ot-banner"></div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <button class="btn btn-gold" id="ot-tab-daily" onclick="otTab('daily')" style="flex:1;">&#128197; Aaj ka Maal</button>
+          <button class="btn btn-outline" id="ot-tab-orders" onclick="otTab('orders')" style="flex:1;">&#128203; Orders</button>
+        </div>
+
+        <div id="ot-view-daily">
+          <div class="card"><div class="card-body">
+            <div class="ig" style="margin-bottom:0;"><label>Date</label><input type="date" id="ot-date" onchange="otSetDate(this.value)"/></div>
+          </div></div>
+          <div id="ot-daily-body"></div>
+        </div>
+
+        <div id="ot-view-orders" style="display:none;">
+          <button class="btn btn-green btn-full" style="margin-bottom:10px;" onclick="otOpenNew()">&#10133; Naya Order Do</button>
+          <div class="card"><div class="card-body">
+            <div class="row2">
+              <div class="ig"><label>Search</label><input type="text" id="ot-q" oninput="otRenderList()" placeholder="Supplier / city / item / PO no"/></div>
+              <div class="ig"><label>Filter</label><select id="ot-f" onchange="otRenderList()" style="font-family:Arial,sans-serif;">
+                <option value="open">Baaki / Adhura</option><option value="overdue">Late (date nikal gayi)</option><option value="complete">Poora aaya</option><option value="excess">Zyada aaya</option><option value="closedshort">Short band kiye</option><option value="all">Sab</option></select></div>
+            </div>
+            <button class="btn btn-outline btn-full" onclick="otExcel()">&#128202; Excel Report</button>
+          </div></div>
+          <div id="ot-list"></div>
+        </div>
+      </div>
+
       <div class="page" id="page-expensenew">
         <div class="card">
           <div class="card-head"><div class="card-icon">&#128176;</div><div class="card-title">Add New Expense</div></div>
@@ -2123,6 +2152,20 @@ body,.app-layout,.main-area{overflow:hidden;overflow:clip;}
 
       <!-- SETTINGS -->
       <div class="page" id="page-settings">
+        <div class="set-section" id="ot-set-section"><div class="set-head">&#128230; Order Tracking Settings</div>
+          <div class="set-body">
+            <div class="ig"><label>Roz ka Expected maal (Bora + Peti)</label>
+              <div style="display:flex;gap:6px;"><input type="number" inputmode="numeric" id="ot-set-target" placeholder="20" style="flex:1;min-width:0;font-family:Arial,sans-serif;"/><button class="btn btn-gold" style="padding:8px 14px;" onclick="otSaveTarget()">Save</button></div></div>
+            <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;color:var(--mu);margin:12px 0 6px;font-family:Arial,sans-serif;">City-wise default din</div>
+            <p style="font-size:11px;color:var(--mu);margin-bottom:8px;font-family:Arial,sans-serif;line-height:1.5;">Har city ka maal order ke kitne din baad aata hai wo set karein. Order Tracking me naya order banate waqt city chunte hi "maal kab tak aana hai" ki date apne-aap bhar jaayegi.</p>
+            <div id="ot-city-list" style="margin-bottom:8px;"></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="ot-city-new" placeholder="City (jaise Ludhiana)" maxlength="40" style="flex:1;min-width:0;padding:9px;border:1px solid var(--bdr);font-family:Arial,sans-serif;"/>
+              <input type="number" inputmode="numeric" id="ot-city-days" placeholder="Din" min="0" style="width:64px;padding:9px;border:1px solid var(--bdr);font-family:Arial,sans-serif;"/>
+              <button class="btn btn-gold" style="padding:9px 12px;" onclick="otCityAdd()">Add</button>
+            </div>
+          </div>
+        </div>
         <div class="set-section"><div class="set-head">&#128070; Fingerprint Login</div>
           <div class="set-body">
             <p style="font-size:12px;color:var(--mu);margin-bottom:10px;font-family:Arial,sans-serif;line-height:1.5;">Is phone/laptop par fingerprint se app kholein &mdash; password type karne ki zarurat nahi. Password se login hamesha chalega. Jo bhi fingerprint is device ke lock me saved hai wahi chalega.</p>
@@ -3321,6 +3364,8 @@ var editLog = []; // audit log: tracks all invoice & receipt edits {id, ts, type
 var loginLog = []; // login audit trail: {id, ts, date, time, user, role, device} — admin-only view
 var purchases=[];
 var supplierPayments=[];
+var purchaseOrders=[];   // Order Tracking: diye gaye orders
+var poReceipts=[];       // Order Tracking: har baar aaya hua maal (alag records = conflict nahi)
 var AUTH={user:'thejeans',pass:'alpha@123'};
 var SETTINGS={biz:'The Jeans House',ph:'',addr:'',gst:'',ig:'thejeansclubb',fb:'The Jeans Club',web:'www.thejeansclubb.com'};
 // Purana saved business name ("The Jeans Club") ek baar naye naam par le aao (Settings me jo naam khud likha ho use nahi chhedta)
@@ -3582,7 +3627,7 @@ function getSyncPath(){
 // baad wale changes fetch karta hai (chhota download) aur unhe local data mein merge kar
 // deta hai. Poora dataset sirf EK BAAR download hota hai — jab tak device par local
 // data bilkul na ho (pehli baar login) — uske baad hamesha delta hi chalta hai.
-var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog'];   // heldInvoices ab alag /held node se sync hote hain (pullHeldNode/pushStaffHeldDelta)
+var DELTA_TYPES = ['invoices','returns','purchases','supplierPayments','pendingPayments','expenses','stockMovLog','stock','loginLog','purchaseOrders','poReceipts'];   // heldInvoices ab alag /held node se sync hote hain (pullHeldNode/pushStaffHeldDelta)
 // Har device ki apni permanent pehchaan. Delta change-log mein har entry par `by` likha jaata hai taaki
 // device apni hi bheji hui entries ko dobara apply na kare (stale overwrite se bachne ke liye).
 var DEVICE_ID = (function(){
@@ -3725,7 +3770,7 @@ async function pushCloud(){
   // Agar in-memory array khali hai lekin local DB (IDB cache) mein data hai,
   // to memory purani/unloaded hai — usse Firebase par 'delete' mat bhejo.
   // (LS har save par update hota hai, isliye asli delete par dono khali honge.)
-  ['purchases','supplierPayments','pendingPayments','expenses','returns','heldInvoices'].forEach(function(k){
+  ['purchases','supplierPayments','pendingPayments','expenses','returns','heldInvoices','purchaseOrders','poReceipts'].forEach(function(k){
     try{
       var memArr = _getDeltaArrayRef(k);
       var lsArr = LS.get(k);
@@ -3737,6 +3782,8 @@ async function pushCloud(){
         else if(k==='expenses') expenses = lsArr;
         else if(k==='returns') returns = lsArr;
         else if(k==='heldInvoices') heldInvoices = lsArr;
+        else if(k==='purchaseOrders') purchaseOrders = lsArr;
+        else if(k==='poReceipts') poReceipts = lsArr;
       }
     }catch(e){}
   });
@@ -3754,6 +3801,8 @@ async function pushCloud(){
     customers: savedCustomers,
     purchases: purchases,
     supplierPayments: supplierPayments,  // supplier payments sync
+    purchaseOrders: purchaseOrders,      // order tracking
+    poReceipts: poReceipts,              // order tracking: aaya hua maal
     pendingPayments: pendingPayments,
     expenses: expenses,
     returns: returns,
@@ -3927,6 +3976,8 @@ function applyPulledData(d){
   if(Array.isArray(d.customers)){ savedCustomers = d.customers; LS.setL('customers', savedCustomers); }
   if(Array.isArray(d.purchases)){ purchases = d.purchases; LS.setL('purchases', purchases); }
   if(Array.isArray(d.supplierPayments)){ supplierPayments = d.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
+  if(Array.isArray(d.purchaseOrders)){ purchaseOrders = d.purchaseOrders; LS.setL('purchaseOrders', purchaseOrders); }
+  if(Array.isArray(d.poReceipts)){ poReceipts = d.poReceipts; LS.setL('poReceipts', poReceipts); }
   if(Array.isArray(d.heldInvoices)){
     var _hIds = {}; d.heldInvoices.forEach(function(h){ if(h && !h.id) h.id = h.heldId; _hIds[String(h.id)] = true; });
     var _localOnlyH = (heldInvoices||[]).filter(function(h){ return h && !_hIds[String(h.id || h.heldId)]; });
@@ -4047,6 +4098,8 @@ function _getDeltaArrayRef(type){
     case 'returns': return returns;
     case 'purchases': return purchases;
     case 'supplierPayments': return supplierPayments;
+    case 'purchaseOrders': return purchaseOrders;
+    case 'poReceipts': return poReceipts;
     case 'pendingPayments': return pendingPayments;
     case 'expenses': return expenses;
     case 'stockMovLog': return stockMovLog;
@@ -4120,6 +4173,7 @@ function applyDeltaItems(items){
     if(currentPage === 'purchaselist') renderPurchases();
     if(currentPage === 'purchases') renderPurchaseDashboard();
   }
+  if((touched.purchaseOrders || touched.poReceipts)){ try{ if(currentPage === 'ordertrack') renderOrderTrack(); otUpdateBadge(); }catch(e){} }
   if(touched.supplierPayments && currentPage === 'supplierpay') renderSupplierPayPage();
   if((touched.supplierPayments || touched.purchases) && currentPage === 'supplierpending') renderSupplierPendingPage();
   if((touched.supplierPayments || touched.purchases) && currentPage === 'supplierhistory') renderSupplierHistoryPage();
@@ -4364,6 +4418,8 @@ function exportDataBackup(){
     purchases: purchases,
     expenses: expenses,
     supplierPayments: supplierPayments,
+    purchaseOrders: purchaseOrders,
+    poReceipts: poReceipts,
     exportedAt: new Date().toISOString(),
     version: '4.1',
     stats: {
@@ -4416,6 +4472,8 @@ function importDataBackup(){
         if(data.monthlyReports) { monthlyReports = data.monthlyReports; LS.setL('monthlyReports', monthlyReports); }
         if(data.pendingPayments){ pendingPayments = data.pendingPayments;LS.setL('pendingPayments', pendingPayments); }
         if(data.supplierPayments){ supplierPayments = data.supplierPayments; LS.setL('supplierPayments', supplierPayments); }
+        if(data.purchaseOrders){ purchaseOrders = data.purchaseOrders; LS.setL('purchaseOrders', purchaseOrders); }
+        if(data.poReceipts){ poReceipts = data.poReceipts; LS.setL('poReceipts', poReceipts); }
         if(data.purchases)      { purchases = data.purchases;           LS.setL('purchases', purchases); }
         if(data.expenses)       { expenses = data.expenses;             LS.setL('expenses', expenses); }
 
@@ -5335,6 +5393,8 @@ function buildBackupBlob(){
     purchases: purchases,
     expenses: expenses,
     supplierPayments: supplierPayments,
+    purchaseOrders: purchaseOrders,
+    poReceipts: poReceipts,
     exportedAt: new Date().toISOString(),
     version: '4.1',
     stats: {
@@ -6014,6 +6074,8 @@ function checkLogin(){
   monthlyReports = LS.get('monthlyReports') || {};
   purchases = LS.get('purchases') || [];
   supplierPayments = LS.get('supplierPayments') || []; // FIX: boot par load nahi hota tha -> push par sab delete ho jaate the
+  purchaseOrders = LS.get('purchaseOrders') || [];
+  poReceipts = LS.get('poReceipts') || [];
   pendingPayments = LS.get('pendingPayments') || [];
   expenses = LS.get('expenses') || [];
   // Load edit audit log
@@ -6635,6 +6697,8 @@ function saveSettings(){
     email:document.getElementById('set-email')?document.getElementById('set-email').value:'',
     invLink:document.getElementById('set-invlink')?document.getElementById('set-invlink').value.trim():'',
     recvAccts:getRecvAccts().slice(),
+    dailyOrderTarget:(SETTINGS && SETTINGS.dailyOrderTarget) || 0,
+    otCities:(SETTINGS && Array.isArray(SETTINGS.otCities)) ? SETTINGS.otCities : [],
     mktPts:[1,2,3,4,5,6].map(function(n){
       var el = document.getElementById('set-mkt'+n);
       return el ? el.value.trim() : '';
@@ -6678,7 +6742,7 @@ function navTo(page, el, mi){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   currentPage = page;
-  var titles = {creditlimit:'Customer Credit Limits', acctledger:'Account Ledger', dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
+  var titles = {ordertrack:'Order Tracking', creditlimit:'Customer Credit Limits', acctledger:'Account Ledger', dashboard:'Dashboard', packing:'Packing Queue', invoice:'New Invoice', preview:'Invoice Preview', history:'Invoice History', returns:'Return / Exchange', payments:'Payments Ledger', inventory:'Stock Manager', invreport:'Inventory Report', lowlist:'Low Item List', costing:'Cost Calculator', salesreport:'Sales Report', settings:'Settings', purchases:'Purchase Dashboard', purchaselist:'Purchase Records', supplierpay:'Pay Supplier', supplierpending:'Supplier Pending / Advance', supplierhistory:'Supplier History', suppaypreview:'Supplier Receipt Preview', pending:'Pending Dues', pendingreceipts:'Payment Receipts', pendingnew:'New Payment Receipt', pendingpreview:'Receipt Preview', expenses:'Expense Dashboard', expenselist:'Expense Records', expensenew:'Add Expense', pnl:'P&L Dashboard', editlog:'Edit Audit Log', retexpreview:'Return/Exchange Receipt'};
   var ht = document.getElementById('headerTitle'); if(ht) ht.textContent = titles[page] || page;
   var bb = document.getElementById('backBtn'); if(bb) bb.style.display = pageHistory.length > 0 ? 'flex' : 'none';
   if(page==='invoice'){
@@ -6704,6 +6768,7 @@ function navTo(page, el, mi){
 
   if(page==='acctledger') ensureFullDataLoaded(renderAcctLedger);
   if(page==='creditlimit') ensureFullDataLoaded(renderCreditLimits);
+  if(page==='ordertrack') ensureFullDataLoaded(renderOrderTrack);
   if(page==='purchases') ensureFullDataLoaded(renderPurchaseDashboard);
   if(page==='purchaselist') ensureFullDataLoaded(renderPurchases);
   if(page==='supplierpay'){ initSupplierPayForm(); ensureFullDataLoaded(renderSupplierPayPage); }
@@ -11860,6 +11925,7 @@ function loadSettings(){
     if(mel) mel.value = mktPts[mi-1] || '';
   }
   try{ renderRecvAcctSettings(); }catch(_e){}
+  try{ otRenderCitySettings(); otUpdateBadge(); }catch(_e){}
   var tgCfg = getTelegramConfig();
   var tgTok=document.getElementById('set-tg-token'); if(tgTok) tgTok.value = tgCfg.token || '';
   var tgChat=document.getElementById('set-tg-chatid'); if(tgChat) tgChat.value = tgCfg.chatId || '';
@@ -19686,6 +19752,483 @@ function _odReset(){
     var e = (window._clList||[])[i]; if(!e) return;
     setCustCreditLimit(e.name, null); renderCreditLimits(); showToast('Default limit lagu');
   };
+})();
+</script>
+
+<script>
+// ===== ORDER TRACKING: diya gaya order vs aaya hua maal (Bora / Peti) =====
+(function(){
+  var UNITS = ['Bora','Peti','Bundle','Carton','Piece'];
+  var ST = {
+    pending:{t:'MAAL NAHI AAYA', c:'#c62828'}, partial:{t:'ADHURA AAYA', c:'#e65100'},
+    complete:{t:'POORA AAYA', c:'#2e7d32'}, excess:{t:'ZYADA AAYA', c:'#6a1b9a'}, closedshort:{t:'SHORT BAND', c:'#555'}
+  };
+  window._otTabName = window._otTabName || 'daily';
+  window._otDate = window._otDate || '';
+  window._otHist = window._otHist || {};
+
+  function today(){ return nowDate(); }
+  function uid(){ return Date.now()*1000 + Math.floor(Math.random()*1000); }
+  function dd(d){ var p = String(d||'').split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0].slice(2) : (d||'-'); }
+  function num(x){ var n = Number(x); return isNaN(n) ? 0 : n; }
+  function isAdmin(){ return CURRENT_ROLE==='admin'; }
+  function pos(){ return Array.isArray(purchaseOrders) ? purchaseOrders : (purchaseOrders = []); }
+  function recs(){ return Array.isArray(poReceipts) ? poReceipts : (poReceipts = []); }
+  function saveAll(){ LS.sync('purchaseOrders', pos()); LS.sync('poReceipts', recs()); }
+
+  function gotMap(){ var m = {}; recs().forEach(function(r){ var k = r.poId+'|'+r.lid; m[k] = (m[k]||0) + num(r.qty); }); return m; }
+  function info(po, m){
+    var lines = (po.lines||[]).map(function(l){
+      var q = num(l.qty), g = m[po.id+'|'+l.lid] || 0; return {l:l, ordered:q, got:g, diff:q-g};
+    });
+    var pend = 0, exc = 0, got = 0, ord = 0, pendU = {}, excU = {};
+    lines.forEach(function(x){
+      ord += x.ordered; got += x.got;
+      if(x.diff > 0){ pend += x.diff; pendU[x.l.unit] = (pendU[x.l.unit]||0) + x.diff; }
+      if(x.diff < 0){ exc += -x.diff; excU[x.l.unit] = (excU[x.l.unit]||0) + (-x.diff); }
+    });
+    var status;
+    if(po.closed) status = pend>0 ? 'closedshort' : (exc>0 ? 'excess' : 'complete');
+    else if(got===0) status = 'pending';
+    else if(pend>0) status = 'partial';
+    else status = exc>0 ? 'excess' : 'complete';
+    var due = po.expected || po.date || '';
+    return {lines:lines, pend:pend, exc:exc, got:got, ord:ord, pendU:pendU, excU:excU, status:status, due:due,
+            overdue: !po.closed && pend>0 && due && due < today(), open: !po.closed && pend>0};
+  }
+  function unitText(u){ var a = []; Object.keys(u).forEach(function(k){ a.push(u[k]+' '+k); }); return a.join(', '); }
+
+  // ---------- page shell ----------
+  window.renderOrderTrack = function(){
+    var dEl = document.getElementById('ot-date'); if(!dEl) return;
+    if(!window._otDate) window._otDate = today();
+    dEl.value = window._otDate;
+    otTab(window._otTabName, true);
+  };
+  window.otTab = function(name, noScroll){
+    window._otTabName = name;
+    var d = document.getElementById('ot-view-daily'), o = document.getElementById('ot-view-orders');
+    if(!d || !o) return;
+    d.style.display = name==='daily' ? '' : 'none';
+    o.style.display = name==='orders' ? '' : 'none';
+    document.getElementById('ot-tab-daily').className = 'btn ' + (name==='daily' ? 'btn-gold' : 'btn-outline');
+    document.getElementById('ot-tab-orders').className = 'btn ' + (name==='orders' ? 'btn-gold' : 'btn-outline');
+    renderBanner();
+    if(name==='daily') renderDaily(); else otRenderList();
+    otUpdateBadge();
+  };
+  window.otSetDate = function(v){ window._otDate = v || today(); renderDaily(); };
+  window.otSaveTarget = function(){
+    if(!isAdmin()){ showToast('Sirf Admin badal sakta hai'); return; }
+    var v = num((document.getElementById('ot-set-target')||{}).value);
+    if(v < 0){ showToast('Sahi number likhein'); return; }
+    SETTINGS.dailyOrderTarget = Math.round(v);
+    LS.sync('settings', SETTINGS);
+    showToast('\u2705 Roz ka expected save ho gaya');
+  };
+
+  function allInfos(){
+    var m = gotMap();
+    return pos().map(function(po){ return {po:po, i:info(po, m)}; });
+  }
+  function renderBanner(){
+    var el = document.getElementById('ot-banner'); if(!el) return;
+    var A = allInfos(), open = A.filter(function(x){ return x.i.open; }), od = A.filter(function(x){ return x.i.overdue; });
+    var pu = {}; open.forEach(function(x){ Object.keys(x.i.pendU).forEach(function(k){ pu[k] = (pu[k]||0) + x.i.pendU[k]; }); });
+    if(!open.length){
+      el.innerHTML = '<div style="background:#e8f5e9;border:1px solid #2e7d32;padding:9px 12px;margin-bottom:10px;font-family:Arial,sans-serif;font-size:12px;color:#1b5e20;">\u2705 Koi maal baaki nahi \u2014 sab orders ka maal aa gaya.</div>';
+      return;
+    }
+    el.innerHTML = '<div style="background:'+(od.length?'#ffebee':'#fff8e1')+';border:1px solid '+(od.length?'#c62828':'#e65100')+';padding:9px 12px;margin-bottom:10px;font-family:Arial,sans-serif;font-size:12px;line-height:1.5;">'
+      + '<b>\u26a0\ufe0f '+open.length+' order ka maal abhi baaki hai:</b> '+escH(unitText(pu))
+      + (od.length ? '<br><b style="color:#c62828;">'+od.length+' order late hain</b> (aane ki date nikal gayi)' : '')
+      + '</div>';
+  }
+  window.otUpdateBadge = function(){
+    try{
+      var A = allInfos(), od = A.filter(function(x){ return x.i.overdue; }).length;
+      var b = document.getElementById('ot-badge'); if(!b) return;
+      if(od > 0){ b.textContent = od; b.style.display = 'inline-block'; } else b.style.display = 'none';
+    }catch(e){}
+  };
+
+  // ---------- DAILY VIEW ----------
+  function renderDaily(){
+    var el = document.getElementById('ot-daily-body'); if(!el) return;
+    var d = window._otDate || today();
+    var target = num(SETTINGS && SETTINGS.dailyOrderTarget);
+    var R = recs().filter(function(r){ return r.date === d; });
+    var bp = 0, byU = {};
+    R.forEach(function(r){ byU[r.unit] = (byU[r.unit]||0) + num(r.qty); if(r.unit==='Bora' || r.unit==='Peti') bp += num(r.qty); });
+    var diff = target - bp;
+    var clr = target<=0 ? '#1a237e' : (diff>0 ? '#c62828' : (diff<0 ? '#6a1b9a' : '#2e7d32'));
+    var box = function(l, v, c){ return '<div style="flex:1;min-width:0;background:#fff;border:1px solid var(--bdr);border-top:3px solid '+c+';padding:8px 10px;font-family:Arial,sans-serif;"><div style="font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);">'+l+'</div><div style="font-size:20px;font-weight:800;color:'+c+';margin-top:2px;">'+v+'</div></div>'; };
+    var h = '';
+    if(target > 0){
+      var pct = Math.min(100, Math.round(bp/target*100));
+      h += '<div style="display:flex;gap:6px;margin-bottom:6px;">'+box('Expected', target, '#555')+box('Aaya (Bora+Peti)', bp, '#2e7d32')+box(diff>0?'Baaki':(diff<0?'Zyada':'Poora'), diff>0?diff:(diff<0?-diff:'\u2713'), clr)+'</div>'
+         + '<div style="height:8px;background:#eee;margin-bottom:6px;"><div style="height:8px;width:'+pct+'%;background:'+clr+';"></div></div>';
+      if(diff > 0) h += '<div style="background:#ffebee;border:1px solid #c62828;padding:8px 12px;margin-bottom:8px;font-family:Arial,sans-serif;font-size:12px;color:#b71c1c;"><b>\u26a0\ufe0f '+diff+' Bora/Peti kam aaya</b> \u2014 expected '+target+' tha, aaya '+bp+'.</div>';
+    } else {
+      h += '<div style="display:flex;gap:6px;margin-bottom:8px;">'+box('Aaya (Bora+Peti)', bp, '#2e7d32')+'</div><div style="font-family:Arial,sans-serif;font-size:11px;color:var(--mu);margin-bottom:8px;">Settings &gt; Order Tracking Settings me "Roz ka Expected" number daalo (jaise 20) to kam/zyada turant dikhega.</div>';
+    }
+    var br = Object.keys(byU).map(function(k){ return escH(k)+': <b>'+byU[k]+'</b>'; }).join(' &nbsp;\u00b7&nbsp; ');
+    if(br) h += '<div style="font-family:Arial,sans-serif;font-size:12px;margin-bottom:10px;">'+br+'</div>';
+
+    // jo maal aana baaki hai (selected date tak)
+    var due = allInfos().filter(function(x){ return x.i.open && x.i.due <= d; });
+    h += '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;margin:6px 0;">\u23f3 Aana baaki ('+dd(d)+' tak ki date wale orders)</div>';
+    if(!due.length) h += '<div style="padding:12px;background:#fff;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:12px;color:var(--mu);margin-bottom:10px;">Koi baaki nahi \u2705</div>';
+    due.forEach(function(x){
+      h += '<div style="background:#fff;border:1px solid var(--bdr);border-left:4px solid '+(x.i.overdue?'#c62828':'#e65100')+';padding:9px 12px;margin-bottom:8px;font-family:Arial,sans-serif;">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;"><b>'+escH(x.po.poNo)+' \u00b7 '+escH(x.po.supplier||'-')+(x.po.city?' \u00b7 '+escH(x.po.city):'')+'</b><span style="font-size:11px;color:var(--mu);">'+dd(x.i.due)+(x.po.transport?' \u00b7 '+escH(x.po.transport):'')+'</span></div>'
+        + x.i.lines.filter(function(l){ return l.diff>0; }).map(function(l){ return '<div style="font-size:12px;margin-top:3px;">'+escH(l.l.item||'-')+': <b style="color:#c62828;">'+l.diff+' '+escH(l.l.unit)+' baaki</b> <span style="color:var(--mu);">(order '+l.ordered+', aaya '+l.got+')</span></div>'; }).join('')
+        + '<button class="btn btn-gold" style="margin-top:8px;padding:7px 14px;" onclick="otReceive('+x.po.id+')">\ud83d\udce5 Maal Aaya</button></div>';
+    });
+
+    // is date ki receiving list
+    h += '<div style="font-family:Arial,sans-serif;font-weight:800;font-size:13px;margin:10px 0 6px;">\ud83d\udce5 '+dd(d)+' ko aaya hua maal</div>';
+    if(!R.length) h += '<div style="padding:12px;background:#fff;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:12px;color:var(--mu);">Is din koi maal receive nahi hua</div>';
+    R.slice().sort(function(a,b){ return String(a.time||'') < String(b.time||'') ? -1 : 1; }).forEach(function(r){
+      var po = pos().filter(function(p){ return String(p.id)===String(r.poId); })[0];
+      h += '<div style="background:#fff;border:1px solid var(--bdr);padding:8px 12px;margin-bottom:6px;font-family:Arial,sans-serif;font-size:12px;display:flex;justify-content:space-between;gap:8px;align-items:center;">'
+        + '<div style="min-width:0;"><b>'+escH(r.item||'-')+'</b> \u2014 <b style="color:#2e7d32;">'+num(r.qty)+' '+escH(r.unit||'')+'</b><div style="color:var(--mu);font-size:11px;">'+escH(r.supplier||'')+(po?' \u00b7 '+escH(po.poNo):'')+' \u00b7 '+escH(r.time||'')+(r.by?' \u00b7 '+escH(r.by):'')+(r.note?' \u00b7 '+escH(r.note):'')+'</div></div>'
+        + (isAdmin() ? '<button class="btn btn-outline" style="padding:4px 9px;" onclick="otDelReceipt('+r.id+')">\ud83d\uddd1</button>' : '')
+        + '</div>';
+    });
+    el.innerHTML = h;
+  }
+
+  // ---------- ORDERS LIST ----------
+  window.otRenderList = function(){
+    var el = document.getElementById('ot-list'); if(!el) return;
+    var q = String((document.getElementById('ot-q')||{}).value||'').trim().toLowerCase();
+    var f = (document.getElementById('ot-f')||{}).value || 'open';
+    var A = allInfos().filter(function(x){
+      var i = x.i;
+      if(f==='open' && !i.open) return false;
+      if(f==='overdue' && !i.overdue) return false;
+      if(f==='complete' && i.status!=='complete') return false;
+      if(f==='excess' && i.exc<=0) return false;
+      if(f==='closedshort' && i.status!=='closedshort') return false;
+      if(q){
+        var hay = (x.po.poNo+' '+(x.po.supplier||'')+' '+(x.po.city||'')+' '+(x.po.transport||'')+' '+(x.po.lines||[]).map(function(l){ return l.item; }).join(' ')).toLowerCase();
+        if(hay.indexOf(q) < 0) return false;
+      }
+      return true;
+    });
+    A.sort(function(a,b){ return (b.i.overdue-a.i.overdue) || (String(b.po.date)>String(a.po.date)?1:-1); });
+    if(!A.length){ el.innerHTML = '<div style="padding:18px;text-align:center;color:var(--mu);font-family:Arial,sans-serif;font-size:12px;">Koi order nahi mila</div>'; return; }
+    el.innerHTML = A.slice(0,150).map(function(x){ return orderCard(x.po, x.i); }).join('');
+  };
+  function orderCard(po, i){
+    var st = ST[i.status], R = recs().filter(function(r){ return String(r.poId)===String(po.id); });
+    var h = '<div style="border:1px solid var(--bdr);border-left:4px solid '+st.c+';background:#fff;padding:10px 12px;margin-bottom:10px;font-family:Arial,sans-serif;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b style="font-size:14px;">'+escH(po.poNo)+' \u00b7 '+escH(po.supplier||'-')+'</b><span style="font-size:9px;color:#fff;background:'+st.c+';padding:2px 7px;white-space:nowrap;">'+st.t+'</span></div>'
+      + metaLine(po) + '<div style="font-size:11px;color:var(--mu);margin-top:2px;">Order: '+dd(po.date)+' \u00b7 Aane ki date: '+dd(po.expected||po.date)+(i.overdue?' <b style="color:#c62828;">(LATE)</b>':'')+(po.notes?' \u00b7 '+escH(po.notes):'')+'</div>';
+    i.lines.forEach(function(x){
+      var pct = x.ordered>0 ? Math.min(100, Math.round(x.got/x.ordered*100)) : 0;
+      var c = x.diff>0 ? (x.got>0?'#e65100':'#c62828') : (x.diff<0?'#6a1b9a':'#2e7d32');
+      h += '<div style="margin-top:8px;"><div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;"><span><b>'+escH(x.l.item||'-')+'</b> <span style="color:var(--mu);">('+escH(x.l.unit)+')</span>'+(x.l.pcs?' <span style="color:var(--mu);font-size:11px;">\u00b7 '+num(x.l.pcs)+' pcs</span>':'')+'</span>'
+        + '<span>Order <b>'+x.ordered+'</b> \u00b7 Aaya <b>'+x.got+'</b> \u00b7 <b style="color:'+c+';">'+(x.diff>0?'Baaki '+x.diff:(x.diff<0?'Zyada '+(-x.diff):'\u2713'))+'</b></span></div>'
+        + '<div style="height:6px;background:#eee;margin-top:3px;"><div style="height:6px;width:'+pct+'%;background:'+c+';"></div></div></div>';
+    });
+    if(po.closed) h += '<div style="margin-top:8px;font-size:11px;color:#555;background:#f5f5f5;padding:5px 8px;">Band kiya'+(po.closeNote?': '+escH(po.closeNote):'')+'</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'
+      + (!po.closed ? '<button class="btn btn-gold" style="padding:7px 12px;" onclick="otReceive('+po.id+')">\ud83d\udce5 Maal Aaya</button>' : '')
+      + '<button class="btn btn-outline" style="padding:7px 12px;" onclick="otToggleHist('+po.id+')">\ud83d\udcdc History ('+R.length+')</button>'
+      + (isAdmin() ? '<button class="btn btn-outline" style="padding:7px 10px;" onclick="otOpenNew('+po.id+')">\u270f\ufe0f</button>'
+        + (!po.closed ? (i.pend>0 ? '<button class="btn btn-outline" style="padding:7px 10px;" onclick="otClose('+po.id+')">\ud83d\udeab Short Band</button>' : '') : '<button class="btn btn-outline" style="padding:7px 10px;" onclick="otReopen('+po.id+')">\u21a9 Dobara Kholo</button>')
+        + '<button class="btn btn-outline" style="padding:7px 10px;" onclick="otDelPO('+po.id+')">\ud83d\uddd1</button>' : '')
+      + '</div>';
+    if(window._otHist[po.id]){
+      h += '<div style="margin-top:8px;border-top:1px dashed var(--bdr);padding-top:6px;font-size:11px;">';
+      if(!R.length) h += '<div style="color:var(--mu);">Abhi tak koi maal receive nahi hua</div>';
+      R.slice().sort(function(a,b){ return (String(a.date)+String(a.time||'')) < (String(b.date)+String(b.time||'')) ? -1 : 1; }).forEach(function(r){
+        h += '<div style="display:flex;justify-content:space-between;gap:6px;padding:3px 0;"><span>'+dd(r.date)+' '+escH(r.time||'')+' \u2014 '+escH(r.item||'')+': <b>'+num(r.qty)+' '+escH(r.unit||'')+'</b>'+(r.by?' ('+escH(r.by)+')':'')+(r.note?' \u00b7 '+escH(r.note):'')+'</span>'
+          + (isAdmin() ? '<a href="javascript:void(0)" onclick="otDelReceipt('+r.id+')" style="color:#c62828;">\u2715</a>' : '') + '</div>';
+      });
+      h += '</div>';
+    }
+    return h + '</div>';
+  }
+  window.otToggleHist = function(id){ window._otHist[id] = !window._otHist[id]; otRenderList(); };
+
+  // ---------- MODAL ----------
+  function modal(html){
+    closeModal();
+    var d = document.createElement('div'); d.id = 'ot-modal'; d.className = 'modal-overlay show';
+    d.innerHTML = '<div style="background:#fff;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:16px;font-family:Arial,sans-serif;">'+html+'</div>';
+    document.body.appendChild(d);
+  }
+  function closeModal(){ var m = document.getElementById('ot-modal'); if(m) m.remove(); }
+  window.otCloseModal = closeModal;
+  function findPO(id){ return pos().filter(function(p){ return String(p.id)===String(id); })[0]; }
+
+  // ---------- NEW / EDIT ORDER ----------
+  function nextPoNo(){
+    var mx = 0; pos().forEach(function(p){ var m = /(\d+)$/.exec(p.poNo||''); if(m) mx = Math.max(mx, parseInt(m[1],10)); });
+    return 'PO-' + String(mx+1).padStart(4,'0');
+  }
+  var TRANSPORTS = ['Train','Bus','Transport'];
+  var T_ICON = {Train:'\ud83d\ude86', Bus:'\ud83d\ude8c', Transport:'\ud83d\ude9a'};
+  function cities(){ return (SETTINGS && Array.isArray(SETTINGS.otCities)) ? SETTINGS.otCities : []; }
+  function cityDays(name){
+    var n = String(name||'').trim().toLowerCase(); if(!n) return null;
+    var c = cities().filter(function(x){ return String(x.name).toLowerCase()===n; })[0];
+    return c ? num(c.days) : null;
+  }
+  function addDays(d, n){
+    var p = String(d||today()).split('-'); var t = new Date(+p[0], +p[1]-1, +p[2]+n);
+    return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  }
+  function metaLine(po){
+    if(!po.city && !po.transport) return '';
+    return '<div style="font-size:12px;margin-top:3px;">'+(po.city?'\ud83d\udccd <b>'+escH(po.city)+'</b>':'')+(po.city&&po.transport?' &nbsp;\u00b7&nbsp; ':'')+(po.transport?(T_ICON[po.transport]||'')+' '+escH(po.transport):'')+'</div>';
+  }
+  var LBL = 'font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);margin-bottom:2px;';
+  function lineRow(l){
+    l = l || {};
+    var opts = ['Bora','Peti'].concat(UNITS.filter(function(u){ return u!=='Bora' && u!=='Peti'; })).map(function(u){ return '<option'+(l.unit===u?' selected':'')+'>'+u+'</option>'; }).join('');
+    return '<div class="ot-line" data-lid="'+escH(l.lid||'')+'" style="border:1px solid var(--bdr);background:#fafafa;padding:8px;margin-bottom:8px;">'
+      + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;"><input type="text" class="ot-li-item" list="ot-item-list" placeholder="Product name" value="'+escH(l.item||'')+'" style="flex:1;min-width:0;padding:8px;border:1px solid var(--bdr);"/>'
+      + '<a href="javascript:void(0)" onclick="this.parentNode.parentNode.remove()" style="color:#c62828;font-size:18px;padding:0 4px;">\u2715</a></div>'
+      + '<div style="display:flex;gap:6px;">'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Qty (pcs)</div><input type="number" inputmode="numeric" class="ot-li-pcs" placeholder="500" value="'+(l.pcs||'')+'" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Bora / Peti</div><select class="ot-li-unit" style="width:100%;padding:8px;border:1px solid var(--bdr);">'+opts+'</select></div>'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Bora/Peti Qty</div><input type="number" inputmode="numeric" class="ot-li-qty" placeholder="5" value="'+(l.qty||'')+'" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
+      + '</div></div>';
+  }
+  window.otAddLine = function(){ var c = document.getElementById('ot-lines'); if(c) c.insertAdjacentHTML('beforeend', lineRow({unit:'Bora'})); };
+  function setHint(){
+    var h = document.getElementById('ot-f-hint'), c = document.getElementById('ot-f-city'), e = document.getElementById('ot-f-exp'); if(!h||!c||!e) return;
+    var city = c.value.trim(); if(!city){ h.textContent = ''; return; }
+    var d = cityDays(city);
+    h.innerHTML = d===null ? '<span style="color:#e65100;">Is city ka default din set nahi hai \u2014 System Settings > Order Tracking Settings me set karein</span>'
+      : '\ud83d\udccd '+escH(city)+' ka default: <b>'+d+' din</b> \u2192 '+dd(e.value);
+  }
+  window.otCityChanged = function(){
+    var c = document.getElementById('ot-f-city'), e = document.getElementById('ot-f-exp'), od = document.getElementById('ot-f-date'); if(!c||!e||!od) return;
+    var d = cityDays(c.value);
+    if(d !== null){ e.value = addDays(od.value||today(), d); e.removeAttribute('data-manual'); }
+    setHint();
+  };
+  window.otOrderDateChanged = function(){
+    var e = document.getElementById('ot-f-exp'), od = document.getElementById('ot-f-date'), c = document.getElementById('ot-f-city'); if(!e||!od) return;
+    var d = c ? cityDays(c.value) : null;
+    if(d !== null && !e.getAttribute('data-manual')) e.value = addDays(od.value||today(), d);
+    setHint();
+  };
+  window.otOpenNew = function(editId){
+    var po = editId ? findPO(editId) : null;
+    if(editId && !isAdmin()){ showToast('Sirf Admin edit kar sakta hai'); return; }
+    var sups = {}, items = {}, cts = {};
+    (typeof purchases!=='undefined' ? purchases : []).forEach(function(p){ if(p.supplier) sups[p.supplier] = 1; if(p.item) items[p.item] = 1; });
+    pos().forEach(function(p){ if(p.supplier) sups[p.supplier] = 1; if(p.city) cts[p.city] = 1; (p.lines||[]).forEach(function(l){ if(l.item) items[l.item] = 1; }); });
+    cities().forEach(function(c){ cts[c.name] = 1; });
+    (typeof stockItems!=='undefined' ? stockItems : []).forEach(function(s){ if(s.name) items[s.name] = 1; });
+    var dl = '<datalist id="ot-sup-list">'+Object.keys(sups).map(function(k){ return '<option value="'+escH(k)+'">'; }).join('')+'</datalist>'
+           + '<datalist id="ot-city-dl">'+Object.keys(cts).map(function(k){ return '<option value="'+escH(k)+'">'; }).join('')+'</datalist>'
+           + '<datalist id="ot-item-list">'+Object.keys(items).slice(0,400).map(function(k){ return '<option value="'+escH(k)+'">'; }).join('')+'</datalist>';
+    var lines = po ? po.lines : [{unit:'Bora'}];
+    var tOpts = '<option value="">Select karo</option>'+TRANSPORTS.map(function(t){ return '<option'+(po&&po.transport===t?' selected':'')+'>'+t+'</option>'; }).join('');
+    modal('<div style="font-weight:800;font-size:15px;margin-bottom:10px;">'+(po?'\u270f\ufe0f Order Edit \u2014 '+escH(po.poNo):'\u2795 Naya Order')+'</div>'
+      + dl
+      + '<div class="ig"><label>Supplier / Party</label><input type="text" id="ot-f-sup" list="ot-sup-list" value="'+escH(po?po.supplier:'')+'" placeholder="Supplier ka naam"/></div>'
+      + '<div class="row2"><div class="ig"><label>City</label><input type="text" id="ot-f-city" list="ot-city-dl" value="'+escH(po?po.city||'':'')+'" placeholder="City" oninput="otCityChanged()" onchange="otCityChanged()"/></div>'
+      + '<div class="ig"><label>Train / Bus / Transport</label><select id="ot-f-trans" style="font-family:Arial,sans-serif;">'+tOpts+'</select></div></div>'
+      + '<div class="row2"><div class="ig"><label>Order Date</label><input type="date" id="ot-f-date" value="'+(po?po.date:today())+'" onchange="otOrderDateChanged()"/></div>'
+      + '<div class="ig"><label>Maal kab tak aana hai</label><input type="date" id="ot-f-exp" value="'+(po?(po.expected||po.date):today())+'" onchange="this.setAttribute(\'data-manual\',\'1\');otOrderDateChanged()"'+(po?' data-manual="1"':'')+'/></div></div>'
+      + '<div id="ot-f-hint" style="font-size:11px;color:var(--mu);margin:-4px 0 10px;"></div>'
+      + '<label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Maal (Product \u00b7 Qty \u00b7 Bora/Peti)</label>'
+      + '<div id="ot-lines" style="margin-top:6px;">'+lines.map(lineRow).join('')+'</div>'
+      + '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="otAddLine()">\u2795 Aur product jodo</button>'
+      + '<div class="ig"><label>Note (optional)</label><input type="text" id="ot-f-note" value="'+escH(po?po.notes||'':'')+'" placeholder="Jaise: gaadi no / LR no / bill no"/></div>'
+      + '<div style="display:flex;gap:8px;"><button class="btn btn-outline" style="flex:1;" onclick="otCloseModal()">Cancel</button><button class="btn btn-gold" style="flex:2;" onclick="otSaveNew('+(po?po.id:'null')+')">'+(po?'Update Karo':'Order Save Karo')+'</button></div>');
+    setHint();
+  };
+  window.otSaveNew = function(editId){
+    var sup = (document.getElementById('ot-f-sup').value||'').trim();
+    var city = (document.getElementById('ot-f-city').value||'').trim();
+    var trans = document.getElementById('ot-f-trans').value || '';
+    var date = document.getElementById('ot-f-date').value || today();
+    var exp = document.getElementById('ot-f-exp').value || date;
+    var note = (document.getElementById('ot-f-note').value||'').trim();
+    if(!sup){ showToast('\u26a0\ufe0f Supplier ka naam likhein'); return; }
+    var po = editId ? findPO(editId) : null;
+    var lines = [], bad = false;
+    document.querySelectorAll('#ot-lines .ot-line').forEach(function(row){
+      var item = row.querySelector('.ot-li-item').value.trim(), unit = row.querySelector('.ot-li-unit').value, qty = num(row.querySelector('.ot-li-qty').value), pcs = num(row.querySelector('.ot-li-pcs').value);
+      if(!item && !qty && !pcs) return;
+      if(!item || qty <= 0 || pcs < 0){ bad = true; return; }
+      lines.push({lid: row.getAttribute('data-lid') || ('L'+uid()), item:item, unit:unit, qty:qty, pcs:pcs});
+    });
+    if(bad){ showToast('\u26a0\ufe0f Har product ka naam aur Bora/Peti qty (0 se zyada) likhein'); return; }
+    if(!lines.length){ showToast('\u26a0\ufe0f Kam se kam ek product daalein'); return; }
+    if(po){
+      var keep = {}; lines.forEach(function(l){ keep[l.lid] = 1; });
+      var lost = (po.lines||[]).filter(function(l){ return !keep[l.lid] && recs().some(function(r){ return String(r.poId)===String(po.id) && r.lid===l.lid; }); });
+      if(lost.length){ showToast('\u26a0\ufe0f "'+lost[0].item+'" me maal receive ho chuka hai, ise hata nahi sakte'); return; }
+      po.supplier = sup; po.city = city; po.transport = trans; po.date = date; po.expected = exp; po.notes = note; po.lines = lines; po.editedAt = new Date().toISOString();
+    } else {
+      pos().unshift({id:uid(), poNo:nextPoNo(), date:date, expected:exp, supplier:sup, city:city, transport:trans, notes:note, lines:lines, closed:false, createdBy:CURRENT_ROLE, createdAt:new Date().toISOString()});
+    }
+    saveAll(); closeModal(); renderOrderTrack(); showToast(po ? '\u2705 Order update ho gaya' : '\u2705 Order save ho gaya');
+  };
+
+  // ---------- RECEIVE ----------
+  window.otReceive = function(poId){
+    var po = findPO(poId); if(!po) return;
+    var i = info(po, gotMap());
+    var rows = i.lines.map(function(x, idx){
+      return '<div style="border:1px solid var(--bdr);padding:8px 10px;margin-bottom:8px;">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+escH(x.l.item)+' <span style="color:var(--mu);font-weight:400;">('+escH(x.l.unit)+')</span></b><span>Order '+x.ordered+' \u00b7 Aaya '+x.got+' \u00b7 <b style="color:'+(x.diff>0?'#c62828':'#2e7d32')+';">'+(x.diff>0?'Baaki '+x.diff:(x.diff<0?'Zyada '+(-x.diff):'\u2713'))+'</b></span></div>'
+        + '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;"><input type="number" inputmode="numeric" id="ot-rc-'+idx+'" placeholder="Aaj kitna aaya?" style="flex:1;min-width:0;padding:9px;border:1px solid var(--bdr);font-size:15px;"/>'
+        + (x.diff>0 ? '<button class="btn btn-outline" style="padding:8px 10px;white-space:nowrap;" onclick="document.getElementById(\'ot-rc-'+idx+'\').value='+x.diff+'">Poora '+x.diff+'</button>' : '')
+        + '</div></div>';
+    }).join('');
+    modal('<div style="font-weight:800;font-size:15px;margin-bottom:2px;">\ud83d\udce5 Maal Aaya \u2014 '+escH(po.poNo)+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:10px;">'+escH(po.supplier||'')+'</div>'
+      + rows
+      + '<div class="row2"><div class="ig"><label>Date</label><input type="date" id="ot-rc-date" value="'+today()+'"/></div><div class="ig"><label>Note</label><input type="text" id="ot-rc-note" placeholder="Gaadi / bill no (optional)"/></div></div>'
+      + '<div style="display:flex;gap:8px;"><button class="btn btn-outline" style="flex:1;" onclick="otCloseModal()">Cancel</button><button class="btn btn-gold" style="flex:2;" onclick="otSaveReceive('+po.id+')">\u2705 Receive Save Karo</button></div>');
+  };
+  window.otSaveReceive = function(poId){
+    var po = findPO(poId); if(!po) return;
+    var i = info(po, gotMap());
+    var date = document.getElementById('ot-rc-date').value || today();
+    var note = (document.getElementById('ot-rc-note').value||'').trim();
+    var add = [], excessMsg = [];
+    i.lines.forEach(function(x, idx){
+      var q = num((document.getElementById('ot-rc-'+idx)||{}).value);
+      if(q < 0){ add = null; return; }
+      if(add && q > 0){
+        add.push({line:x.l, qty:q});
+        if(q > x.diff) excessMsg.push(x.l.item+': '+(q - Math.max(0,x.diff))+' '+x.l.unit+' zyada');
+      }
+    });
+    if(add === null){ showToast('\u26a0\ufe0f Qty negative nahi ho sakti'); return; }
+    if(!add.length){ showToast('\u26a0\ufe0f Kam se kam ek item ki aaya hua qty likhein'); return; }
+    if(excessMsg.length && !confirm('Order se ZYADA maal ho raha hai:\n\n'+excessMsg.join('\n')+'\n\nPhir bhi save karein?')) return;
+    var d = new Date(), tm = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    add.forEach(function(a){
+      recs().unshift({id:uid(), poId:po.id, lid:a.line.lid, qty:a.qty, unit:a.line.unit, item:a.line.item, supplier:po.supplier, date:date, time:tm, note:note, by:CURRENT_ROLE, at:d.toISOString()});
+    });
+    saveAll(); closeModal();
+    var ni = info(po, gotMap());
+    renderOrderTrack();
+    if(ni.pend > 0) showToast('\u2705 Save \u2014 abhi baaki: '+unitText(ni.pendU), 'warn');
+    else if(ni.exc > 0) showToast('\u2705 Poora aaya (zyada: '+unitText(ni.excU)+')');
+    else showToast('\u2705 Poora maal aa gaya!');
+  };
+
+  // ---------- CLOSE / REOPEN / DELETE ----------
+  window.otClose = function(id){
+    if(!isAdmin()) return; var po = findPO(id); if(!po) return;
+    var why = prompt('Baaki maal ka order band kar rahe ho.\nKaaran likho (jaise: supplier ne bheja nahi / cancel):', '');
+    if(why === null) return;
+    po.closed = true; po.closeNote = why.trim(); po.closedAt = new Date().toISOString();
+    saveAll(); renderOrderTrack(); showToast('Order short band ho gaya');
+  };
+  window.otReopen = function(id){
+    if(!isAdmin()) return; var po = findPO(id); if(!po) return;
+    po.closed = false; po.closeNote = ''; saveAll(); renderOrderTrack(); showToast('Order dobara khul gaya');
+  };
+  window.otDelPO = function(id){
+    if(!isAdmin()) return; var po = findPO(id); if(!po) return;
+    var n = recs().filter(function(r){ return String(r.poId)===String(id); }).length;
+    if(!confirm('"'+po.poNo+' \u00b7 '+po.supplier+'" delete karein?'+(n?'\n\nIs order ki '+n+' receiving entries bhi delete ho jayengi.':''))) return;
+    purchaseOrders = pos().filter(function(p){ return String(p.id)!==String(id); });
+    poReceipts = recs().filter(function(r){ return String(r.poId)!==String(id); });
+    saveAll(); renderOrderTrack(); showToast('Order delete ho gaya');
+  };
+  window.otDelReceipt = function(rid){
+    if(!isAdmin()) return;
+    var r = recs().filter(function(x){ return String(x.id)===String(rid); })[0]; if(!r) return;
+    if(!confirm('Ye entry delete karein?\n'+r.item+': '+r.qty+' '+r.unit+' ('+dd(r.date)+')')) return;
+    poReceipts = recs().filter(function(x){ return String(x.id)!==String(rid); });
+    saveAll(); renderOrderTrack(); showToast('Entry delete ho gayi');
+  };
+
+  // ---------- EXCEL ----------
+  window.otExcel = function(){
+    if(typeof XLSX === 'undefined'){ showToast('Excel library load nahi hui'); return; }
+    var A = allInfos(), r1 = [['PO No','Order Date','Aane ki Date','Supplier','City','Transport','Item','Product Qty (pcs)','Unit','Order Qty (Bora/Peti)','Aaya','Baaki (Short)','Zyada (Excess)','Status']];
+    A.forEach(function(x){
+      x.i.lines.forEach(function(l){
+        r1.push([x.po.poNo, x.po.date, x.po.expected||x.po.date, x.po.supplier, x.po.city||'', x.po.transport||'', l.l.item, l.l.pcs||'', l.l.unit, l.ordered, l.got, l.diff>0?l.diff:0, l.diff<0?-l.diff:0, ST[x.i.status].t]);
+      });
+    });
+    var r2 = [['Date','Time','PO No','Supplier','Item','Unit','Qty','By','Note']];
+    recs().slice().sort(function(a,b){ return (String(a.date)+String(a.time||'')) < (String(b.date)+String(b.time||'')) ? -1 : 1; }).forEach(function(r){
+      var po = findPO(r.poId); r2.push([r.date, r.time||'', po?po.poNo:'', r.supplier||'', r.item||'', r.unit||'', num(r.qty), r.by||'', r.note||'']);
+    });
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r1), 'Orders');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r2), 'Receiving');
+    XLSX.writeFile(wb, 'Order_Tracking_'+today()+'.xlsx');
+    showToast('Excel download ho gaya');
+  };
+
+  // ---------- SETTINGS: city-wise default din + open ----------
+  function saveCities(list){
+    list.sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); });
+    SETTINGS.otCities = list; LS.sync('settings', SETTINGS); otRenderCitySettings();
+  }
+  window.otRenderCitySettings = function(){
+    var tg = document.getElementById('ot-set-target'); if(tg && document.activeElement!==tg){ tg.value = (SETTINGS && SETTINGS.dailyOrderTarget) || ''; }
+    var el = document.getElementById('ot-city-list'); if(!el) return;
+    var C = cities();
+    if(!C.length){ el.innerHTML = '<div style="padding:10px;background:var(--ow);border:1px solid var(--bdr);font-size:11px;color:var(--mu);font-family:Arial,sans-serif;text-align:center;">Abhi koi city set nahi hai</div>'; return; }
+    el.innerHTML = C.map(function(c,i){
+      return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;font-family:Arial,sans-serif;">'
+        + '<div style="flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;">\ud83d\udccd '+escH(c.name)+'</div>'
+        + '<input type="number" inputmode="numeric" min="0" id="ot-city-d-'+i+'" value="'+num(c.days)+'" style="width:60px;padding:8px;border:1px solid var(--bdr);"/><span style="font-size:11px;color:var(--mu);">din</span>'
+        + '<button class="btn btn-gold" style="padding:7px 10px;" onclick="otCitySave('+i+')">Save</button>'
+        + '<button class="btn btn-outline" style="padding:7px 9px;" onclick="otCityDel('+i+')">\ud83d\uddd1</button></div>';
+    }).join('');
+  };
+  window.otCityAdd = function(){
+    if(!isAdmin()){ showToast('Sirf Admin badal sakta hai'); return; }
+    var n = (document.getElementById('ot-city-new').value||'').trim(), dv = document.getElementById('ot-city-days').value;
+    if(!n){ showToast('\u26a0\ufe0f City ka naam likhein'); return; }
+    if(dv==='' || num(dv)<0){ showToast('\u26a0\ufe0f Kitne din me maal aata hai wo likhein'); return; }
+    var C = cities().slice(), k = C.filter(function(x){ return String(x.name).toLowerCase()===n.toLowerCase(); })[0];
+    if(k) k.days = Math.round(num(dv)); else C.push({name:n, days:Math.round(num(dv))});
+    saveCities(C);
+    document.getElementById('ot-city-new').value = ''; document.getElementById('ot-city-days').value = '';
+    showToast('\u2705 '+n+': '+Math.round(num(dv))+' din set ho gaya');
+  };
+  window.otCitySave = function(i){
+    if(!isAdmin()){ showToast('Sirf Admin badal sakta hai'); return; }
+    var C = cities().slice(), c = C[i]; if(!c) return;
+    var v = (document.getElementById('ot-city-d-'+i)||{}).value;
+    if(v==='' || num(v)<0){ showToast('Sahi din likhein'); return; }
+    c.days = Math.round(num(v)); saveCities(C); showToast('\u2705 '+c.name+': '+c.days+' din save');
+  };
+  window.otCityDel = function(i){
+    if(!isAdmin()) return;
+    var C = cities().slice(), c = C[i]; if(!c) return;
+    if(!confirm('"'+c.name+'" city hata dein? (purane orders par asar nahi padega)')) return;
+    C.splice(i,1); saveCities(C); showToast('City hata di');
+  };
+
+  // ---------- STARTUP ALERT ----------
+  if(typeof showApp === 'function' && !showApp.__ot){
+    var _sa = showApp;
+    showApp = function(){
+      var r = _sa.apply(this, arguments);
+      setTimeout(function(){
+        try{
+          if(typeof IS_BILL_STAFF!=='undefined' && IS_BILL_STAFF) return;
+          otUpdateBadge();
+          var od = allInfos().filter(function(x){ return x.i.overdue; }).length;
+          if(od > 0) showToast('\u26a0\ufe0f '+od+' order ka maal abhi tak nahi aaya \u2014 Order Tracking dekhein', 'warn');
+        }catch(e){}
+      }, 3500);
+      return r;
+    };
+    showApp.__ot = true;
+  }
 })();
 </script>
 </body>
