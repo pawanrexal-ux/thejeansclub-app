@@ -19818,6 +19818,8 @@ function _odReset(){
   function dd(d){ var p = String(d||'').split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0].slice(2) : (d||'-'); }
   function num(x){ var n = Number(x); return isNaN(n) ? 0 : n; }
   function isAdmin(){ return CURRENT_ROLE==='admin'; }
+  // naya order/parcel Admin aur Manager dono bhar sakte hain (Staff-billing login nahi); edit/delete/close sirf Admin
+  function canCreate(){ return CURRENT_ROLE==='admin' || (CURRENT_ROLE==='staff' && !(typeof IS_BILL_STAFF!=='undefined' && IS_BILL_STAFF)); }
   function pos(){ return Array.isArray(purchaseOrders) ? purchaseOrders : (purchaseOrders = []); }
   function recs(){ return Array.isArray(poReceipts) ? poReceipts : (poReceipts = []); }
   function saveAll(){ LS.sync('purchaseOrders', pos()); LS.sync('poReceipts', recs()); }
@@ -19889,7 +19891,7 @@ function _odReset(){
     var dEl = document.getElementById('ot-date'); if(!dEl) return;
     if(!window._otDate) window._otDate = today();
     dEl.value = window._otDate;
-    ['ot-new-btn-coming','ot-new-btn-orders'].forEach(function(id){ var b = document.getElementById(id); if(b) b.style.display = isAdmin() ? '' : 'none'; });
+    ['ot-new-btn-coming','ot-new-btn-orders'].forEach(function(id){ var b = document.getElementById(id); if(b) b.style.display = (id==='ot-new-btn-coming') ? 'none' : (canCreate() ? '' : 'none'); });
     var ob = document.getElementById('ot-tab-orders'); if(ob) ob.style.display = isAdmin() ? '' : 'none';
     otTab(window._otTabName, true);
   };
@@ -19952,6 +19954,8 @@ function _odReset(){
     if(l.diff !== 0) a.push(l.l.unit+' '+(l.diff>0 ? l.diff+' kam' : (-l.diff)+' zyada'));
     return a.join(', ');
   }
+  function ordQ(l, u){ return l.l.sec ? (l.ordP+' Nos') : ((l.hasP ? l.ordP+' Nos \u00b7 ' : '')+(l.ordered)+' '+u); }
+  function gotQ(l, u){ return l.l.sec ? (l.gotP+' Nos') : ((l.hasP ? l.gotP+' Nos \u00b7 ' : '')+(l.got)+' '+u); }
   function dmgTxt(l){
     if(!(l.dmg>0 || l.dmgP>0)) return '';
     return ' <b style="color:#c62828;">\u00b7 \u26a0\ufe0f Kharab: '+(l.dmgP>0 ? l.dmgP+' Nos' : '')+(l.dmgP>0 && l.dmg>0 ? ' \u00b7 ' : '')+(l.dmg>0 ? l.dmg+' '+escH(l.l.unit) : '')+'</b>';
@@ -19966,8 +19970,8 @@ function _odReset(){
     var u = escH(l.l.unit), anyGot = l.got>0 || l.gotP>0;
     var bd = l.matched ? '#2e7d32' : (anyGot ? '#e65100' : '#ddd');
     return '<div class="oti'+(l.matched?' ok':(anyGot?' warn':''))+'">'
-      + '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+escH(l.l.item||'-')+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+(l.hasP ? l.ordP+' Nos \u00b7 ' : '')+l.ordered+' '+u+'</span></div>'
-      + (anyGot ? '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:3px;"><span style="color:var(--mu);">Aaya: <b>'+(l.hasP ? l.gotP+' Nos \u00b7 ' : '')+l.got+' '+u+'</b>'+dmgTxt(l)+'</span>'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+(l.l.sec?'\u21b3 ':'')+escH(l.l.item||'-')+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+ordQ(l,u)+'</span></div>'
+      + (anyGot ? '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:3px;"><span style="color:var(--mu);">Aaya: <b>'+gotQ(l,u)+'</b>'+dmgTxt(l)+'</span>'
         + (l.matched ? '<b style="color:#2e7d32;">\u2705 Match</b>' : '<b style="color:#e65100;">Match nahi \u2014 '+escH(diffText(l))+'</b>')+'</div>' : '')
       + '</div>';
   }
@@ -19988,7 +19992,8 @@ function _odReset(){
     var box = function(l, v, c){ return '<div class="ots" style="--ac:'+c+';"><div class="ots-l">'+l+'</div><div class="ots-v">'+v+'</div></div>'; };
     var head = function(txt, sub){ return '<div style="font-family:Arial,sans-serif;margin:12px 0 6px;"><div style="font-weight:800;font-size:13px;">'+txt+'</div>'+(sub?'<div style="font-size:11px;color:var(--mu);margin-top:1px;">Total: '+escH(sub)+'</div>':'')+'</div>'; };
     var empty = function(m){ return '<div style="padding:12px;background:#fff;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:12px;color:var(--mu);margin-bottom:8px;">'+m+'</div>'; };
-    var h = '<div style="display:flex;gap:6px;">'+box('Late', late.length, late.length?'#c62828':'#2e7d32')+box('Aaj aane wale', tod.length, '#e65100')+box('Aage aane wale', later.length, '#1a237e')+'</div>';
+    var h = (canCreate() ? '<button class="btn btn-green btn-full" style="margin-bottom:10px;" onclick="otOpenNew()">\u2795 Parcel Details Bharo / Naya Order</button>' : '')
+      + '<div style="display:flex;gap:6px;">'+box('Late', late.length, late.length?'#c62828':'#2e7d32')+box('Aaj aane wale', tod.length, '#e65100')+box('Aage aane wale', later.length, '#1a237e')+'</div>';
     if(late.length){
       h += head('\ud83d\udd34 Late \u2014 pichhli date nikal gayi ('+late.length+')', sumU(late));
       h += late.map(function(x){ return parcelCard(x, '#c62828'); }).join('');
@@ -20192,19 +20197,49 @@ function _odReset(){
     return '<div style="font-size:12px;margin-top:3px;">'+(po.city?'\ud83d\udccd <b>'+escH(po.city)+'</b>':'')+(po.city&&po.transport?' &nbsp;\u00b7&nbsp; ':'')+(po.transport?(T_ICON[po.transport]||'')+' '+escH(po.transport):'')+'</div>';
   }
   var LBL = 'font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--mu);margin-bottom:2px;';
-  function lineRow(l){
+  function unitOpts(sel){ return ['Bora','Peti'].concat(UNITS.filter(function(u){ return u!=='Bora' && u!=='Peti'; })).map(function(u){ return '<option'+(sel===u?' selected':'')+'>'+u+'</option>'; }).join(''); }
+  function itemRow(l, first){
     l = l || {};
-    var opts = ['Bora','Peti'].concat(UNITS.filter(function(u){ return u!=='Bora' && u!=='Peti'; })).map(function(u){ return '<option'+(l.unit===u?' selected':'')+'>'+u+'</option>'; }).join('');
-    return '<div class="ot-line" data-lid="'+escH(l.lid||'')+'" style="border:1px solid var(--bdr);background:#fafafa;padding:8px;margin-bottom:8px;">'
-      + '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;"><input type="text" class="ot-li-item" list="ot-item-list" placeholder="Product name" value="'+escH(l.item||'')+'" style="flex:1;min-width:0;padding:8px;border:1px solid var(--bdr);"/>'
-      + '<a href="javascript:void(0)" onclick="this.parentNode.parentNode.remove()" style="color:#c62828;font-size:18px;padding:0 4px;">\u2715</a></div>'
-      + '<div style="display:flex;gap:6px;">'
-      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Qty (pcs)</div><input type="number" inputmode="numeric" class="ot-li-pcs" placeholder="500" value="'+(l.pcs||'')+'" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
-      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Bora / Peti</div><select class="ot-li-unit" style="width:100%;padding:8px;border:1px solid var(--bdr);">'+opts+'</select></div>'
-      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Bora/Peti Qty</div><input type="number" inputmode="numeric" class="ot-li-qty" placeholder="5" value="'+(l.qty||'')+'" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
-      + '</div></div>';
+    return '<div class="ot-line" data-lid="'+escH(l.lid||'')+'" style="display:flex;gap:6px;align-items:flex-end;margin-bottom:6px;">'
+      + '<div style="flex:2;min-width:0;"><div style="'+LBL+'">Product</div><input type="text" class="ot-li-item" list="ot-item-list" placeholder="Product name" value="'+escH(l.item||'')+'" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Qty (Nos)</div><input type="number" inputmode="numeric" class="ot-li-pcs" placeholder="100" value="'+(l.pcs||'')+'" oninput="otBlkSum(this)" style="width:100%;padding:8px;border:1px solid var(--bdr);"/></div>'
+      + (first ? '<span style="width:22px;"></span>' : '<a href="javascript:void(0)" onclick="otDelItem(this)" style="color:#c62828;font-size:18px;padding:0 4px;">\u2715</a>')
+      + '</div>';
   }
-  window.otAddLine = function(){ var c = document.getElementById('ot-lines'); if(c) c.insertAdjacentHTML('beforeend', lineRow({unit:'Bora'})); };
+  function blockHtml(b){
+    b = b || {};
+    var items = (b.items && b.items.length) ? b.items : [{}];
+    return '<div class="ot-blk" data-grp="'+escH(b.grp||'')+'" style="border:2px solid #c9a84c;background:#fffdf5;padding:10px;margin-bottom:12px;border-radius:12px;">'
+      + '<div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px;">'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Bora / Peti</div><select class="ot-b-unit" style="width:100%;padding:8px;border:1px solid var(--bdr);">'+unitOpts(b.unit||'Bora')+'</select></div>'
+      + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Kitne Bora/Peti</div><input type="number" inputmode="numeric" class="ot-b-qty" placeholder="1" value="'+(b.qty||'')+'" oninput="otBlkSum(this)" style="width:100%;padding:8px;border:1px solid var(--bdr);font-weight:700;"/></div>'
+      + '<a href="javascript:void(0)" onclick="otDelBlock(this)" title="Ye poora Bora/Peti hatao" style="color:#c62828;font-size:18px;padding:0 4px 8px;">\u2715</a></div>'
+      + '<div class="ot-b-items">'+items.map(function(l, i){ return itemRow(l, i===0); }).join('')+'</div>'
+      + '<button class="btn btn-outline" style="padding:6px 10px;font-size:11px;" onclick="otAddItem(this)">\u2795 Isi Bora/Peti me aur item (same Bora me 2-3 item)</button>'
+      + '<div class="ot-b-sum" style="font-size:11px;margin-top:6px;color:#1a237e;font-weight:700;"></div>'
+      + '</div>';
+  }
+  window.otBlkSum = function(el){
+    var blk = el.closest ? el.closest('.ot-blk') : null; if(!blk) return;
+    var q = num(blk.querySelector('.ot-b-qty').value), u = blk.querySelector('.ot-b-unit').value, tot = 0, n = 0;
+    blk.querySelectorAll('.ot-li-pcs').forEach(function(i){ var v = num(i.value); if(v>0){ tot += v; n++; } });
+    blk.querySelector('.ot-b-sum').textContent = (q>0 && n>0) ? (q+' '+u+' = '+n+' item \u00b7 total '+tot+' Nos'+(n>1?' (Bora/Peti sirf '+q+' gina jaayega, '+n+' nahi)':'')) : '';
+  };
+  window.otAddBlock = function(){ var c = document.getElementById('ot-lines'); if(c) c.insertAdjacentHTML('beforeend', blockHtml({unit:'Bora'})); };
+  window.otAddLine = window.otAddBlock;
+  window.otAddItem = function(btn){ var blk = btn.closest('.ot-blk'); if(blk) blk.querySelector('.ot-b-items').insertAdjacentHTML('beforeend', itemRow({}, false)); };
+  window.otDelItem = function(a){ var r = a.closest('.ot-line'); if(r) r.remove(); };
+  window.otDelBlock = function(a){ var blk = a.closest('.ot-blk'); if(blk && document.querySelectorAll('#ot-lines .ot-blk').length > 1) blk.remove(); else showToast('Kam se kam ek Bora/Peti rakhna hai'); };
+  // purani lines -> blocks (grp same = ek hi Bora/Peti)
+  function linesToBlocks(lines){
+    var out = [], idx = {};
+    (lines||[]).forEach(function(l){
+      var g = l.grp || ('S'+l.lid);
+      if(idx[g] === undefined){ idx[g] = out.length; out.push({grp:l.grp||'', unit:l.unit, qty:0, items:[]}); }
+      var b = out[idx[g]]; b.items.push(l); if(!l.sec) b.qty = l.qty;
+    });
+    return out;
+  }
   function setHint(){
     var h = document.getElementById('ot-f-hint'), c = document.getElementById('ot-f-city'), e = document.getElementById('ot-f-exp'), sh = document.getElementById('ot-f-expshow'); if(!h||!c||!e) return;
     if(sh) sh.innerHTML = e.value ? '<b>'+dd(e.value)+'</b> ('+dayName(e.value)+')' : '<span style="color:var(--mu);">City chunte hi date aa jaayegi</span>';
@@ -20222,7 +20257,7 @@ function _odReset(){
   window.otCityChanged = recalcExp;
   window.otOrderDateChanged = recalcExp;
   window.otOpenNew = function(editId){
-    if(!isAdmin()){ showToast('Sirf Admin parcel ka details bhar sakta hai'); return; }
+    if(!canCreate() || (editId && !isAdmin())){ showToast('Sirf Admin / Manager parcel ka details bhar sakta hai'); return; }
     var po = editId ? findPO(editId) : null;
     var C = cities().slice().sort(function(a,b){ return String(a.name).localeCompare(String(b.name)); });
     if(!po && !C.length){
@@ -20237,7 +20272,7 @@ function _odReset(){
     (typeof stockItems!=='undefined' ? stockItems : []).forEach(function(s){ if(s.name) items[s.name] = 1; });
     var dl = '<datalist id="ot-sup-list">'+Object.keys(sups).map(function(k){ return '<option value="'+escH(k)+'">'; }).join('')+'</datalist>'
            + '<datalist id="ot-item-list">'+Object.keys(items).slice(0,400).map(function(k){ return '<option value="'+escH(k)+'">'; }).join('')+'</datalist>';
-    var lines = po ? po.lines : [{unit:'Bora'}];
+    var blocks = po ? linesToBlocks(po.lines) : [{unit:'Bora'}];
     var names = C.map(function(c){ return c.name; });
     if(po && po.city && names.indexOf(po.city) < 0) names.push(po.city);
     var cOpts = '<option value="">City chuno</option>'+names.map(function(n){ return '<option value="'+escH(n)+'"'+(po&&po.city===n?' selected':'')+'>'+escH(n)+'</option>'; }).join('');
@@ -20250,15 +20285,15 @@ function _odReset(){
       + '<div class="row2"><div class="ig"><label>Order Date</label><input type="date" id="ot-f-date" value="'+(po?po.date:today())+'" onchange="otOrderDateChanged()"/></div>'
       + '<div class="ig"><label>Delivery Date (auto)</label><div id="ot-f-expshow" style="padding:10px;background:#f1f8e9;border:1px solid #c5e1a5;font-family:Arial,sans-serif;font-size:13px;min-height:38px;box-sizing:border-box;"></div><input type="hidden" id="ot-f-exp" value="'+(po?(po.expected||po.date):'')+'"/></div></div>'
       + '<div id="ot-f-hint" style="font-size:11px;color:var(--mu);margin:-4px 0 10px;"></div>'
-      + '<label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Product \u00b7 Quantity (Nos) \u00b7 Bora/Peti</label>'
-      + '<div id="ot-lines" style="margin-top:6px;">'+lines.map(lineRow).join('')+'</div>'
-      + '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="otAddLine()">\u2795 Aur product jodo</button>'
+      + '<label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Bora / Peti ke hisaab se maal (ek Bora me 1, 2 ya 3 item ho sakte hain)</label>'
+      + '<div id="ot-lines" style="margin-top:6px;">'+blocks.map(blockHtml).join('')+'</div>'
+      + '<button class="btn btn-outline" style="margin-bottom:10px;" onclick="otAddBlock()">\u2795 Naya Bora / Peti jodo</button>'
       + '<div class="ig"><label>Note (optional)</label><input type="text" id="ot-f-note" value="'+escH(po?po.notes||'':'')+'" placeholder="Jaise: gaadi no / LR no / bill no"/></div>'
       + '<div style="display:flex;gap:8px;"><button class="btn btn-outline" style="flex:1;" onclick="otCloseModal()">Cancel</button><button class="btn btn-gold" style="flex:2;" onclick="otSaveNew('+(po?po.id:'null')+')">'+(po?'Update Karo':'Save Karo')+'</button></div>');
     setHint();
   };
   window.otSaveNew = function(editId){
-    if(!isAdmin()){ showToast('Sirf Admin save kar sakta hai'); return; }
+    if(!canCreate() || (editId && !isAdmin())){ showToast('Sirf Admin / Manager save kar sakta hai'); return; }
     var sup = (document.getElementById('ot-f-sup').value||'').trim();
     var city = (document.getElementById('ot-f-city').value||'').trim();
     var trans = document.getElementById('ot-f-trans').value || '';
@@ -20270,14 +20305,26 @@ function _odReset(){
     if(!exp){ showToast('\u26a0\ufe0f Is city ka default din Settings me set karein'); return; }
     var po = editId ? findPO(editId) : null;
     var lines = [], bad = false, noPcs = false;
-    document.querySelectorAll('#ot-lines .ot-line').forEach(function(row){
-      var item = row.querySelector('.ot-li-item').value.trim(), unit = row.querySelector('.ot-li-unit').value, qty = num(row.querySelector('.ot-li-qty').value), pcs = num(row.querySelector('.ot-li-pcs').value);
-      if(!item && !qty && !pcs) return;
-      if(!item || qty <= 0 || pcs < 0){ bad = true; return; }
-      if(!po && pcs <= 0) noPcs = true;
-      lines.push({lid: row.getAttribute('data-lid') || ('L'+uid()), item:item, unit:unit, qty:qty, pcs:pcs});
+    document.querySelectorAll('#ot-lines .ot-blk').forEach(function(blk){
+      var unit = blk.querySelector('.ot-b-unit').value, qty = num(blk.querySelector('.ot-b-qty').value);
+      var rows = [], any = false;
+      blk.querySelectorAll('.ot-line').forEach(function(row){
+        var item = row.querySelector('.ot-li-item').value.trim(), pcs = num(row.querySelector('.ot-li-pcs').value);
+        if(!item && !pcs) return;
+        any = true; rows.push({row:row, item:item, pcs:pcs});
+      });
+      if(!any && !qty) return;
+      if(!rows.length || qty <= 0){ bad = true; return; }
+      var grp = blk.getAttribute('data-grp') || ('B'+uid());
+      rows.forEach(function(r, k){
+        if(!r.item || r.pcs < 0){ bad = true; return; }
+        if((!po || k>0) && r.pcs <= 0) noPcs = true;
+        var ln = {lid: r.row.getAttribute('data-lid') || ('L'+uid()), item:r.item, unit:unit, qty:(k===0 ? qty : 0), pcs:r.pcs, grp:grp};
+        if(k>0) ln.sec = true;
+        lines.push(ln);
+      });
     });
-    if(bad){ showToast('\u26a0\ufe0f Har product ka naam aur Bora/Peti qty (0 se zyada) likhein'); return; }
+    if(bad){ showToast('\u26a0\ufe0f Har Bora/Peti ki qty (0 se zyada) aur har item ka naam likhein'); return; }
     if(noPcs){ showToast('\u26a0\ufe0f Har product ki Quantity (Nos) likhein'); return; }
     if(!lines.length){ showToast('\u26a0\ufe0f Kam se kam ek product daalein'); return; }
     if(po){
@@ -20297,20 +20344,20 @@ function _odReset(){
     var i = info(po, gotMap());
     var rows = i.lines.map(function(x, idx){
       var u = escH(x.l.unit), anyGot = x.got>0 || x.gotP>0;
-      var top = '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+escH(x.l.item)+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+(x.hasP ? x.ordP+' Nos \u00b7 ' : '')+x.ordered+' '+u+'</span></div>'
+      var top = '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+escH(x.l.item)+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+ordQ(x,u)+'</span></div>'
         + '<div style="font-size:10px;color:var(--mu);margin-top:1px;">Ordered quantity</div>'
-        + (anyGot ? '<div style="font-size:11px;color:var(--mu);margin-top:3px;">Pehle aaya: <b>'+(x.hasP ? x.gotP+' Nos \u00b7 ' : '')+x.got+' '+u+'</b></div>' : '');
+        + (anyGot ? '<div style="font-size:11px;color:var(--mu);margin-top:3px;">Pehle aaya: <b>'+gotQ(x,u)+'</b></div>' : '');
       if(x.matched) return '<div style="border:2px solid #2e7d32;background:#e8f5e9;padding:8px 10px;margin-bottom:8px;">'+top+'<div style="margin-top:4px;font-size:12px;font-weight:700;color:#2e7d32;">\u2705 Match ho chuka</div></div>';
       var rp = Math.max(0, x.diffP), rq = Math.max(0, x.diff);
       return '<div id="ot-rcrow-'+idx+'" data-oq="'+x.ordered+'" data-gq="'+x.got+'" data-op="'+x.ordP+'" data-gp="'+x.gotP+'" style="border:2px solid var(--bdr);background:#fff;padding:8px 10px;margin-bottom:8px;">'
         + top
         + '<div style="display:flex;gap:6px;margin-top:8px;">'
         + (x.hasP ? '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Aaya Nos</div><input type="number" inputmode="numeric" id="ot-rp-'+idx+'" oninput="otRcCheck('+idx+')" placeholder="'+rp+'" style="width:100%;padding:9px;border:1px solid var(--bdr);font-size:15px;"/></div>' : '')
-        + '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Aaya '+u+'</div><input type="number" inputmode="numeric" id="ot-rc-'+idx+'" oninput="otRcCheck('+idx+')" placeholder="'+rq+'" style="width:100%;padding:9px;border:1px solid var(--bdr);font-size:15px;"/></div>'
+        + (x.l.sec ? '<div style="flex:1;min-width:0;font-size:11px;color:var(--mu);align-self:center;">\u21b3 Bora/Peti upar wale item ke saath</div>' : '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Aaya '+u+'</div><input type="number" inputmode="numeric" id="ot-rc-'+idx+'" oninput="otRcCheck('+idx+')" placeholder="'+rq+'" style="width:100%;padding:9px;border:1px solid var(--bdr);font-size:15px;"/></div>')
         + '</div>'
         + '<div style="display:flex;gap:6px;margin-top:6px;">'
         + (x.hasP ? '<div style="flex:1;min-width:0;"><div style="'+LBL+'color:#c62828;">Kharab Nos</div><input type="number" inputmode="numeric" id="ot-rdp-'+idx+'" placeholder="0" style="width:100%;padding:8px;border:1px solid #ef9a9a;font-size:14px;"/></div>' : '')
-        + '<div style="flex:1;min-width:0;"><div style="'+LBL+'color:#c62828;">Kharab '+u+'</div><input type="number" inputmode="numeric" id="ot-rd-'+idx+'" placeholder="0" style="width:100%;padding:8px;border:1px solid #ef9a9a;font-size:14px;"/></div>'
+        + (x.l.sec ? '' : '<div style="flex:1;min-width:0;"><div style="'+LBL+'color:#c62828;">Kharab '+u+'</div><input type="number" inputmode="numeric" id="ot-rd-'+idx+'" placeholder="0" style="width:100%;padding:8px;border:1px solid #ef9a9a;font-size:14px;"/></div>')
         + '</div>'
         + '<div id="ot-rcm-'+idx+'" style="font-size:12px;font-weight:700;margin-top:5px;min-height:15px;"></div>'
         + '<button class="btn btn-outline" style="margin-top:4px;padding:6px 10px;font-size:11px;" onclick="otRcFill('+idx+')">Order jitna bharo'+(rp>0||rq>0 ? ' ('+(x.hasP ? rp+' Nos \u00b7 ' : '')+rq+' '+u+')' : '')+'</button></div>';
