@@ -2105,7 +2105,7 @@ body,.app-layout,.main-area{overflow:hidden;overflow:clip;}
 
         <div id="ot-view-daily">
           <div class="card"><div class="card-body">
-            <div class="ig" style="margin-bottom:0;"><label>Date</label><input type="date" id="ot-date" onchange="otSetDate(this.value)"/></div>
+            <div class="ig" style="margin-bottom:0;"><label>Date</label><div style="position:relative;"><div class="dmy-show" style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:10px 12px;border:1px solid var(--bdr);background:#fff;font-size:15px;min-height:42px;"><span>Date chuno</span><span>📅</span></div><input type="date" class="dmy-in" id="ot-date" onchange="otSetDate(this.value);otDmySync()" style="position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;border:0;cursor:pointer;"/></div></div>
           </div></div>
           <div id="ot-daily-body"></div>
         </div>
@@ -19828,6 +19828,7 @@ function _odReset(){
     var m = {};
     recs().forEach(function(r){
       var k = r.poId+'|'+r.lid;
+      if(r.hold){ m['h|'+k] = (m['h|'+k]||0) + num(r.qty); m['hp|'+k] = (m['hp|'+k]||0) + num(r.pcs); return; }
       m[k] = (m[k]||0) + num(r.qty);
       m['p|'+k] = (m['p|'+k]||0) + num(r.pcs);
       m['x|'+k] = (m['x|'+k]||0) + num(r.dmg);
@@ -19843,7 +19844,7 @@ function _odReset(){
       var matched = (q-g === 0) && (!hasP || op-gp === 0);
       var short = (q-g > 0) || (hasP && op-gp > 0);
       var over = (q-g < 0) || (hasP && op-gp < 0);
-      return {l:l, ordered:q, got:g, diff:q-g, ordP:op, gotP:gp, diffP:op-gp, hasP:hasP, matched:matched, short:short, over:over, lastDate:m['d|'+k]||'', dmg:m['x|'+k]||0, dmgP:m['xp|'+k]||0};
+      return {l:l, ordered:q, got:g, diff:q-g, ordP:op, gotP:gp, diffP:op-gp, hasP:hasP, matched:matched, short:short, over:over, lastDate:m['d|'+k]||'', dmg:m['x|'+k]||0, dmgP:m['xp|'+k]||0, held:m['h|'+k]||0, heldP:m['hp|'+k]||0};
     });
     var pend = 0, exc = 0, got = 0, ord = 0, pendU = {}, excU = {};
     lines.forEach(function(x){
@@ -19859,7 +19860,7 @@ function _odReset(){
     else if(anyShort) status = 'partial';
     else status = anyOver ? 'excess' : 'complete';
     var due = po.expected || po.date || '';
-    return {hasDmg: lines.some(function(x){ return x.dmg>0 || x.dmgP>0; }), lines:lines, pend:pend, exc:exc, got:got, ord:ord, pendU:pendU, excU:excU, status:status, due:due, delayed: !po.closed && !allM && !!po.origExpected,
+    return {hasHold: lines.some(function(x){ return x.held>0 || x.heldP>0; }), hasDmg: lines.some(function(x){ return x.dmg>0 || x.dmgP>0; }), lines:lines, pend:pend, exc:exc, got:got, ord:ord, pendU:pendU, excU:excU, status:status, due:due, delayed: !po.closed && !allM && !!po.origExpected,
             overdue: !po.closed && anyShort && due && due < today(), open: !po.closed && !allM, allMatched: allM};
   }
   // delivery date nikal gayi aur maal nahi aaya => date aaj ki (agla din) ho jaati hai, original date yaad rehti hai
@@ -19945,9 +19946,19 @@ function _odReset(){
   };
 
   // ---------- AANE WALE (aaj + aage) ----------
-  function dayName(d){ var p = String(d||'').split('-'); if(p.length!==3) return ''; return ['Ravi','Som','Mangal','Budh','Guru','Shukra','Shani'][new Date(+p[0], +p[1]-1, +p[2]).getDay()]; }
+  function dmyShow(){ return '<div class="dmy-show" style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:10px 12px;border:1px solid var(--bdr);background:#fff;font-size:15px;min-height:42px;"><span>Date chuno</span><span>\ud83d\udcc5</span></div>'; }
+  window.otDmySync = function(){
+    document.querySelectorAll('input.dmy-in').forEach(function(i){
+      var l = i.parentNode && i.parentNode.querySelector('.dmy-show span'); if(!l) return;
+      var p = String(i.value||'').split('-');
+      var t = p.length===3 ? p[2]+'-'+p[1]+'-'+p[0]+' <small style="color:var(--mu);font-size:11px;">'+dayName(i.value)+'</small>' : 'Date chuno';
+      if(l.getAttribute('data-t') !== t){ l.setAttribute('data-t', t); l.innerHTML = t; }
+    });
+  };
+  setInterval(function(){ try{ otDmySync(); }catch(e){} }, 300);
+  function dayName(d){ var p = String(d||'').split('-'); if(p.length!==3) return ''; return ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(+p[0], +p[1]-1, +p[2]).getDay()]; }
   function daysFrom(d){ var a = String(today()).split('-'), b = String(d).split('-'); return Math.round((new Date(+b[0], +b[1]-1, +b[2]) - new Date(+a[0], +a[1]-1, +a[2])) / 86400000); }
-  function relLabel(d){ var n = daysFrom(d); if(n===0) return 'Aaj'; if(n===1) return 'Kal'; if(n===2) return 'Parso'; if(n<0) return (-n)+' din late'; return n+' din baad'; }
+  function relLabel(d){ var n = daysFrom(d); return n<0 ? (-n)+' din late' : ''; }
   function diffText(l){
     var a = [];
     if(l.hasP && l.diffP !== 0) a.push('Nos '+(l.diffP>0 ? l.diffP+' kam' : (-l.diffP)+' zyada'));
@@ -19956,6 +19967,11 @@ function _odReset(){
   }
   function ordQ(l, u){ return l.l.sec ? (l.ordP+' Nos') : ((l.hasP ? l.ordP+' Nos \u00b7 ' : '')+(l.ordered)+' '+u); }
   function gotQ(l, u){ return l.l.sec ? (l.gotP+' Nos') : ((l.hasP ? l.gotP+' Nos \u00b7 ' : '')+(l.got)+' '+u); }
+  function holdTxt(l, u){
+    if(!(l.held>0 || l.heldP>0)) return '';
+    return '<div style="margin-top:4px;font-size:11px;font-weight:700;color:#8a5a00;background:#fff3cd;padding:3px 7px;">\u23f8 HOLD me: '+(l.l.sec ? l.heldP+' Nos' : ((l.hasP ? l.heldP+' Nos \u00b7 ' : '')+l.held+' '+u))+'</div>';
+  }
+  function holdChip(i){ return i.hasHold ? '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:#fff;background:#b8860b;padding:2px 8px;">\u23f8 HOLD ME HAI \u2014 baaki maal aane par Final Save</span></div>' : ''; }
   function dmgTxt(l){
     if(!(l.dmg>0 || l.dmgP>0)) return '';
     return ' <b style="color:#c62828;">\u00b7 \u26a0\ufe0f Kharab: '+(l.dmgP>0 ? l.dmgP+' Nos' : '')+(l.dmgP>0 && l.dmg>0 ? ' \u00b7 ' : '')+(l.dmg>0 ? l.dmg+' '+escH(l.l.unit) : '')+'</b>';
@@ -19963,6 +19979,7 @@ function _odReset(){
   function recExtra(r){
     var t = '';
     if(r.lr) t += ' \u00b7 LR/Bill: <b>'+escH(r.lr)+'</b>';
+    if(r.hold) t += ' \u00b7 <b style="color:#8a5a00;background:#fff3cd;padding:0 4px;">\u23f8 HOLD</b>';
     if(num(r.dmg)>0 || num(r.dmgP)>0) t += ' \u00b7 <b style="color:#c62828;">Kharab: '+(num(r.dmgP)>0 ? num(r.dmgP)+' Nos' : '')+(num(r.dmgP)>0 && num(r.dmg)>0 ? ' \u00b7 ' : '')+(num(r.dmg)>0 ? num(r.dmg)+' '+escH(r.unit||'') : '')+'</b>';
     return t;
   }
@@ -19973,14 +19990,15 @@ function _odReset(){
       + '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+(l.l.sec?'\u21b3 ':'')+escH(l.l.item||'-')+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+ordQ(l,u)+'</span></div>'
       + (anyGot ? '<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:3px;"><span style="color:var(--mu);">Aaya: <b>'+gotQ(l,u)+'</b>'+dmgTxt(l)+'</span>'
         + (l.matched ? '<b style="color:#2e7d32;">\u2705 Match</b>' : '<b style="color:#e65100;">Match nahi \u2014 '+escH(diffText(l))+'</b>')+'</div>' : '')
+      + holdTxt(l, u)
       + '</div>';
   }
   function parcelCard(x, accent){
     var po = x.po, i = x.i, adm = isAdmin();
-    var head = adm ? ('<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><div style="min-width:0;"><b>'+escH(po.supplier||'-')+'</b><div style="font-size:11px;color:var(--mu);">'+escH(po.poNo)+'</div></div>'
-      + '<div style="text-align:right;font-size:11px;white-space:nowrap;"><b style="color:'+accent+';font-size:12px;">'+dd(i.due)+'</b><div style="color:var(--mu);">'+dayName(i.due)+' \u00b7 '+relLabel(i.due)+'</div></div></div>' + metaLine(po) + delayNote(po)) : '';
+    var head = adm ? ('<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><div style="min-width:0;"><b>'+escH(po.supplier||'-')+'</b></div>'
+      + '<div style="text-align:right;font-size:11px;white-space:nowrap;"><b style="color:'+accent+';font-size:12px;">'+dd(i.due)+'</b><div style="color:var(--mu);">'+dayName(i.due)+(relLabel(i.due) ? ' \u00b7 '+relLabel(i.due) : '')+'</div></div></div>' + metaLine(po) + delayNote(po)) : '';
     return '<div class="otc" style="--ac:'+accent+';">'
-      + head + i.lines.map(itemBox).join('')
+      + head + holdChip(i) + i.lines.map(itemBox).join('')
       + '<button class="btn btn-gold" style="margin-top:8px;padding:6px 14px;font-size:12px;" onclick="otReceive('+po.id+')">\ud83d\udce5 Maal Aaya</button></div>';
   }
   function sumU(list){ var u = {}; list.forEach(function(x){ Object.keys(x.i.pendU).forEach(function(k){ u[k] = (u[k]||0) + x.i.pendU[k]; }); }); return unitText(u); }
@@ -20007,7 +20025,7 @@ function _odReset(){
       if(x.i.due !== cur){
         cur = x.i.due;
         var cnt = later.filter(function(y){ return y.i.due === cur; }).length;
-        h += '<div class="otd"><b>\ud83d\udcc6 '+dd(cur)+' ('+dayName(cur)+')</b><span style="color:#1a237e;font-weight:700;">'+relLabel(cur)+' \u00b7 '+cnt+' order</span></div>';
+        h += '<div class="otd"><b>\ud83d\udcc6 '+dd(cur)+' ('+dayName(cur)+')</b><span style="color:#1a237e;font-weight:700;">'+(relLabel(cur) ? relLabel(cur)+' \u00b7 ' : '')+cnt+' order</span></div>';
       }
       h += parcelCard(x, '#1a237e');
     });
@@ -20019,7 +20037,7 @@ function _odReset(){
     var el = document.getElementById('ot-daily-body'); if(!el) return;
     var d = window._otDate || today();
     var target = num(SETTINGS && SETTINGS.dailyOrderTarget);
-    var R = recs().filter(function(r){ return r.date === d; });
+    var R = recs().filter(function(r){ return r.date === d && !r.hold; });
     var bp = 0, byU = {};
     R.forEach(function(r){ byU[r.unit] = (byU[r.unit]||0) + num(r.qty); if(r.unit==='Bora' || r.unit==='Peti') bp += num(r.qty); });
     var diff = target - bp;
@@ -20098,7 +20116,7 @@ function _odReset(){
       if(open){
         P.forEach(function(p){
           h += '<div class="otc" style="--ac:#2e7d32;margin:6px 0 0!important;">'
-            + (adm ? '<div style="font-size:12px;margin-top:4px;"><b>'+escH(p.po.supplier||'-')+'</b> <span style="color:var(--mu);">\u00b7 '+escH(p.po.poNo)+'</span></div>'+metaLine(p.po) : '')
+            + (adm ? '<div style="font-size:12px;margin-top:4px;"><b>'+escH(p.po.supplier||'-')+'</b></div>'+metaLine(p.po) : '')
             + p.lines.map(itemBox).join('') + '</div>';
         });
       }
@@ -20139,8 +20157,8 @@ function _odReset(){
   function orderCard(po, i){
     var st = ST[i.status], R = recs().filter(function(r){ return String(r.poId)===String(po.id); });
     var h = '<div class="otc" style="--ac:'+st.c+';">'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b style="font-size:14px;">'+escH(po.poNo)+' \u00b7 '+escH(po.supplier||'-')+'</b><span style="font-size:9px;color:#fff;background:'+st.c+';padding:2px 7px;white-space:nowrap;">'+st.t+'</span></div>'
-      + (i.hasDmg ? '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:#fff;background:#c62828;padding:2px 8px;">\u26a0\ufe0f KHARAB MAAL AAYA</span></div>' : '')
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><b style="font-size:14px;">'+escH(po.supplier||'-')+'</b><span style="font-size:9px;color:#fff;background:'+st.c+';padding:2px 7px;white-space:nowrap;">'+st.t+'</span></div>'
+      + holdChip(i) + (i.hasDmg ? '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:#fff;background:#c62828;padding:2px 8px;">\u26a0\ufe0f KHARAB MAAL AAYA</span></div>' : '')
       + metaLine(po) + delayNote(po) + '<div style="font-size:11px;color:var(--mu);margin-top:2px;">Order: '+dd(po.date)+' \u00b7 Aane ki date: '+dd(po.expected||po.date)+(i.overdue?' <b style="color:#c62828;">(LATE)</b>':'')+(po.notes?' \u00b7 '+escH(po.notes):'')+'</div>';
     i.lines.forEach(function(x){ h += itemBox(x); });
     if(po.closed) h += '<div style="margin-top:8px;font-size:11px;color:#555;background:#f5f5f5;padding:5px 8px;">Band kiya'+(po.closeNote?': '+escH(po.closeNote):'')+'</div>';
@@ -20277,12 +20295,12 @@ function _odReset(){
     if(po && po.city && names.indexOf(po.city) < 0) names.push(po.city);
     var cOpts = '<option value="">City chuno</option>'+names.map(function(n){ return '<option value="'+escH(n)+'"'+(po&&po.city===n?' selected':'')+'>'+escH(n)+'</option>'; }).join('');
     var tOpts = '<option value="">Select karo</option>'+TRANSPORTS.map(function(t){ return '<option'+(po&&po.transport===t?' selected':'')+'>'+t+'</option>'; }).join('');
-    modal('<div style="font-weight:800;font-size:15px;margin-bottom:10px;">'+(po?'\u270f\ufe0f Order Edit \u2014 '+escH(po.poNo):'\ud83d\udce6 Parcel Details')+'</div>'
+    modal('<div style="font-weight:800;font-size:15px;margin-bottom:10px;">'+(po?'\u270f\ufe0f Order Edit \u2014 '+escH(po.supplier||''):'\ud83d\udce6 Parcel Details')+'</div>'
       + dl
       + '<div class="ig"><label>Supplier Name</label><input type="text" id="ot-f-sup" list="ot-sup-list" value="'+escH(po?po.supplier:'')+'" placeholder="Supplier ka naam"/></div>'
       + '<div class="row2"><div class="ig"><label>City (Settings wali)</label><select id="ot-f-city" onchange="otCityChanged()" style="font-family:Arial,sans-serif;">'+cOpts+'</select></div>'
       + '<div class="ig"><label>Train / Bus / Transport</label><select id="ot-f-trans" style="font-family:Arial,sans-serif;">'+tOpts+'</select></div></div>'
-      + '<div class="row2"><div class="ig"><label>Order Date</label><input type="date" id="ot-f-date" value="'+(po?po.date:today())+'" onchange="otOrderDateChanged()"/></div>'
+      + '<div class="row2"><div class="ig"><label>Order Date</label><div style="position:relative;">'+dmyShow()+'<input type="date" class="dmy-in" id="ot-f-date" value="'+(po?po.date:today())+'" onchange="otOrderDateChanged();otDmySync()" style=\"position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;border:0;cursor:pointer;\"/></div></div>'
       + '<div class="ig"><label>Delivery Date (auto)</label><div id="ot-f-expshow" style="padding:10px;background:#f1f8e9;border:1px solid #c5e1a5;font-family:Arial,sans-serif;font-size:13px;min-height:38px;box-sizing:border-box;"></div><input type="hidden" id="ot-f-exp" value="'+(po?(po.expected||po.date):'')+'"/></div></div>'
       + '<div id="ot-f-hint" style="font-size:11px;color:var(--mu);margin:-4px 0 10px;"></div>'
       + '<label style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--mu);">Bora / Peti ke hisaab se maal (ek Bora me 1, 2 ya 3 item ho sakte hain)</label>'
@@ -20342,14 +20360,15 @@ function _odReset(){
   window.otReceive = function(poId){
     var po = findPO(poId); if(!po) return;
     var i = info(po, gotMap());
+    var holdBox = i.hasHold ? '<div style="border:2px solid #b8860b;background:#fff8dc;padding:8px 10px;margin-bottom:10px;font-size:12px;"><b>\u23f8 Pehle ka maal HOLD me hai.</b> Neeche jo ab aaya wo bharo, phir <b>Final Save</b> dabao \u2014 hold wala + naya, dono saath save honge. <a href="javascript:void(0)" onclick="otHoldClear('+po.id+')" style="color:#c62828;margin-left:6px;">Hold hatao</a></div>' : '';
     var rows = i.lines.map(function(x, idx){
-      var u = escH(x.l.unit), anyGot = x.got>0 || x.gotP>0;
+      var u = escH(x.l.unit), anyGot = x.got>0 || x.gotP>0, hq = x.held, hpp = x.heldP;
       var top = '<div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;"><b>'+escH(x.l.item)+'</b><span style="color:#1a237e;font-weight:700;white-space:nowrap;">'+ordQ(x,u)+'</span></div>'
         + '<div style="font-size:10px;color:var(--mu);margin-top:1px;">Ordered quantity</div>'
-        + (anyGot ? '<div style="font-size:11px;color:var(--mu);margin-top:3px;">Pehle aaya: <b>'+gotQ(x,u)+'</b></div>' : '');
+        + (anyGot ? '<div style="font-size:11px;color:var(--mu);margin-top:3px;">Pehle aaya: <b>'+gotQ(x,u)+'</b></div>' : '') + holdTxt(x, u);
       if(x.matched) return '<div style="border:2px solid #2e7d32;background:#e8f5e9;padding:8px 10px;margin-bottom:8px;">'+top+'<div style="margin-top:4px;font-size:12px;font-weight:700;color:#2e7d32;">\u2705 Match ho chuka</div></div>';
-      var rp = Math.max(0, x.diffP), rq = Math.max(0, x.diff);
-      return '<div id="ot-rcrow-'+idx+'" data-oq="'+x.ordered+'" data-gq="'+x.got+'" data-op="'+x.ordP+'" data-gp="'+x.gotP+'" style="border:2px solid var(--bdr);background:#fff;padding:8px 10px;margin-bottom:8px;">'
+      var rp = Math.max(0, x.diffP - hpp), rq = Math.max(0, x.diff - hq);
+      return '<div id="ot-rcrow-'+idx+'" data-oq="'+x.ordered+'" data-gq="'+(x.got+hq)+'" data-op="'+x.ordP+'" data-gp="'+(x.gotP+hpp)+'" style="border:2px solid var(--bdr);background:#fff;padding:8px 10px;margin-bottom:8px;">'
         + top
         + '<div style="display:flex;gap:6px;margin-top:8px;">'
         + (x.hasP ? '<div style="flex:1;min-width:0;"><div style="'+LBL+'">Aaya Nos</div><input type="number" inputmode="numeric" id="ot-rp-'+idx+'" oninput="otRcCheck('+idx+')" placeholder="'+rp+'" style="width:100%;padding:9px;border:1px solid var(--bdr);font-size:15px;"/></div>' : '')
@@ -20362,11 +20381,11 @@ function _odReset(){
         + '<div id="ot-rcm-'+idx+'" style="font-size:12px;font-weight:700;margin-top:5px;min-height:15px;"></div>'
         + '<button class="btn btn-outline" style="margin-top:4px;padding:6px 10px;font-size:11px;" onclick="otRcFill('+idx+')">Order jitna bharo'+(rp>0||rq>0 ? ' ('+(x.hasP ? rp+' Nos \u00b7 ' : '')+rq+' '+u+')' : '')+'</button></div>';
     }).join('');
-    modal('<div style="font-weight:800;font-size:15px;margin-bottom:2px;">\ud83d\udce5 Maal Aaya'+(isAdmin() ? ' \u2014 '+escH(po.poNo) : '')+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:10px;">'+(isAdmin() ? escH(po.supplier||'')+' \u00b7 ' : '')+'Jo aaya wo Nos aur '+'Bora/Peti me bharo. Kharab nikla ho to \u2018Kharab\u2019 me likho (wo \u2018aaya\u2019 me hi gina jaayega, alag dikhega)</div>'
-      + rows
-      + '<div class="row2"><div class="ig"><label>Date</label><input type="date" id="ot-rc-date" value="'+today()+'"/></div><div class="ig"><label>LR / Bill no</label><input type="text" id="ot-rc-lr" placeholder="LR / bill number" maxlength="40"/></div></div>'
+    modal('<div style="font-weight:800;font-size:15px;margin-bottom:2px;">\ud83d\udce5 Maal Aaya'+'</div><div style="font-size:12px;color:var(--mu);margin-bottom:10px;">'+(isAdmin() ? escH(po.supplier||'')+' \u00b7 ' : '')+'Jo aaya wo Nos aur '+'Bora/Peti me bharo. Kharab nikla ho to \u2018Kharab\u2019 me likho (wo \u2018aaya\u2019 me hi gina jaayega, alag dikhega)</div>'
+      + holdBox + rows
+      + '<div class="row2"><div class="ig"><label>Date</label><div style="position:relative;">'+dmyShow()+'<input type="date" class="dmy-in" id="ot-rc-date" value="'+today()+'" onchange="otDmySync()" style=\"position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;border:0;cursor:pointer;\"/></div></div><div class="ig"><label>LR / Bill no</label><input type="text" id="ot-rc-lr" placeholder="LR / bill number" maxlength="40"/></div></div>'
       + '<div class="ig"><label>Note (optional)</label><input type="text" id="ot-rc-note" placeholder="Gaadi no / koi aur baat"/></div>'
-      + '<div style="display:flex;gap:8px;"><button class="btn btn-outline" style="flex:1;" onclick="otCloseModal()">Cancel</button><button class="btn btn-gold" style="flex:2;" onclick="otSaveReceive('+po.id+')">\u2705 Save Karo</button></div>');
+      + '<div style="display:flex;gap:8px;"><button class="btn btn-outline" style="flex:1;" onclick="otCloseModal()">Cancel</button><button class="btn btn-outline" style="flex:1.3;border-color:#b8860b;color:#8a5a00;" onclick="otSaveReceive('+po.id+',true)">\u23f8 Hold Karo</button><button class="btn btn-gold" style="flex:1.7;" onclick="otSaveReceive('+po.id+')">\u2705 '+(i.hasHold?'Final Save':'Save Karo')+'</button></div>');
   };
   window.otRcCheck = function(idx){
     var row = document.getElementById('ot-rcrow-'+idx); if(!row) return;
@@ -20390,7 +20409,7 @@ function _odReset(){
     if(a) a.value = rq || ''; if(b) b.value = rp || '';
     otRcCheck(idx);
   };
-  window.otSaveReceive = function(poId){
+  window.otSaveReceive = function(poId, asHold){
     var po = findPO(poId); if(!po) return;
     var i = info(po, gotMap());
     var date = document.getElementById('ot-rc-date').value || today();
@@ -20405,24 +20424,34 @@ function _odReset(){
       if(add && (q > 0 || p > 0)){
         if(dq > 0 || dp > 0) dmgAny = true;
         add.push({line:x.l, qty:q, pcs:p, dmg:dq, dmgP:dp});
-        if(x.got + q > x.ordered || (x.hasP && x.gotP + p > x.ordP)) excessMsg.push(x.l.item+': order se zyada');
+        if(x.got + x.held + q > x.ordered || (x.hasP && x.gotP + x.heldP + p > x.ordP)) excessMsg.push(x.l.item+': order se zyada');
       }
     });
     if(add === null){ showToast('\u26a0\ufe0f Qty negative nahi ho sakti'); return; }
     if(dmgBad){ showToast('\u26a0\ufe0f "'+dmgBad+'": Kharab qty aaya hua se zyada nahi ho sakti'); return; }
-    if(!add.length){ showToast('\u26a0\ufe0f Kam se kam ek item ki aaya hua qty likhein'); return; }
+    if(!add.length && (asHold || !i.hasHold)){ showToast('\u26a0\ufe0f Kam se kam ek item ki aaya hua qty likhein'); return; }
     if(excessMsg.length && !confirm('Order se ZYADA maal ho raha hai:\n\n'+excessMsg.join('\n')+'\n\nPhir bhi save karein? (ye item match nahi maana jaayega)')) return;
     var d = new Date(), tm = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
     add.forEach(function(a){
-      recs().unshift({id:uid(), poId:po.id, lid:a.line.lid, qty:a.qty, pcs:a.pcs, dmg:a.dmg, dmgP:a.dmgP, lr:lr, unit:a.line.unit, item:a.line.item, supplier:po.supplier, date:date, time:tm, note:note, by:CURRENT_ROLE, at:d.toISOString()});
+      recs().unshift({hold: asHold ? true : undefined, id:uid(), poId:po.id, lid:a.line.lid, qty:a.qty, pcs:a.pcs, dmg:a.dmg, dmgP:a.dmgP, lr:lr, unit:a.line.unit, item:a.line.item, supplier:po.supplier, date:date, time:tm, note:note, by:CURRENT_ROLE, at:d.toISOString()});
     });
+    if(!asHold){
+      recs().forEach(function(r){ if(String(r.poId)===String(po.id) && r.hold){ delete r.hold; r.holdDate = r.date; r.date = date; } });
+    }
     saveAll(); closeModal();
+    if(asHold){ renderOrderTrack(); showToast('\u23f8 Hold ho gaya \u2014 baaki maal aane par \u2018Maal Aaya\u2019 dabake Final Save karein', 'warn'); return; }
     var ni = info(po, gotMap()), ok = 0, bad = 0;
-    ni.lines.forEach(function(l){ if(add.some(function(a){ return a.line.lid === l.l.lid; })){ if(l.matched) ok++; else bad++; } });
+    ni.lines.forEach(function(l){ if(true){ if(l.matched) ok++; else bad++; } });
     renderOrderTrack();
     if(dmgAny) showToast('\u2705 Save \u2014 \u26a0\ufe0f kharab maal alag note ho gaya', 'warn');
     else if(bad) showToast('\u2705 Save \u2014 '+ok+' item match, '+bad+' item match nahi hue (list me rahenge)', 'warn');
     else showToast('\u2705 '+ok+' item match ho gaye \u2014 History me save ho gaya');
+  };
+
+  window.otHoldClear = function(poId){
+    if(!confirm('Hold wala maal hata dein? (ye maal receive nahi gina jaayega)')) return;
+    poReceipts = recs().filter(function(r){ return !(String(r.poId)===String(poId) && r.hold); });
+    saveAll(); closeModal(); renderOrderTrack(); showToast('Hold hata diya');
   };
 
   // ---------- CLOSE / REOPEN / DELETE ----------
@@ -20440,7 +20469,7 @@ function _odReset(){
   window.otDelPO = function(id){
     if(!isAdmin()) return; var po = findPO(id); if(!po) return;
     var n = recs().filter(function(r){ return String(r.poId)===String(id); }).length;
-    if(!confirm('"'+po.poNo+' \u00b7 '+po.supplier+'" delete karein?'+(n?'\n\nIs order ki '+n+' receiving entries bhi delete ho jayengi.':''))) return;
+    if(!confirm('"'+(po.supplier||'Ye')+'" ka order delete karein?'+(n?'\n\nIs order ki '+n+' receiving entries bhi delete ho jayengi.':''))) return;
     purchaseOrders = pos().filter(function(p){ return String(p.id)!==String(id); });
     poReceipts = recs().filter(function(r){ return String(r.poId)!==String(id); });
     saveAll(); renderOrderTrack(); showToast('Order delete ho gaya');
@@ -20456,15 +20485,15 @@ function _odReset(){
   // ---------- EXCEL ----------
   window.otExcel = function(){
     if(typeof XLSX === 'undefined'){ showToast('Excel library load nahi hui'); return; }
-    var A = allInfos(), r1 = [['PO No','Order Date','Aane ki Date','Supplier','City','Transport','Item','Product Qty (Nos)','Unit','Order Qty (Bora/Peti)','Aaya','Baaki (Short)','Zyada (Excess)','Status','Aaya (Nos)','Match','Original Aane ki Date','Kharab Qty','Kharab (Nos)']];
+    var A = allInfos(), r1 = [['Order Date','Aane ki Date','Supplier','City','Transport','Item','Product Qty (Nos)','Unit','Order Qty (Bora/Peti)','Aaya','Baaki (Short)','Zyada (Excess)','Status','Aaya (Nos)','Match','Original Aane ki Date','Kharab Qty','Kharab (Nos)']];
     A.forEach(function(x){
       x.i.lines.forEach(function(l){
-        r1.push([x.po.poNo, x.po.date, x.po.expected||x.po.date, x.po.supplier, x.po.city||'', x.po.transport||'', l.l.item, l.l.pcs||'', l.l.unit, l.ordered, l.got, l.diff>0?l.diff:0, l.diff<0?-l.diff:0, ST[x.i.status].t, l.gotP, l.matched?'Match':'Nahi', x.po.origExpected||'', l.dmg||0, l.dmgP||0]);
+        r1.push([x.po.date, x.po.expected||x.po.date, x.po.supplier, x.po.city||'', x.po.transport||'', l.l.item, l.l.pcs||'', l.l.unit, l.ordered, l.got, l.diff>0?l.diff:0, l.diff<0?-l.diff:0, ST[x.i.status].t, l.gotP, l.matched?'Match':'Nahi', x.po.origExpected||'', l.dmg||0, l.dmgP||0]);
       });
     });
-    var r2 = [['Date','Time','PO No','Supplier','Item','Unit','Qty','Qty (Nos)','Kharab Qty','Kharab (Nos)','LR / Bill no','By','Note']];
+    var r2 = [['Date','Time','Supplier','Item','Unit','Qty','Qty (Nos)','Kharab Qty','Kharab (Nos)','LR / Bill no','Hold','By','Note']];
     recs().slice().sort(function(a,b){ return (String(a.date)+String(a.time||'')) < (String(b.date)+String(b.time||'')) ? -1 : 1; }).forEach(function(r){
-      var po = findPO(r.poId); r2.push([r.date, r.time||'', po?po.poNo:'', r.supplier||'', r.item||'', r.unit||'', num(r.qty), num(r.pcs), num(r.dmg), num(r.dmgP), r.lr||'', r.by||'', r.note||'']);
+      var po = findPO(r.poId); r2.push([r.date, r.time||'', r.supplier||'', r.item||'', r.unit||'', num(r.qty), num(r.pcs), num(r.dmg), num(r.dmgP), r.lr||'', r.hold?'HOLD':'', r.by||'', r.note||'']);
     });
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(r1), 'Orders');
