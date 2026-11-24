@@ -20002,6 +20002,12 @@ function _odReset(){
       + '<button class="btn btn-gold" style="margin-top:8px;padding:6px 14px;font-size:12px;" onclick="otReceive('+po.id+')">\ud83d\udce5 Maal Aaya</button></div>';
   }
   function sumU(list){ var u = {}; list.forEach(function(x){ Object.keys(x.i.pendU).forEach(function(k){ u[k] = (u[k]||0) + x.i.pendU[k]; }); }); return unitText(u); }
+  window._otFuture = false; window._otLastTap = 0;
+  window.otFutTap = function(){
+    var n = Date.now();
+    if(n - window._otLastTap < 450){ window._otLastTap = 0; window._otFuture = !window._otFuture; renderComing(); }
+    else window._otLastTap = n;
+  };
   function renderComing(){
     var el = document.getElementById('ot-coming-body'); if(!el) return;
     var t = today();
@@ -20011,13 +20017,16 @@ function _odReset(){
     var head = function(txt, sub){ return '<div style="font-family:Arial,sans-serif;margin:12px 0 6px;"><div style="font-weight:800;font-size:13px;">'+txt+'</div>'+(sub?'<div style="font-size:11px;color:var(--mu);margin-top:1px;">Total: '+escH(sub)+'</div>':'')+'</div>'; };
     var empty = function(m){ return '<div style="padding:12px;background:#fff;border:1px solid var(--bdr);font-family:Arial,sans-serif;font-size:12px;color:var(--mu);margin-bottom:8px;">'+m+'</div>'; };
     var h = (canCreate() ? '<button class="btn btn-green btn-full" style="margin-bottom:10px;" onclick="otOpenNew()">\u2795 Parcel Details Bharo / Naya Order</button>' : '')
-      + '<div style="display:flex;gap:6px;">'+box('Late', late.length, late.length?'#c62828':'#2e7d32')+box('Aaj aane wale', tod.length, '#e65100')+box('Aage aane wale', later.length, '#1a237e')+'</div>';
+      + '<div style="display:flex;gap:6px;">'+box('Late', late.length, late.length?'#c62828':'#2e7d32')+box('Aaj aane wale', tod.length, '#e65100')+box('Aage aane wale', later.length, '#1a237e').replace('class="ots"', 'class="ots" onclick="otFutTap()" style="cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;--ac:#1a237e;"').replace('</div></div>', '</div><div style="font-size:9px;color:var(--mu);margin-top:2px;">'+(window._otFuture ? '2 baar tap = band' : '2 baar tap = list')+'</div></div>')+'</div>';
     if(late.length){
       h += head('\ud83d\udd34 Late \u2014 pichhli date nikal gayi ('+late.length+')', sumU(late));
       h += late.map(function(x){ return parcelCard(x, '#c62828'); }).join('');
     }
     h += head('\ud83d\ude9a Aaj aane wale ('+dd(t)+') \u2014 '+tod.length+' order', sumU(tod));
     h += tod.length ? tod.map(function(x){ return parcelCard(x, '#e65100'); }).join('') : empty('Aaj koi order aane wala nahi hai');
+    if(!window._otFuture){
+      el.innerHTML = h; return;
+    }
     h += head('\ud83d\udcc5 Aage aane wale \u2014 '+later.length+' order', sumU(later));
     if(!later.length) h += empty('Aage koi order baaki nahi hai');
     var cur = null;
